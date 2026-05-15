@@ -1,0 +1,30 @@
+<svg width="256" height="256" viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="32" y1="24" x2="224" y2="232" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#111827"/>
+      <stop offset="0.55" stop-color="#172033"/>
+      <stop offset="1" stop-color="#0E7490"/>
+    </linearGradient>
+    <linearGradient id="paper" x1="64" y1="44" x2="192" y2="214" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F8FAFC"/>
+      <stop offset="1" stop-color="#DCE7F3"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="142" y1="87" x2="194" y2="173" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#67E8F9"/>
+      <stop offset="1" stop-color="#A78BFA"/>
+    </linearGradient>
+    <filter id="shadow" x="38" y="34" width="180" height="194" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="10" stdDeviation="11" flood-color="#020617" flood-opacity="0.3"/>
+    </filter>
+  </defs>
+  <rect x="16" y="16" width="224" height="224" rx="50" fill="url(#bg)"/>
+  <path d="M72 42H151L196 87V207C196 212.523 191.523 217 186 217H72C66.4772 217 62 212.523 62 207V52C62 46.4772 66.4772 42 72 42Z" fill="url(#paper)" filter="url(#shadow)"/>
+  <path d="M151 43V79C151 84.5229 155.477 89 161 89H195" fill="#B8C7DA"/>
+  <path d="M151 43V79C151 84.5229 155.477 89 161 89H195" stroke="#AABAD0" stroke-width="2"/>
+  <path d="M83 181V104L109 137L135 104V181" stroke="#182238" stroke-width="15" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M155 104V181" stroke="url(#accent)" stroke-width="15" stroke-linecap="round"/>
+  <path d="M155 104H176" stroke="url(#accent)" stroke-width="15" stroke-linecap="round"/>
+  <path d="M155 181H176" stroke="url(#accent)" stroke-width="15" stroke-linecap="round"/>
+  <path d="M81 70H125" stroke="#94A3B8" stroke-width="7" stroke-linecap="round"/>
+  <path d="M81 195H136" stroke="#CBD5E1" stroke-width="6" stroke-linecap="round"/>
+</svg>
