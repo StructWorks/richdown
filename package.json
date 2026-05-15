@@ -7,7 +7,7 @@
   "license": "SEE LICENSE IN LICENSE",
   "repository": {
     "type": "git",
-    "url": "git+ssh://git@github.com/StructWorks/richdown.git"
+    "url": "git+https://github.com/StructWorks/richdown.git"
   },
   "bugs": {
     "url": "https://github.com/StructWorks/richdown/issues"
@@ -49,6 +49,7 @@
     "build:all": "npm run build && npm run build:mermaid",
     "package:vsix": "vsce package",
     "publish:marketplace": "vsce publish",
+    "publish:openvsx": "ovsx publish",
     "watch": "esbuild src/richEditor.js --bundle --format=iife --outfile=media/richEditor.js --watch"
   },
   "contributes": {
@@ -182,7 +183,8 @@
     "@lezer/highlight": "^1.2.3",
     "@lezer/markdown": "^1.6.3",
     "@vscode/vsce": "^3.9.1",
-    "esbuild": "^0.28.0"
+    "esbuild": "^0.28.0",
+    "ovsx": "^0.10.12"
   },
   "dependencies": {
     "highlight.js": "^11.11.1",

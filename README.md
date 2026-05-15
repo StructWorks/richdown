@@ -48,6 +48,24 @@ npm run build:all
 npx @vscode/vsce package
 ```
 
+## Cursor and Open VSX
+
+Cursor and several other VS Code-compatible editors use Open VSX instead of the Visual Studio Marketplace. If Richdown does not appear in Cursor search, install the generated VSIX manually or publish the extension to Open VSX as well.
+
+Install locally from VSIX:
+
+1. Run `npm run package:vsix`.
+2. In Cursor, open the command palette.
+3. Run `Extensions: Install from VSIX...`.
+4. Select `richdown-0.1.0.vsix`.
+
+Publish to Open VSX:
+
+```bash
+npx ovsx create-namespace mytooyodev -p <open-vsx-token>
+npm run publish:openvsx -- -p <open-vsx-token>
+```
+
 ## Release Notes
 
 Release notes are tracked in the root `CHANGELOG.md` file.
