@@ -2,6 +2,19 @@
 
 All notable changes to Richdown will be documented in this file.
 
+## 0.3.0 - 2026-05-16
+
+- Added `Richdown: Open Rich Diff` for viewing Markdown changes with Richdown-rendered side-by-side diffs.
+- Added a Source Control context menu entry for opening Markdown changes in Richdown Diff.
+- Added rich diff rendering for headings, lists, task checkboxes, blockquotes, thematic breaks, tables, images, links, and syntax-highlighted code blocks with copy controls.
+- Kept the VS Code native diff viewer available as `Richdown: Open Git Diff`.
+
+## 0.2.0 - 2026-05-16
+
+- Added `Richdown: Open Git Diff` for opening the VS Code Git diff of the current Markdown file.
+- Added an editor title diff button for Markdown files.
+- Kept Markdown files in Source Control Changes on VS Code's native diff viewer while regular local Markdown files open directly in Richdown without a reopen flicker.
+
 ## 0.1.0 - 2026-05-15
 
 - Initial Richdown release.

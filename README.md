@@ -1,11 +1,13 @@
 # Richdown
 
-Richdown is a VS Code Markdown editor that keeps writing and previewing in one place. It opens Markdown files in a CodeMirror-based rich editor with inline Markdown previews, editable rich tables, Mermaid diagrams, syntax-highlighted code blocks, images, links, task checkboxes, and configurable writing themes.
+Richdown is a VS Code Markdown editor that keeps writing, previewing, and reviewing changes in one place. It opens Markdown files in a CodeMirror-based rich editor with inline Markdown previews, editable rich tables, Mermaid diagrams, syntax-highlighted code blocks, images, links, task checkboxes, Richdown Diff, and configurable writing themes.
 
 ## Features
 
-- Opens `.md` and `.markdown` files with the Richdown editor by default.
+- Opens regular `.md` and `.markdown` files with the Richdown editor by default while keeping Source Control diffs in VS Code's native diff viewer.
 - Toggle between Richdown and the standard VS Code text editor from the editor title button or the command palette.
+- Open the VS Code Git diff for the current Markdown file from the editor title button or the command palette.
+- Open a Richdown Diff view for Markdown changes, including rendered headings, lists, tables, images, links, and highlighted code blocks.
 - Preview headings, emphasis, inline code, links, images, blockquotes, task checkboxes, thematic breaks, code blocks, tables, details blocks, and Mermaid diagrams while editing.
 - Edit Markdown tables as rich tables, including cell editing, row/column insertion, and row/column deletion.
 - Render Mermaid diagrams lazily, with fit, zoom, pan, and modal viewing controls.
@@ -15,10 +17,12 @@ Richdown is a VS Code Markdown editor that keeps writing and previewing in one p
 ## Commands
 
 - `Richdown: Toggle Markdown Open Mode`: Switch whether Markdown files open with Richdown or the standard VS Code text editor.
+- `Richdown: Open Rich Diff`: Open a Richdown-rendered Markdown diff against `HEAD`.
+- `Richdown: Open Git Diff`: Open the VS Code Git diff for the current Markdown file.
 
 ## Settings
 
-- `richdown.openMarkdownAsRichEditor`: Open Markdown files with Richdown by default.
+- `richdown.openMarkdownAsRichEditor`: Open regular local Markdown files with Richdown by default while keeping Source Control diffs in VS Code's native diff editor.
 - `richdown.richTheme`: Select the Richdown editor theme. `default` follows the active VS Code theme.
 - `richdown.showEmptyLineHint`: Show the `Click to write` hint for empty lines.
 - `richdown.richTablePreview`: Render Markdown tables as editable rich tables.
@@ -57,7 +61,7 @@ Install locally from VSIX:
 1. Run `npm run package:vsix`.
 2. In Cursor, open the command palette.
 3. Run `Extensions: Install from VSIX...`.
-4. Select `richdown-0.1.0.vsix`.
+4. Select `richdown-0.3.0.vsix`.
 
 Publish to Open VSX:
 
@@ -65,6 +69,27 @@ Publish to Open VSX:
 npx ovsx create-namespace mytooyodev -p <open-vsx-token>
 npm run publish:openvsx -- -p <open-vsx-token>
 ```
+
+## GitHub Actions Deployment
+
+The `Deploy Extension` workflow packages one VSIX and can publish it to both the Visual Studio Marketplace and Open VSX. It runs automatically when changes are merged into `main`, and it can also be run manually.
+
+Configure these repository secrets in GitHub:
+
+- `VSCE_PAT`: Visual Studio Marketplace personal access token.
+- `OVSX_PAT`: Open VSX personal access token.
+
+Deploy manually:
+
+1. Open the repository on GitHub.
+2. Go to `Actions` -> `Deploy Extension`.
+3. Run the workflow and choose whether to publish to Marketplace, Open VSX, or both.
+
+Deploy from `main`:
+
+1. Update `package.json` and `CHANGELOG.md`.
+2. Merge the change into `main`.
+3. The workflow publishes to both registries.
 
 ## Release Notes
 

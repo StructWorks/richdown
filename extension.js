@@ -2,7 +2,9 @@ const vscode = require('vscode');
 const path = require('path');
 
 const richEditorViewType = 'richdown.richEditor';
-const markdownEditorAssociationPatterns = ['*.md', '*.markdown'];
+const legacyMarkdownEditorAssociationPatterns = ['*.md', '*.markdown'];
+const markdownFileEditorAssociationPatterns = ['file:/**/*.md', 'file:/**/*.markdown'];
+const markdownDiffEditorAssociationPatterns = ['*.md', '*.markdown'];
 const richThemeValues = ['default', 'midnight', 'graphite', 'forest', 'ivory', 'paper', 'solar'];
 const mermaidPreviewSizeValues = ['source', 'readable', 'large'];
 const previewWidthValues = ['default', 'wide'];
@@ -11,6 +13,8 @@ let disposables = [];
 
 function activate(context) {
   context.subscriptions.push(vscode.commands.registerCommand('richdown.toggle', toggleMarkdownOpenMode));
+  context.subscriptions.push(vscode.commands.registerCommand('richdown.openGitDiff', openGitDiff));
+  context.subscriptions.push(vscode.commands.registerCommand('richdown.openRichDiff', resource => openRichDiff(context, resource)));
   context.subscriptions.push(vscode.window.registerCustomEditorProvider(
     richEditorViewType,
     new RichdownEditorProvider(context),
@@ -25,13 +29,13 @@ function activate(context) {
   disposables = [
     vscode.workspace.onDidChangeConfiguration(event => {
       if (event.affectsConfiguration('richdown.openMarkdownAsRichEditor')) {
-        void syncMarkdownEditorAssociation(undefined, true);
+        void syncMarkdownEditorAssociations();
       }
     })
   ];
 
   context.subscriptions.push(...disposables);
-  void syncMarkdownEditorAssociation();
+  void syncMarkdownEditorAssociations();
 }
 
 function deactivate() {}
@@ -41,7 +45,7 @@ async function toggleMarkdownOpenMode(resource) {
   const useRichEditor = config.get('openMarkdownAsRichEditor', true);
   const nextValue = !useRichEditor;
   await config.update('openMarkdownAsRichEditor', nextValue, vscode.ConfigurationTarget.Global);
-  await syncMarkdownEditorAssociation(nextValue, true);
+  await syncMarkdownEditorAssociations(nextValue);
   await reopenMarkdownResource(resource, nextValue);
   vscode.window.showInformationMessage(
     nextValue
@@ -50,27 +54,212 @@ async function toggleMarkdownOpenMode(resource) {
   );
 }
 
-async function syncMarkdownEditorAssociation(value, force = false) {
+async function openGitDiff(resource) {
+  const uri = getMarkdownResourceUri(resource);
+  if (!uri) {
+    vscode.window.showWarningMessage('Open a Markdown file to view its Git diff.');
+    return;
+  }
+  if (uri.scheme !== 'file') {
+    vscode.window.showWarningMessage('Git diff is only available for local Markdown files.');
+    return;
+  }
+
+  try {
+    const headUri = uri.with({
+      scheme: 'git',
+      path: uri.path,
+      query: JSON.stringify({ path: uri.fsPath, ref: 'HEAD' })
+    });
+    await vscode.commands.executeCommand(
+      'vscode.diff',
+      headUri,
+      uri,
+      `${path.basename(uri.fsPath)} (HEAD <-> Working Tree)`,
+      { preview: false }
+    );
+    return;
+  } catch (error) {
+    // Fall back to the Git extension command for unusual repository states.
+  }
+
+  try {
+    await vscode.commands.executeCommand('git.openChange', uri);
+  } catch (error) {
+    vscode.window.showWarningMessage(
+      'Git diff is not available for this Markdown file. Make sure it belongs to a Git repository and has changes.'
+    );
+  }
+}
+
+async function openRichDiff(context, resource) {
+  const uri = getMarkdownResourceUri(resource);
+  if (!uri) {
+    vscode.window.showWarningMessage('Open a Markdown file to view its Richdown diff.');
+    return;
+  }
+  if (uri.scheme !== 'file') {
+    vscode.window.showWarningMessage('Richdown diff is only available for local Markdown files.');
+    return;
+  }
+
+  let leftText = '';
+  let leftLabel = 'HEAD';
+  const rightLabel = 'Working Tree';
+  const headUri = createGitHeadUri(uri);
+  try {
+    leftText = await readUriText(headUri);
+  } catch (error) {
+    leftText = '';
+    leftLabel = 'HEAD (not available)';
+  }
+
+  let rightText;
+  try {
+    rightText = await readUriText(uri);
+  } catch (error) {
+    vscode.window.showWarningMessage('Richdown could not read this Markdown file.');
+    return;
+  }
+
+  createRichDiffPanel(context, uri, {
+    leftText,
+    rightText,
+    leftLabel,
+    rightLabel
+  });
+}
+
+function createGitHeadUri(uri) {
+  return uri.with({
+    scheme: 'git',
+    path: uri.path,
+    query: JSON.stringify({ path: uri.fsPath, ref: 'HEAD' })
+  });
+}
+
+async function readUriText(uri) {
+  const content = await vscode.workspace.fs.readFile(uri);
+  return Buffer.from(content).toString('utf8');
+}
+
+function createRichDiffPanel(context, documentUri, diffData) {
+  const workspaceRoots = vscode.workspace.workspaceFolders
+    ? vscode.workspace.workspaceFolders.map(folder => folder.uri)
+    : [];
+  const panel = vscode.window.createWebviewPanel(
+    'richdown.richDiff',
+    `${path.basename(documentUri.fsPath)} Rich Diff`,
+    vscode.ViewColumn.Active,
+    {
+      enableScripts: true,
+      retainContextWhenHidden: true,
+      localResourceRoots: [
+        context.extensionUri,
+        vscode.Uri.file(path.dirname(documentUri.fsPath)),
+        ...workspaceRoots
+      ]
+    }
+  );
+
+  const postSettings = () => {
+    panel.webview.postMessage({
+      type: 'settings',
+      settings: getRichEditorSettings()
+    });
+  };
+  const postWorkingTree = async () => {
+    try {
+      panel.webview.postMessage({
+        type: 'updateRight',
+        text: await readUriText(documentUri)
+      });
+    } catch (error) {
+      // The panel can keep showing the last successfully loaded text.
+    }
+  };
+
+  panel.webview.html = getRichDiffHtml(context, panel.webview, {
+    ...diffData,
+    fileName: path.basename(documentUri.fsPath),
+    filePath: documentUri.fsPath
+  }, getRichEditorSettings());
+
+  const changeDocumentSubscription = vscode.workspace.onDidChangeTextDocument(event => {
+    if (event.document.uri.toString() === documentUri.toString()) {
+      void postWorkingTree();
+    }
+  });
+  const changeConfigurationSubscription = vscode.workspace.onDidChangeConfiguration(event => {
+    if (
+      event.affectsConfiguration('richdown.richTheme') ||
+      event.affectsConfiguration('richdown.mermaidPreview') ||
+      event.affectsConfiguration('richdown.mermaidPreviewSize') ||
+      event.affectsConfiguration('richdown.previewWidth')
+    ) {
+      postSettings();
+    }
+  });
+
+  panel.onDidDispose(() => {
+    changeDocumentSubscription.dispose();
+    changeConfigurationSubscription.dispose();
+  });
+
+  panel.webview.onDidReceiveMessage(async event => {
+    if (event.type === 'openLink') {
+      await openMarkdownLink({ uri: documentUri }, event.href);
+      return;
+    }
+
+    if (event.type === 'resolveImage') {
+      const uri = resolveMarkdownImageUri({ uri: documentUri }, panel.webview, event.src);
+      panel.webview.postMessage({
+        type: 'resolvedImage',
+        requestId: event.requestId,
+        uri
+      });
+      return;
+    }
+
+    if (event.type === 'copyText') {
+      if (typeof event.text === 'string') {
+        await vscode.env.clipboard.writeText(event.text);
+      }
+    }
+  });
+}
+
+async function syncMarkdownEditorAssociations(value) {
   const useRichEditor = typeof value === 'boolean'
     ? value
     : vscode.workspace
       .getConfiguration('richdown')
       .get('openMarkdownAsRichEditor', true);
-  const desiredEditor = useRichEditor ? richEditorViewType : 'default';
   const workbenchConfig = vscode.workspace.getConfiguration('workbench');
-  const currentAssociations = workbenchConfig.get('editorAssociations', {});
-  const nextAssociations =
-    currentAssociations && typeof currentAssociations === 'object' && !Array.isArray(currentAssociations)
-      ? { ...currentAssociations }
-      : {};
+  await updateEditorAssociations(workbenchConfig, useRichEditor);
+  await updateDiffEditorAssociations(workbenchConfig);
+}
 
+async function updateEditorAssociations(workbenchConfig, useRichEditor) {
+  const nextAssociations = getConfigurationObject(workbenchConfig, 'editorAssociations');
   let changed = false;
-  for (const pattern of markdownEditorAssociationPatterns) {
-    if (useRichEditor && !force && nextAssociations[pattern] === undefined) {
-      continue;
+
+  for (const pattern of legacyMarkdownEditorAssociationPatterns) {
+    if (nextAssociations[pattern] === richEditorViewType || nextAssociations[pattern] === 'default') {
+      delete nextAssociations[pattern];
+      changed = true;
     }
-    if (nextAssociations[pattern] !== desiredEditor) {
-      nextAssociations[pattern] = desiredEditor;
+  }
+
+  for (const pattern of markdownFileEditorAssociationPatterns) {
+    if (useRichEditor) {
+      if (nextAssociations[pattern] !== richEditorViewType) {
+        nextAssociations[pattern] = richEditorViewType;
+        changed = true;
+      }
+    } else if (nextAssociations[pattern] === richEditorViewType) {
+      delete nextAssociations[pattern];
       changed = true;
     }
   }
@@ -80,10 +269,50 @@ async function syncMarkdownEditorAssociation(value, force = false) {
   }
 }
 
+async function updateDiffEditorAssociations(workbenchConfig) {
+  const nextAssociations = getConfigurationObject(workbenchConfig, 'diffEditorAssociations');
+  let changed = false;
+
+  for (const pattern of markdownDiffEditorAssociationPatterns) {
+    if (nextAssociations[pattern] !== 'default') {
+      nextAssociations[pattern] = 'default';
+      changed = true;
+    }
+  }
+
+  if (changed) {
+    await workbenchConfig.update('diffEditorAssociations', nextAssociations, vscode.ConfigurationTarget.Global);
+  }
+}
+
+function getConfigurationObject(config, key) {
+  const value = config.get(key, {});
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? { ...value }
+    : {};
+}
+
 async function reopenMarkdownResource(resource, useRichEditor) {
+  if (isActiveDiffTab()) {
+    return;
+  }
+
   const uri = getMarkdownResourceUri(resource);
   if (!uri) {
     return;
+  }
+
+  const activeTabInput = vscode.window.tabGroups?.activeTabGroup?.activeTab?.input;
+  if (isSameUri(getTabInputUri(activeTabInput), uri)) {
+    try {
+      await vscode.commands.executeCommand(
+        'reopenActiveEditorWith',
+        useRichEditor ? richEditorViewType : 'default'
+      );
+      return;
+    } catch (error) {
+      // Fall back to opening explicitly if this VS Code build does not expose the internal reopen command.
+    }
   }
 
   await vscode.commands.executeCommand(
@@ -97,6 +326,18 @@ async function reopenMarkdownResource(resource, useRichEditor) {
 function getMarkdownResourceUri(resource) {
   if (isMarkdownUri(resource)) {
     return resource;
+  }
+
+  if (isMarkdownUri(resource?.resourceUri)) {
+    return resource.resourceUri;
+  }
+
+  if (isMarkdownUri(resource?.uri)) {
+    return resource.uri;
+  }
+
+  if (Array.isArray(resource) && resource.length > 0) {
+    return getMarkdownResourceUri(resource[0]);
   }
 
   const activeEditorUri = vscode.window.activeTextEditor?.document?.uri;
@@ -118,6 +359,28 @@ function isMarkdownUri(uri) {
   }
   const extension = path.extname(uri.fsPath).toLowerCase();
   return extension === '.md' || extension === '.markdown';
+}
+
+function getTabInputUri(input) {
+  if (isMarkdownUri(input?.uri)) {
+    return input.uri;
+  }
+  return undefined;
+}
+
+function isSameUri(a, b) {
+  return Boolean(a && b && a.toString() === b.toString());
+}
+
+function isActiveDiffTab() {
+  const input = vscode.window.tabGroups?.activeTabGroup?.activeTab?.input;
+  if (!input) {
+    return false;
+  }
+  if (typeof vscode.TabInputTextDiff === 'function' && input instanceof vscode.TabInputTextDiff) {
+    return true;
+  }
+  return Boolean(input && typeof input === 'object' && 'original' in input && 'modified' in input);
 }
 
 function isPathWithinAllowedScope(absolutePath, documentUri) {
@@ -482,6 +745,40 @@ function getRichEditorHtml(context, webview, initialText, settings) {
   <script type="application/json" id="initial-document">${serializeForScript(initialText)}</script>
   <script type="application/json" id="initial-settings">${serializeForScript(settings)}</script>
   <script type="application/json" id="mermaid-script-uri">${serializeForScript(mermaidScriptUri.toString())}</script>
+  <script nonce="${nonce}" src="${scriptUri}"></script>
+</body>
+</html>`;
+}
+
+function getRichDiffHtml(context, webview, diffData, settings) {
+  const nonce = getNonce();
+  const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(context.extensionUri, 'media', 'richDiff.js'));
+  return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${webview.cspSource} https: http: data: blob:; style-src ${webview.cspSource} 'unsafe-inline'; script-src ${webview.cspSource} 'nonce-${nonce}';">
+  <style>
+    * { box-sizing: border-box; }
+    html, body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      color: var(--vscode-editor-foreground);
+      background: var(--vscode-editor-background);
+      font-family: var(--vscode-font-family);
+    }
+    #diff {
+      height: 100vh;
+    }
+  </style>
+</head>
+<body>
+  <div id="diff" aria-label="Richdown diff"></div>
+  <script type="application/json" id="initial-diff">${serializeForScript(diffData)}</script>
+  <script type="application/json" id="initial-settings">${serializeForScript(settings)}</script>
   <script nonce="${nonce}" src="${scriptUri}"></script>
 </body>
 </html>`;
