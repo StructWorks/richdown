@@ -1,8 +1,8 @@
 {
   "name": "richdown",
   "displayName": "Richdown",
-  "description": "Edit Markdown with a rich inline preview, editable tables, Mermaid diagrams, and a focused writing flow in VS Code.",
-  "version": "0.1.0",
+  "description": "Edit Markdown with a rich inline preview, editable tables, Mermaid diagrams, Richdown diffs, and a focused writing flow in VS Code.",
+  "version": "0.3.0",
   "publisher": "mytooyodev",
   "license": "SEE LICENSE IN LICENSE",
   "repository": {
@@ -24,6 +24,7 @@
     "markdown",
     "rich editor",
     "live preview",
+    "diff",
     "mermaid",
     "tables",
     "notes"
@@ -39,6 +40,8 @@
   "activationEvents": [
     "onStartupFinished",
     "onCommand:richdown.toggle",
+    "onCommand:richdown.openGitDiff",
+    "onCommand:richdown.openRichDiff",
     "onCustomEditor:richdown.richEditor"
   ],
   "main": "./extension.js",
@@ -46,7 +49,8 @@
     "vscode:prepublish": "npm run build:all",
     "build": "esbuild src/richEditor.js --bundle --format=iife --outfile=media/richEditor.js",
     "build:mermaid": "esbuild src/mermaidLoader.js --bundle --format=iife --outfile=media/mermaid.js",
-    "build:all": "npm run build && npm run build:mermaid",
+    "build:diff": "esbuild src/richDiff.js --bundle --format=iife --outfile=media/richDiff.js",
+    "build:all": "npm run build && npm run build:mermaid && npm run build:diff",
     "package:vsix": "vsce package",
     "publish:marketplace": "vsce publish",
     "publish:openvsx": "ovsx publish",
@@ -62,6 +66,18 @@
           "light": "resources/icons/editor-toggle-light.svg",
           "dark": "resources/icons/editor-toggle-dark.svg"
         }
+      },
+      {
+        "command": "richdown.openGitDiff",
+        "title": "Richdown: Open Git Diff",
+        "shortTitle": "Open Git Diff",
+        "icon": "$(compare-changes)"
+      },
+      {
+        "command": "richdown.openRichDiff",
+        "title": "Richdown: Open Rich Diff",
+        "shortTitle": "Open Rich Diff",
+        "icon": "$(diff)"
       }
     ],
     "customEditors": [
@@ -76,7 +92,7 @@
             "filenamePattern": "*.markdown"
           }
         ],
-        "priority": "default"
+        "priority": "option"
       }
     ],
     "configuration": {
@@ -85,7 +101,7 @@
         "richdown.openMarkdownAsRichEditor": {
           "type": "boolean",
           "default": true,
-          "description": "Open Markdown files with Richdown by default. Disable to use the standard VS Code text editor."
+          "description": "Open regular local Markdown files with Richdown by default. Source Control diffs continue to use VS Code's native diff editor."
         },
         "richdown.richTheme": {
           "type": "string",
@@ -158,12 +174,35 @@
     "menus": {
       "editor/title": [
         {
+          "command": "richdown.openRichDiff",
+          "when": "resourceExtname == .md || resourceExtname == .markdown",
+          "group": "navigation@1"
+        },
+        {
+          "command": "richdown.openGitDiff",
+          "when": "resourceExtname == .md || resourceExtname == .markdown",
+          "group": "navigation@2"
+        },
+        {
           "command": "richdown.toggle",
           "when": "resourceExtname == .md || resourceExtname == .markdown",
-          "group": "navigation"
+          "group": "navigation@3"
+        }
+      ],
+      "scm/resourceState/context": [
+        {
+          "command": "richdown.openRichDiff",
+          "when": "resourceExtname == .md || resourceExtname == .markdown",
+          "group": "navigation@1"
         }
       ],
       "commandPalette": [
+        {
+          "command": "richdown.openRichDiff"
+        },
+        {
+          "command": "richdown.openGitDiff"
+        },
         {
           "command": "richdown.toggle"
         }

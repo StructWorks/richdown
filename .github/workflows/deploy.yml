@@ -1,0 +1,125 @@
+name: Deploy Extension
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      marketplace:
+        description: Publish to the Visual Studio Marketplace
+        type: boolean
+        default: true
+      openvsx:
+        description: Publish to Open VSX
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    name: Package VSIX
+    runs-on: ubuntu-latest
+    outputs:
+      vsix-name: ${{ steps.vsix.outputs.name }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Package extension
+        run: npm run package:vsix
+
+      - name: Resolve VSIX name
+        id: vsix
+        run: |
+          VSIX_NAME="$(node -p "const p = require('./package.json'); p.name + '-' + p.version + '.vsix'")"
+          test -f "$VSIX_NAME"
+          echo "name=$VSIX_NAME" >> "$GITHUB_OUTPUT"
+
+      - name: Upload VSIX artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: richdown-vsix
+          path: ${{ steps.vsix.outputs.name }}
+          if-no-files-found: error
+
+  publish-marketplace:
+    name: Publish to Visual Studio Marketplace
+    needs: package
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'push' || inputs.marketplace }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Download VSIX artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: richdown-vsix
+          path: dist
+
+      - name: Publish
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+        run: |
+          if [ -z "$VSCE_PAT" ]; then
+            echo "::error::Missing VSCE_PAT repository secret."
+            exit 1
+          fi
+          VSIX_PATH="dist/${{ needs.package.outputs.vsix-name }}"
+          npx vsce publish --packagePath "$VSIX_PATH" --pat "$VSCE_PAT" --skip-duplicate
+
+  publish-openvsx:
+    name: Publish to Open VSX
+    needs: package
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'push' || inputs.openvsx }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Download VSIX artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: richdown-vsix
+          path: dist
+
+      - name: Publish
+        env:
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
+        run: |
+          if [ -z "$OVSX_PAT" ]; then
+            echo "::error::Missing OVSX_PAT repository secret."
+            exit 1
+          fi
+          VSIX_PATH="dist/${{ needs.package.outputs.vsix-name }}"
+          npx ovsx --pat "$OVSX_PAT" publish "$VSIX_PATH" --skip-duplicate
