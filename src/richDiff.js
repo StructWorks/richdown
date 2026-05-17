@@ -1020,17 +1020,22 @@ function injectStyles() {
     }
     .rdiff-image {
       max-width: 100%;
-      display: inline-grid;
+      display: inline-flex;
+      flex-direction: column;
+      align-items: flex-start;
       gap: 4px;
       vertical-align: top;
     }
     .rdiff-image img {
+      width: auto;
+      height: auto;
       max-width: min(100%, 520px);
       max-height: 320px;
       display: block;
       border: 1px solid var(--rip-border);
       border-radius: 7px;
       background: var(--rip-panel);
+      aspect-ratio: auto;
       object-fit: contain;
     }
     .rdiff-image-loading,

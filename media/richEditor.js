@@ -25641,19 +25641,24 @@
             },
             ".cm-image-preview": {
               maxWidth: "100%",
-              display: "inline-grid",
+              display: "inline-flex",
+              flexDirection: "column",
+              alignItems: "flex-start",
               gap: "6px",
               margin: "0",
               verticalAlign: "top",
               cursor: "text"
             },
             ".cm-image-preview img": {
+              width: "auto",
+              height: "auto",
               maxWidth: "min(100%, 720px)",
               maxHeight: "460px",
               display: "block",
               border: "1px solid var(--rip-border)",
               borderRadius: "8px",
               backgroundColor: "var(--rip-panel)",
+              aspectRatio: "auto",
               objectFit: "contain"
             },
             ".cm-image-preview-caption": {
@@ -25970,11 +25975,14 @@
               verticalAlign: "middle"
             },
             ".cm-inline-markdown-image img": {
+              width: "auto",
+              height: "auto",
               maxWidth: "min(180px, 100%)",
               maxHeight: "140px",
               display: "block",
               border: "1px solid var(--rip-border)",
               borderRadius: "6px",
+              aspectRatio: "auto",
               objectFit: "contain",
               backgroundColor: "var(--rip-bg)",
               cursor: "pointer"

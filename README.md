@@ -2,6 +2,20 @@
 
 Richdown is a VS Code Markdown editor that keeps writing, previewing, and reviewing changes in one place. It opens Markdown files in a CodeMirror-based rich editor with inline Markdown previews, editable rich tables, Mermaid diagrams, syntax-highlighted code blocks, images, links, task checkboxes, Richdown Diff, and configurable writing themes.
 
+## Screenshots
+
+![Richdown rich Markdown editor with inline previews for headings, checkboxes, blockquotes, code, and images.](resources/screenshots/rich-editor.png)
+
+Richdown keeps Markdown editing and previewing in a single editor, so headings, tasks, quotes, links, images, and code blocks stay readable while the document remains editable.
+
+![Richdown rich tables and Mermaid diagram preview.](resources/screenshots/rich-table.png)
+
+Tables become editable rich UI, and Mermaid diagrams render inline with controls for fitting, zooming, panning, and modal viewing.
+
+![Richdown Diff showing Markdown changes side by side with rendered content.](resources/screenshots/rich-diff.png)
+
+Richdown Diff gives Markdown changes a rendered side-by-side review view while keeping VS Code's native diff viewer available.
+
 ## Features
 
 - Opens regular `.md` and `.markdown` files with the Richdown editor by default while keeping Source Control diffs in VS Code's native diff viewer.
