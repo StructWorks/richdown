@@ -2766,10 +2766,7 @@ function createTableBlock(doc, headerLine, delimiterLine, bodyLines, lastLine) {
 
   return {
     from: headerLine.from,
-    to:
-      lastLine.number < doc.lines
-        ? doc.line(lastLine.number + 1).from
-        : lastLine.to,
+    to: lastLine.to,
     sourceTo: lastLine.to,
     signature: [
       headerLine.text,

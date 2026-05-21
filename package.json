@@ -2,7 +2,7 @@
   "name": "richdown",
   "displayName": "Richdown",
   "description": "Edit Markdown with a rich inline preview, editable tables, Mermaid diagrams, Richdown diffs, and a focused writing flow in VS Code.",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "publisher": "mytooyodev",
   "license": "SEE LICENSE IN LICENSE",
   "repository": {
