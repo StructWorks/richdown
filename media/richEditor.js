@@ -27395,7 +27395,7 @@
     ];
     return {
       from: headerLine.from,
-      to: lastLine.number < doc2.lines ? doc2.line(lastLine.number + 1).from : lastLine.to,
+      to: lastLine.to,
       sourceTo: lastLine.to,
       signature: [
         headerLine.text,
