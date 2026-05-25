@@ -22,6 +22,12 @@ import {
   StateField,
 } from "@codemirror/state";
 import {
+  highlightSelectionMatches,
+  openSearchPanel,
+  search,
+  searchKeymap,
+} from "@codemirror/search";
+import {
   Decoration,
   EditorView,
   ViewPlugin,
@@ -176,15 +182,77 @@ const markdownHighlightStyle = HighlightStyle.define([
   { tag: tags.invalid, color: "var(--rip-danger)" },
 ]);
 
+function reportRichdownError(context, error) {
+  const message = error instanceof Error ? error.message : String(error);
+  const stack = error instanceof Error ? error.stack : "";
+  console.error(`[Richdown] ${context}`, error);
+  vscode.postMessage({
+    type: "webviewError",
+    context,
+    message,
+    stack,
+  });
+}
+
+function safeBuildDecorations(context, build) {
+  try {
+    return build();
+  } catch (error) {
+    reportRichdownError(context, error);
+    return Decoration.none;
+  }
+}
+
+function safeBuildDetailsDecorationState(state, openStates, activeEdit) {
+  try {
+    return buildDetailsDecorationState(state, openStates, activeEdit);
+  } catch (error) {
+    reportRichdownError("details-preview", error);
+    return {
+      activeEdit: null,
+      openStates,
+      decorations: Decoration.none,
+    };
+  }
+}
+
+function safeBuildTableDecorationState(state, activeEdit) {
+  try {
+    return buildTableDecorationState(state, activeEdit);
+  } catch (error) {
+    reportRichdownError("table-preview", error);
+    return {
+      activeEdit: null,
+      decorations: Decoration.none,
+    };
+  }
+}
+
+function safeBuildMermaidDecorationState(state, activeEdit) {
+  try {
+    return buildMermaidDecorationState(state, activeEdit);
+  } catch (error) {
+    reportRichdownError("mermaid-preview", error);
+    return {
+      activeEdit: null,
+      decorations: Decoration.none,
+    };
+  }
+}
+
 const blockLineDecorations = ViewPlugin.fromClass(
   class {
     constructor(view) {
-      this.decorations = buildBlockLineDecorations(view);
+      this.decorations = safeBuildDecorations("block-line-decorations", () =>
+        buildBlockLineDecorations(view),
+      );
     }
 
     update(update) {
       if (update.docChanged || update.viewportChanged || update.selectionSet) {
-        this.decorations = buildBlockLineDecorations(update.view);
+        this.decorations = safeBuildDecorations("block-line-decorations", () =>
+          buildBlockLineDecorations(update.view),
+        );
       }
     }
   },
@@ -196,12 +264,16 @@ const blockLineDecorations = ViewPlugin.fromClass(
 const inlineDecorations = ViewPlugin.fromClass(
   class {
     constructor(view) {
-      this.decorations = buildInlineDecorations(view);
+      this.decorations = safeBuildDecorations("inline-decorations", () =>
+        buildInlineDecorations(view),
+      );
     }
 
     update(update) {
       if (update.docChanged || update.viewportChanged || update.selectionSet) {
-        this.decorations = buildInlineDecorations(update.view);
+        this.decorations = safeBuildDecorations("inline-decorations", () =>
+          buildInlineDecorations(update.view),
+        );
       }
     }
   },
@@ -227,7 +299,7 @@ const setActiveDetailsEdit = StateEffect.define({
 
 const detailsDecorationField = StateField.define({
   create(state) {
-    return buildDetailsDecorationState(state, new Map(), null);
+    return safeBuildDetailsDecorationState(state, new Map(), null);
   },
 
   update(value, transaction) {
@@ -271,7 +343,11 @@ const detailsDecorationField = StateField.define({
       return value;
     }
 
-    return buildDetailsDecorationState(transaction.state, openStates, activeEdit);
+    return safeBuildDetailsDecorationState(
+      transaction.state,
+      openStates,
+      activeEdit,
+    );
   },
 
   provide: (field) =>
@@ -292,7 +368,7 @@ const setActiveTableEdit = StateEffect.define({
 
 const tableDecorationField = StateField.define({
   create(state) {
-    return buildTableDecorationState(state, null);
+    return safeBuildTableDecorationState(state, null);
   },
 
   update(value, transaction) {
@@ -333,7 +409,7 @@ const tableDecorationField = StateField.define({
       return value;
     }
 
-    return buildTableDecorationState(transaction.state, activeEdit);
+    return safeBuildTableDecorationState(transaction.state, activeEdit);
   },
 
   provide: (field) =>
@@ -354,7 +430,7 @@ const setActiveMermaidEdit = StateEffect.define({
 
 const mermaidDecorationField = StateField.define({
   create(state) {
-    return buildMermaidDecorationState(state, null);
+    return safeBuildMermaidDecorationState(state, null);
   },
 
   update(value, transaction) {
@@ -395,7 +471,7 @@ const mermaidDecorationField = StateField.define({
       return value;
     }
 
-    return buildMermaidDecorationState(transaction.state, activeEdit);
+    return safeBuildMermaidDecorationState(transaction.state, activeEdit);
   },
 
   provide: (field) =>
@@ -405,12 +481,16 @@ const mermaidDecorationField = StateField.define({
 const taskCheckboxes = ViewPlugin.fromClass(
   class {
     constructor(view) {
-      this.decorations = buildTaskCheckboxes(view);
+      this.decorations = safeBuildDecorations("task-checkboxes", () =>
+        buildTaskCheckboxes(view),
+      );
     }
 
     update(update) {
       if (update.docChanged || update.viewportChanged || update.selectionSet) {
-        this.decorations = buildTaskCheckboxes(update.view);
+        this.decorations = safeBuildDecorations("task-checkboxes", () =>
+          buildTaskCheckboxes(update.view),
+        );
       }
     }
   },
@@ -422,12 +502,16 @@ const taskCheckboxes = ViewPlugin.fromClass(
 const codeBlockCopyButtons = ViewPlugin.fromClass(
   class {
     constructor(view) {
-      this.decorations = buildCodeBlockCopyButtons(view);
+      this.decorations = safeBuildDecorations("code-copy-buttons", () =>
+        buildCodeBlockCopyButtons(view),
+      );
     }
 
     update(update) {
       if (update.docChanged || update.viewportChanged) {
-        this.decorations = buildCodeBlockCopyButtons(update.view);
+        this.decorations = safeBuildDecorations("code-copy-buttons", () =>
+          buildCodeBlockCopyButtons(update.view),
+        );
       }
     }
   },
@@ -550,16 +634,45 @@ const slashCommandKeymap = [
 ];
 
 let view;
+let fallbackTextarea = null;
+let outlineRoot = null;
+let outlineButton = null;
+let outlinePanel = null;
+let outlineList = null;
+let outlineHeadings = [];
+
+window.addEventListener(
+  "keydown",
+  (event) => {
+    if (!view || !isSearchShortcut(event)) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    closeSlashCommandMenu();
+    closeTableContextMenu();
+    openSearchPanel(view);
+  },
+  true,
+);
+
 queueMicrotask(() => {
-  view = new EditorView({
-    parent: root,
-    state: EditorState.create({
-      doc: initialDocument,
-      extensions: [
+  try {
+    view = new EditorView({
+      parent: root,
+      state: EditorState.create({
+        doc: initialDocument,
+        extensions: [
         lineNumbers(),
         history(),
         highlightActiveLine(),
         highlightActiveLineGutter(),
+        search({ top: true }),
+        highlightSelectionMatches({
+          highlightWordAroundCursor: true,
+          minSelectionLength: 2,
+        }),
         syntaxHighlighting(markdownHighlightStyle),
         markdown({
           extensions: GFM,
@@ -615,12 +728,14 @@ queueMicrotask(() => {
         keymap.of([
           indentWithTab,
           ...slashCommandKeymap,
+          ...searchKeymap,
           ...defaultKeymap,
           ...historyKeymap,
         ]),
         EditorView.lineWrapping,
         EditorView.updateListener.of((update) => {
           syncSlashCommandMenu(update);
+          syncOutlineNavigation(update);
           if (!update.docChanged || applyingExternalUpdate) {
             return;
           }
@@ -665,6 +780,105 @@ queueMicrotask(() => {
           },
           ".cm-activeLine": {
             backgroundColor: "var(--rip-hover)",
+          },
+          ".cm-panels": {
+            color: "var(--rip-fg)",
+            backgroundColor: "var(--rip-panel)",
+            borderColor: "var(--rip-border)",
+            fontFamily: "var(--vscode-font-family)",
+          },
+          ".cm-panel.cm-search": {
+            display: "flex",
+            flexWrap: "wrap",
+            alignItems: "center",
+            gap: "6px",
+            padding: "8px 34px 8px 10px",
+            borderBottom: "1px solid var(--rip-border)",
+          },
+          ".cm-panel.cm-search input.cm-textfield": {
+            minWidth: "180px",
+            height: "28px",
+            boxSizing: "border-box",
+            border: "1px solid var(--rip-border)",
+            borderRadius: "5px",
+            padding: "3px 7px",
+            color: "var(--rip-fg)",
+            backgroundColor: "var(--rip-input-bg)",
+            font: "13px var(--vscode-font-family)",
+            outline: "none",
+          },
+          ".cm-panel.cm-search input.cm-textfield:focus": {
+            borderColor: "var(--rip-focus)",
+          },
+          ".cm-panel.cm-search button": {
+            minHeight: "26px",
+            appearance: "none",
+            border: "1px solid var(--rip-border)",
+            borderRadius: "5px",
+            padding: "2px 8px",
+            color: "var(--rip-fg)",
+            backgroundColor: "var(--rip-input-bg)",
+            backgroundImage: "none",
+            boxShadow: "none",
+            font: "12px var(--vscode-font-family)",
+            cursor: "pointer",
+          },
+          ".cm-panel.cm-search button[name=next], .cm-panel.cm-search button[name=prev]":
+            {
+              color: "var(--rip-button-fg)",
+              borderColor: "var(--rip-accent)",
+              backgroundColor: "var(--rip-accent)",
+            },
+          ".cm-panel.cm-search button:hover": {
+            borderColor: "var(--rip-focus)",
+            backgroundColor: "var(--rip-hover)",
+            color: "var(--rip-fg)",
+          },
+          ".cm-panel.cm-search button[name=next]:hover, .cm-panel.cm-search button[name=prev]:hover":
+            {
+              color: "var(--rip-button-fg)",
+              borderColor: "var(--rip-focus)",
+              backgroundColor:
+                "color-mix(in srgb, var(--rip-accent) 86%, var(--rip-bg))",
+            },
+          ".cm-panel.cm-search input[type=checkbox]": {
+            accentColor: "var(--rip-accent)",
+          },
+          ".cm-panel.cm-search [name=close]": {
+            top: "8px",
+            right: "9px",
+            width: "24px",
+            height: "24px",
+            border: "0",
+            color: "var(--rip-muted)",
+            backgroundColor: "transparent",
+            backgroundImage: "none",
+            fontSize: "17px",
+          },
+          ".cm-panel.cm-search [name=close]:hover": {
+            color: "var(--rip-heading)",
+            backgroundColor: "var(--rip-hover)",
+          },
+          ".cm-panel.cm-search label": {
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "3px",
+            color: "var(--rip-muted)",
+            fontSize: "12px",
+          },
+          ".cm-searchMatch": {
+            backgroundColor:
+              "color-mix(in srgb, var(--rip-syntax-orange) 38%, transparent)",
+            outline: "1px solid color-mix(in srgb, var(--rip-syntax-orange) 45%, transparent)",
+          },
+          ".cm-searchMatch-selected": {
+            backgroundColor:
+              "color-mix(in srgb, var(--rip-heading) 46%, transparent)",
+            outline: "1px solid var(--rip-heading)",
+          },
+          ".cm-selectionMatch": {
+            backgroundColor:
+              "color-mix(in srgb, var(--rip-link) 24%, transparent)",
           },
           ".cm-content ::selection": {
             backgroundColor:
@@ -1359,11 +1573,82 @@ queueMicrotask(() => {
             fontWeight: "700",
           },
         }),
-      ],
-    }),
-  });
-  renderSettingsButton();
+        ],
+      }),
+    });
+    renderSettingsButton();
+    renderOutlineNavigation(view);
+  } catch (error) {
+    reportRichdownError("editor-startup", error);
+    renderPlainTextFallback(initialDocument);
+  }
 });
+
+function isSearchShortcut(event) {
+  return (
+    (event.metaKey || event.ctrlKey) &&
+    !event.altKey &&
+    !event.shiftKey &&
+    event.key.toLowerCase() === "f"
+  );
+}
+
+function renderPlainTextFallback(text) {
+  view = null;
+  root.replaceChildren();
+
+  const container = document.createElement("div");
+  container.className = "richdown-fallback";
+
+  const banner = document.createElement("div");
+  banner.className = "richdown-fallback-banner";
+  banner.textContent =
+    "Rich preview could not start, so this file is open in plain Markdown mode.";
+
+  const textarea = document.createElement("textarea");
+  textarea.className = "richdown-fallback-editor";
+  textarea.value = text;
+  textarea.spellcheck = true;
+  textarea.addEventListener("input", () => {
+    if (applyingExternalUpdate) {
+      return;
+    }
+    vscode.postMessage({
+      type: "edit",
+      text: textarea.value,
+    });
+  });
+
+  container.appendChild(banner);
+  container.appendChild(textarea);
+  root.appendChild(container);
+  fallbackTextarea = textarea;
+  textarea.focus({ preventScroll: true });
+}
+
+function applyFallbackDocumentUpdate(nextText) {
+  if (typeof nextText !== "string" || !fallbackTextarea) {
+    return;
+  }
+  if (nextText === fallbackTextarea.value) {
+    return;
+  }
+
+  const selectionStart = fallbackTextarea.selectionStart;
+  const selectionEnd = fallbackTextarea.selectionEnd;
+  const scrollTop = fallbackTextarea.scrollTop;
+  const scrollLeft = fallbackTextarea.scrollLeft;
+  applyingExternalUpdate = true;
+  try {
+    fallbackTextarea.value = nextText;
+    fallbackTextarea.selectionStart = Math.min(selectionStart, nextText.length);
+    fallbackTextarea.selectionEnd = Math.min(selectionEnd, nextText.length);
+    fallbackTextarea.scrollTop = scrollTop;
+    fallbackTextarea.scrollLeft = scrollLeft;
+  } finally {
+    applyingExternalUpdate = false;
+  }
+}
 
 window.addEventListener("message", (event) => {
   if (!event.data) return;
@@ -1406,9 +1691,12 @@ window.addEventListener("message", (event) => {
   }
 
   if (event.data.type !== "update") return;
-  if (!view) return;
 
   const nextText = event.data.text;
+  if (!view) {
+    applyFallbackDocumentUpdate(nextText);
+    return;
+  }
   applyExternalDocumentUpdate(view, nextText);
 });
 
@@ -1509,6 +1797,9 @@ function mapPositionThroughTextChange(position, change, oldLength, newLength) {
 window.addEventListener("click", (event) => {
   if (!event.target.closest(".cm-table-context-menu")) {
     closeTableContextMenu();
+  }
+  if (!event.target.closest(".richdown-outline-root")) {
+    closeOutlineNavigation();
   }
   if (event.target.closest(".cm-settings-root")) return;
   const menu = document.querySelector(".cm-settings-menu");
@@ -1618,6 +1909,225 @@ function closeSlashCommandMenu() {
   slashCommandMenu.destroy();
   slashCommandMenu = null;
   return true;
+}
+
+function renderOutlineNavigation(editorView) {
+  if (outlineRoot) {
+    updateOutlineNavigation(editorView, { rebuild: true });
+    return;
+  }
+
+  outlineRoot = document.createElement("div");
+  outlineRoot.className = "richdown-outline-root";
+
+  outlineButton = document.createElement("button");
+  outlineButton.type = "button";
+  outlineButton.className = "richdown-outline-button";
+  outlineButton.title = "Document sections";
+  outlineButton.setAttribute("aria-label", "Document sections");
+  outlineButton.textContent = "☰";
+  outlineButton.addEventListener("pointerdown", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    toggleOutlineNavigation();
+  });
+  outlineButton.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+  });
+
+  outlinePanel = document.createElement("nav");
+  outlinePanel.className = "richdown-outline-panel";
+  outlinePanel.hidden = true;
+  outlinePanel.setAttribute("aria-label", "Document sections");
+  outlinePanel.addEventListener("pointerdown", (event) => {
+    event.stopPropagation();
+  });
+  outlinePanel.addEventListener("click", (event) => {
+    event.stopPropagation();
+  });
+
+  const title = document.createElement("div");
+  title.className = "richdown-outline-title";
+  title.textContent = "Sections";
+  outlineList = document.createElement("div");
+  outlineList.className = "richdown-outline-list";
+
+  outlinePanel.appendChild(title);
+  outlinePanel.appendChild(outlineList);
+  outlineRoot.appendChild(outlinePanel);
+  outlineRoot.appendChild(outlineButton);
+  document.body.appendChild(outlineRoot);
+
+  updateOutlineNavigation(editorView, { rebuild: true });
+}
+
+function syncOutlineNavigation(update) {
+  if (!outlineRoot) {
+    return;
+  }
+  if (update.docChanged) {
+    updateOutlineNavigation(update.view, { rebuild: true });
+    return;
+  }
+  if (update.selectionSet || update.viewportChanged) {
+    updateOutlineNavigation(update.view);
+  }
+}
+
+function toggleOutlineNavigation() {
+  if (!outlineRoot || !outlinePanel) {
+    return;
+  }
+  const nextOpen = outlinePanel.hidden;
+  outlinePanel.hidden = !nextOpen;
+  outlineRoot.classList.toggle("is-open", nextOpen);
+}
+
+function closeOutlineNavigation() {
+  if (!outlineRoot || !outlinePanel || outlinePanel.hidden) {
+    return false;
+  }
+  outlinePanel.hidden = true;
+  outlineRoot.classList.remove("is-open");
+  return true;
+}
+
+function updateOutlineNavigation(editorView, options = {}) {
+  if (!outlineList) {
+    return;
+  }
+  if (options.rebuild) {
+    outlineHeadings = collectDocumentHeadings(editorView.state.doc);
+    outlineList.replaceChildren(
+      ...(outlineHeadings.length
+        ? outlineHeadings.map((heading, index) =>
+            createOutlineItem(editorView, heading, index),
+          )
+        : [createOutlineEmptyState()]),
+    );
+  }
+  updateActiveOutlineItem(editorView);
+}
+
+function createOutlineItem(editorView, heading, index) {
+  const item = document.createElement("button");
+  item.type = "button";
+  item.className = "richdown-outline-item";
+  item.dataset.headingIndex = String(index);
+  item.title = heading.text;
+  item.style.paddingLeft = `${7 + Math.max(0, heading.level - 2) * 12}px`;
+
+  const level = document.createElement("span");
+  level.className = "richdown-outline-level";
+  level.textContent = `H${heading.level}`;
+
+  const text = document.createElement("span");
+  text.className = "richdown-outline-text";
+  text.textContent = heading.text;
+
+  item.appendChild(level);
+  item.appendChild(text);
+  item.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    jumpToHeading(editorView, heading);
+  });
+  return item;
+}
+
+function createOutlineEmptyState() {
+  const empty = document.createElement("div");
+  empty.className = "richdown-outline-empty";
+  empty.textContent = "No sections";
+  return empty;
+}
+
+function jumpToHeading(editorView, heading) {
+  editorView.dispatch({
+    selection: { anchor: Math.min(heading.from, editorView.state.doc.length) },
+    scrollIntoView: true,
+  });
+  editorView.focus();
+  closeOutlineNavigation();
+}
+
+function updateActiveOutlineItem(editorView) {
+  if (!outlineList || outlineHeadings.length === 0) {
+    return;
+  }
+  const position = editorView.state.selection.main.from;
+  let activeIndex = -1;
+  for (let index = 0; index < outlineHeadings.length; index += 1) {
+    if (outlineHeadings[index].from <= position) {
+      activeIndex = index;
+    } else {
+      break;
+    }
+  }
+
+  for (const item of outlineList.querySelectorAll(".richdown-outline-item")) {
+    const isActive =
+      Number.parseInt(item.dataset.headingIndex || "-1", 10) === activeIndex;
+    item.classList.toggle("is-active", isActive);
+    if (isActive) {
+      item.scrollIntoView({ block: "nearest" });
+    }
+  }
+}
+
+function collectDocumentHeadings(doc) {
+  const headings = [];
+  let inFence = false;
+  let fenceChar = "";
+  let fenceLength = 0;
+
+  for (let lineNumber = 1; lineNumber <= doc.lines; lineNumber += 1) {
+    const line = doc.line(lineNumber);
+    const fence = line.text.match(/^\s{0,3}(`{3,}|~{3,})/);
+    if (fence) {
+      const marker = fence[1];
+      if (!inFence) {
+        inFence = true;
+        fenceChar = marker[0];
+        fenceLength = marker.length;
+      } else if (marker[0] === fenceChar && marker.length >= fenceLength) {
+        inFence = false;
+        fenceChar = "";
+        fenceLength = 0;
+      }
+      continue;
+    }
+
+    if (inFence) {
+      continue;
+    }
+
+    const heading = line.text.match(/^\s{0,3}(#{2,3})\s+(.+?)\s*#*\s*$/);
+    if (!heading) {
+      continue;
+    }
+    headings.push({
+      from: line.from,
+      level: heading[1].length,
+      text: cleanOutlineHeadingText(heading[2]),
+    });
+  }
+
+  return headings;
+}
+
+function cleanOutlineHeadingText(text) {
+  return text
+    .replace(/!\[([^\]]*)\]\([^)]+\)/g, "$1")
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/\*\*([^*]+)\*\*/g, "$1")
+    .replace(/__([^_]+)__/g, "$1")
+    .replace(/\*([^*]+)\*/g, "$1")
+    .replace(/_([^_]+)_/g, "$1")
+    .replace(/~~([^~]+)~~/g, "$1")
+    .trim();
 }
 
 function exitDetailsEditMode(view, force = false) {
@@ -1781,13 +2291,10 @@ function buildCodeBlockCopyButtons(view) {
     });
   }
 
-  const builder = new RangeSetBuilder();
-  ranges
-    .sort((left, right) => left.from - right.from)
-    .forEach((range) => {
-      builder.add(range.from, range.from, range.decoration);
-    });
-  return builder.finish();
+  return Decoration.set(
+    ranges.map((range) => range.decoration.range(range.from)),
+    true,
+  );
 }
 
 function getCodeBlockCopyInfo(doc, node) {
@@ -2015,8 +2522,186 @@ function injectStyles() {
       font-family: var(--vscode-font-family);
       pointer-events: none;
     }
+    .richdown-fallback {
+      height: 100%;
+      display: grid;
+      grid-template-rows: auto 1fr;
+      color: var(--rip-fg);
+      background: var(--rip-bg);
+      font-family: var(--vscode-font-family);
+    }
+    .richdown-fallback-banner {
+      border-bottom: 1px solid var(--rip-border);
+      padding: 8px 12px;
+      color: var(--rip-muted);
+      background: var(--rip-panel);
+      font-size: 12px;
+    }
+    .richdown-fallback-editor {
+      width: 100%;
+      height: 100%;
+      min-height: 0;
+      resize: none;
+      border: 0;
+      outline: 0;
+      padding: 24px clamp(18px, 5vw, 64px) 72px;
+      color: var(--rip-fg);
+      background: var(--rip-bg);
+      caret-color: var(--rip-caret);
+      font: 15px/1.72 var(--vscode-editor-font-family, var(--vscode-font-family));
+      white-space: pre-wrap;
+    }
     .cm-settings-root * {
       box-sizing: border-box;
+    }
+    .richdown-outline-root {
+      position: fixed;
+      right: 18px;
+      bottom: 64px;
+      z-index: 9999;
+      display: grid;
+      justify-items: end;
+      gap: 8px;
+      font-family: var(--vscode-font-family);
+      pointer-events: none;
+    }
+    .richdown-outline-root * {
+      box-sizing: border-box;
+    }
+    .richdown-outline-button {
+      width: 36px;
+      height: 36px;
+      display: grid;
+      place-items: center;
+      border: 1px solid var(--rip-border);
+      border-radius: 999px;
+      color: var(--rip-fg);
+      background: var(--rip-panel);
+      box-shadow: 0 8px 22px rgba(0, 0, 0, 0.22);
+      cursor: pointer;
+      font-size: 16px;
+      line-height: 1;
+      pointer-events: auto;
+    }
+    .richdown-outline-button:hover,
+    .richdown-outline-root.is-open .richdown-outline-button {
+      border-color: var(--rip-focus);
+      background: var(--rip-hover);
+    }
+    .richdown-outline-panel {
+      width: 238px;
+      max-height: min(520px, calc(100vh - 112px));
+      overflow-y: auto;
+      border: 1px solid var(--rip-border);
+      border-radius: 8px;
+      padding: 10px;
+      color: var(--rip-fg);
+      background: var(--rip-panel);
+      box-shadow: 0 14px 36px rgba(0, 0, 0, 0.3);
+      pointer-events: auto;
+    }
+    .richdown-outline-panel[hidden] {
+      display: none;
+    }
+    .richdown-outline-title {
+      margin: 0 0 6px;
+      padding: 0 2px 4px;
+      color: var(--rip-heading);
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      border-bottom: 1px solid color-mix(in srgb, var(--rip-border) 72%, transparent);
+    }
+    .richdown-outline-list {
+      display: grid;
+      gap: 2px;
+    }
+    .richdown-outline-item {
+      width: 100%;
+      min-width: 0;
+      display: grid;
+      grid-template-columns: auto 1fr;
+      align-items: center;
+      gap: 6px;
+      border: 0;
+      border-radius: 6px;
+      padding: 6px 7px;
+      color: var(--rip-fg);
+      background: transparent;
+      cursor: pointer;
+      font: 12px var(--vscode-font-family);
+      text-align: left;
+    }
+    .richdown-outline-item:hover,
+    .richdown-outline-item.is-active {
+      background: var(--rip-hover);
+    }
+    .richdown-outline-item.is-active {
+      color: var(--rip-heading);
+      font-weight: 700;
+    }
+    .richdown-outline-level {
+      width: 1.4em;
+      color: var(--rip-muted);
+      font-size: 10px;
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+    .richdown-outline-text {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .richdown-outline-empty {
+      padding: 8px 7px 2px;
+      color: var(--rip-muted);
+      font-size: 12px;
+    }
+    @media (min-width: 1440px) {
+      html[data-preview-width="default"] body .cm-editor .cm-content {
+        max-width: 900px;
+        margin-left: max(32px, calc((100vw - 1220px) / 2));
+        margin-right: 320px;
+      }
+      html[data-preview-width="wide"] body .cm-editor .cm-content {
+        max-width: none;
+        margin-left: 32px;
+        margin-right: 320px;
+      }
+      .richdown-outline-root {
+        top: 32px;
+        right: 24px;
+        bottom: auto;
+        width: 260px;
+        max-height: calc(100vh - 64px);
+        justify-items: stretch;
+        pointer-events: auto;
+      }
+      .richdown-outline-button {
+        display: none;
+      }
+      .richdown-outline-panel {
+        width: 100%;
+        max-height: calc(100vh - 64px);
+        border: 0;
+        border-left: 1px solid var(--vscode-panel-border, rgba(127, 127, 127, 0.28));
+        border-radius: 0;
+        padding: 2px 0 2px 14px;
+        background: transparent;
+        box-shadow: none;
+      }
+      .richdown-outline-panel[hidden] {
+        display: block;
+      }
+      .richdown-outline-title {
+        margin-bottom: 8px;
+        border-bottom: 0;
+      }
+      .richdown-outline-item {
+        padding-top: 5px;
+        padding-bottom: 5px;
+      }
     }
     .cm-settings-button {
       width: 36px;
@@ -2364,7 +3049,6 @@ function buildInlineDecorations(view) {
   const ranges = [];
   const imageRanges = [];
   const previewedDetailsRanges = getPreviewedDetailsRanges(view.state);
-  const builder = new RangeSetBuilder();
 
   for (const range of view.visibleRanges) {
     let position = range.from;
@@ -2461,13 +3145,10 @@ function buildInlineDecorations(view) {
     });
   }
 
-  ranges
-    .sort((left, right) => left.from - right.from || right.to - left.to)
-    .forEach((range) => {
-      builder.add(range.from, range.to, range.decoration);
-    });
-
-  return builder.finish();
+  return Decoration.set(
+    ranges.map((range) => range.decoration.range(range.from, range.to)),
+    true,
+  );
 }
 
 function buildDetailsDecorationState(state, openStates, activeEdit) {
