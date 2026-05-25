@@ -22,12 +22,6 @@ import {
   StateField,
 } from "@codemirror/state";
 import {
-  highlightSelectionMatches,
-  openSearchPanel,
-  search,
-  searchKeymap,
-} from "@codemirror/search";
-import {
   Decoration,
   EditorView,
   ViewPlugin,
@@ -39,6 +33,23 @@ import {
 } from "@codemirror/view";
 import { tags } from "@lezer/highlight";
 import { GFM } from "@lezer/markdown";
+import { createOutlineNavigation } from "./richEditorOutline.js";
+import {
+  createSearchExtensions,
+  getSearchKeymap,
+  installSearchShortcut,
+} from "./richEditorSearch.js";
+import {
+  applyPreviewWidth,
+  applyTheme,
+  getMermaidSizeOptions,
+  getPreviewWidthOptions,
+  getThemeOptions,
+  hasPreviewSettingChanged,
+  normalizeMermaidPreviewSize,
+  normalizePreviewWidth,
+  normalizeRichEditorSettings,
+} from "./richEditorSettings.js";
 
 const vscode = acquireVsCodeApi();
 const root = document.querySelector("#editor");
@@ -61,9 +72,8 @@ let tableContextMenu = null;
 let previewDecorationRevision = 0;
 let lastSettingsMenuActionKey = "";
 let lastSettingsMenuActionTime = 0;
-const mermaidPreviewSizes = ["source", "readable", "large"];
-const previewWidths = ["default", "wide"];
 let settings = normalizeRichEditorSettings(initialSettings);
+const outlineNavigation = createOutlineNavigation();
 
 applyTheme(settings.richTheme);
 applyPreviewWidth(settings.previewWidth);
@@ -101,35 +111,6 @@ const codeLanguages = [
     support: html(),
   }),
 ];
-
-function normalizeRichEditorSettings(nextSettings = {}) {
-  return {
-    richTheme: nextSettings.richTheme || "default",
-    showEmptyLineHint: nextSettings.showEmptyLineHint !== false,
-    richTablePreview: nextSettings.richTablePreview !== false,
-    mermaidPreview: nextSettings.mermaidPreview !== false,
-    mermaidPreviewSize: normalizeMermaidPreviewSize(
-      nextSettings.mermaidPreviewSize,
-    ),
-    previewWidth: normalizePreviewWidth(nextSettings.previewWidth),
-  };
-}
-
-function normalizeMermaidPreviewSize(value) {
-  return mermaidPreviewSizes.includes(value) ? value : "readable";
-}
-
-function normalizePreviewWidth(value) {
-  return previewWidths.includes(value) ? value : "default";
-}
-
-function hasPreviewSettingChanged(previousSettings, nextSettings) {
-  return (
-    previousSettings.richTablePreview !== nextSettings.richTablePreview ||
-    previousSettings.mermaidPreview !== nextSettings.mermaidPreview ||
-    previousSettings.mermaidPreviewSize !== nextSettings.mermaidPreviewSize
-  );
-}
 
 const markdownHighlightStyle = HighlightStyle.define([
   { tag: tags.heading, color: "var(--rip-heading)", fontWeight: "780" },
@@ -635,27 +616,12 @@ const slashCommandKeymap = [
 
 let view;
 let fallbackTextarea = null;
-let outlineRoot = null;
-let outlineButton = null;
-let outlinePanel = null;
-let outlineList = null;
-let outlineHeadings = [];
 
-window.addEventListener(
-  "keydown",
-  (event) => {
-    if (!view || !isSearchShortcut(event)) {
-      return;
-    }
-
-    event.preventDefault();
-    event.stopPropagation();
-    closeSlashCommandMenu();
-    closeTableContextMenu();
-    openSearchPanel(view);
-  },
-  true,
-);
+installSearchShortcut({
+  getView: () => view,
+  closeSlashCommandMenu,
+  closeTableContextMenu,
+});
 
 queueMicrotask(() => {
   try {
@@ -668,11 +634,7 @@ queueMicrotask(() => {
         history(),
         highlightActiveLine(),
         highlightActiveLineGutter(),
-        search({ top: true }),
-        highlightSelectionMatches({
-          highlightWordAroundCursor: true,
-          minSelectionLength: 2,
-        }),
+        ...createSearchExtensions(),
         syntaxHighlighting(markdownHighlightStyle),
         markdown({
           extensions: GFM,
@@ -728,14 +690,14 @@ queueMicrotask(() => {
         keymap.of([
           indentWithTab,
           ...slashCommandKeymap,
-          ...searchKeymap,
+          ...getSearchKeymap(),
           ...defaultKeymap,
           ...historyKeymap,
         ]),
         EditorView.lineWrapping,
         EditorView.updateListener.of((update) => {
           syncSlashCommandMenu(update);
-          syncOutlineNavigation(update);
+          outlineNavigation.sync(update);
           if (!update.docChanged || applyingExternalUpdate) {
             return;
           }
@@ -1577,21 +1539,12 @@ queueMicrotask(() => {
       }),
     });
     renderSettingsButton();
-    renderOutlineNavigation(view);
+    outlineNavigation.render(view);
   } catch (error) {
     reportRichdownError("editor-startup", error);
     renderPlainTextFallback(initialDocument);
   }
 });
-
-function isSearchShortcut(event) {
-  return (
-    (event.metaKey || event.ctrlKey) &&
-    !event.altKey &&
-    !event.shiftKey &&
-    event.key.toLowerCase() === "f"
-  );
-}
 
 function renderPlainTextFallback(text) {
   view = null;
@@ -1799,7 +1752,7 @@ window.addEventListener("click", (event) => {
     closeTableContextMenu();
   }
   if (!event.target.closest(".richdown-outline-root")) {
-    closeOutlineNavigation();
+    outlineNavigation.close();
   }
   if (event.target.closest(".cm-settings-root")) return;
   const menu = document.querySelector(".cm-settings-menu");
@@ -1909,225 +1862,6 @@ function closeSlashCommandMenu() {
   slashCommandMenu.destroy();
   slashCommandMenu = null;
   return true;
-}
-
-function renderOutlineNavigation(editorView) {
-  if (outlineRoot) {
-    updateOutlineNavigation(editorView, { rebuild: true });
-    return;
-  }
-
-  outlineRoot = document.createElement("div");
-  outlineRoot.className = "richdown-outline-root";
-
-  outlineButton = document.createElement("button");
-  outlineButton.type = "button";
-  outlineButton.className = "richdown-outline-button";
-  outlineButton.title = "Document sections";
-  outlineButton.setAttribute("aria-label", "Document sections");
-  outlineButton.textContent = "☰";
-  outlineButton.addEventListener("pointerdown", (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    toggleOutlineNavigation();
-  });
-  outlineButton.addEventListener("click", (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-  });
-
-  outlinePanel = document.createElement("nav");
-  outlinePanel.className = "richdown-outline-panel";
-  outlinePanel.hidden = true;
-  outlinePanel.setAttribute("aria-label", "Document sections");
-  outlinePanel.addEventListener("pointerdown", (event) => {
-    event.stopPropagation();
-  });
-  outlinePanel.addEventListener("click", (event) => {
-    event.stopPropagation();
-  });
-
-  const title = document.createElement("div");
-  title.className = "richdown-outline-title";
-  title.textContent = "Sections";
-  outlineList = document.createElement("div");
-  outlineList.className = "richdown-outline-list";
-
-  outlinePanel.appendChild(title);
-  outlinePanel.appendChild(outlineList);
-  outlineRoot.appendChild(outlinePanel);
-  outlineRoot.appendChild(outlineButton);
-  document.body.appendChild(outlineRoot);
-
-  updateOutlineNavigation(editorView, { rebuild: true });
-}
-
-function syncOutlineNavigation(update) {
-  if (!outlineRoot) {
-    return;
-  }
-  if (update.docChanged) {
-    updateOutlineNavigation(update.view, { rebuild: true });
-    return;
-  }
-  if (update.selectionSet || update.viewportChanged) {
-    updateOutlineNavigation(update.view);
-  }
-}
-
-function toggleOutlineNavigation() {
-  if (!outlineRoot || !outlinePanel) {
-    return;
-  }
-  const nextOpen = outlinePanel.hidden;
-  outlinePanel.hidden = !nextOpen;
-  outlineRoot.classList.toggle("is-open", nextOpen);
-}
-
-function closeOutlineNavigation() {
-  if (!outlineRoot || !outlinePanel || outlinePanel.hidden) {
-    return false;
-  }
-  outlinePanel.hidden = true;
-  outlineRoot.classList.remove("is-open");
-  return true;
-}
-
-function updateOutlineNavigation(editorView, options = {}) {
-  if (!outlineList) {
-    return;
-  }
-  if (options.rebuild) {
-    outlineHeadings = collectDocumentHeadings(editorView.state.doc);
-    outlineList.replaceChildren(
-      ...(outlineHeadings.length
-        ? outlineHeadings.map((heading, index) =>
-            createOutlineItem(editorView, heading, index),
-          )
-        : [createOutlineEmptyState()]),
-    );
-  }
-  updateActiveOutlineItem(editorView);
-}
-
-function createOutlineItem(editorView, heading, index) {
-  const item = document.createElement("button");
-  item.type = "button";
-  item.className = "richdown-outline-item";
-  item.dataset.headingIndex = String(index);
-  item.title = heading.text;
-  item.style.paddingLeft = `${7 + Math.max(0, heading.level - 2) * 12}px`;
-
-  const level = document.createElement("span");
-  level.className = "richdown-outline-level";
-  level.textContent = `H${heading.level}`;
-
-  const text = document.createElement("span");
-  text.className = "richdown-outline-text";
-  text.textContent = heading.text;
-
-  item.appendChild(level);
-  item.appendChild(text);
-  item.addEventListener("click", (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    jumpToHeading(editorView, heading);
-  });
-  return item;
-}
-
-function createOutlineEmptyState() {
-  const empty = document.createElement("div");
-  empty.className = "richdown-outline-empty";
-  empty.textContent = "No sections";
-  return empty;
-}
-
-function jumpToHeading(editorView, heading) {
-  editorView.dispatch({
-    selection: { anchor: Math.min(heading.from, editorView.state.doc.length) },
-    scrollIntoView: true,
-  });
-  editorView.focus();
-  closeOutlineNavigation();
-}
-
-function updateActiveOutlineItem(editorView) {
-  if (!outlineList || outlineHeadings.length === 0) {
-    return;
-  }
-  const position = editorView.state.selection.main.from;
-  let activeIndex = -1;
-  for (let index = 0; index < outlineHeadings.length; index += 1) {
-    if (outlineHeadings[index].from <= position) {
-      activeIndex = index;
-    } else {
-      break;
-    }
-  }
-
-  for (const item of outlineList.querySelectorAll(".richdown-outline-item")) {
-    const isActive =
-      Number.parseInt(item.dataset.headingIndex || "-1", 10) === activeIndex;
-    item.classList.toggle("is-active", isActive);
-    if (isActive) {
-      item.scrollIntoView({ block: "nearest" });
-    }
-  }
-}
-
-function collectDocumentHeadings(doc) {
-  const headings = [];
-  let inFence = false;
-  let fenceChar = "";
-  let fenceLength = 0;
-
-  for (let lineNumber = 1; lineNumber <= doc.lines; lineNumber += 1) {
-    const line = doc.line(lineNumber);
-    const fence = line.text.match(/^\s{0,3}(`{3,}|~{3,})/);
-    if (fence) {
-      const marker = fence[1];
-      if (!inFence) {
-        inFence = true;
-        fenceChar = marker[0];
-        fenceLength = marker.length;
-      } else if (marker[0] === fenceChar && marker.length >= fenceLength) {
-        inFence = false;
-        fenceChar = "";
-        fenceLength = 0;
-      }
-      continue;
-    }
-
-    if (inFence) {
-      continue;
-    }
-
-    const heading = line.text.match(/^\s{0,3}(#{2,3})\s+(.+?)\s*#*\s*$/);
-    if (!heading) {
-      continue;
-    }
-    headings.push({
-      from: line.from,
-      level: heading[1].length,
-      text: cleanOutlineHeadingText(heading[2]),
-    });
-  }
-
-  return headings;
-}
-
-function cleanOutlineHeadingText(text) {
-  return text
-    .replace(/!\[([^\]]*)\]\([^)]+\)/g, "$1")
-    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
-    .replace(/`([^`]+)`/g, "$1")
-    .replace(/\*\*([^*]+)\*\*/g, "$1")
-    .replace(/__([^_]+)__/g, "$1")
-    .replace(/\*([^*]+)\*/g, "$1")
-    .replace(/_([^_]+)_/g, "$1")
-    .replace(/~~([^~]+)~~/g, "$1")
-    .trim();
 }
 
 function exitDetailsEditMode(view, force = false) {
@@ -5535,21 +5269,6 @@ function updateSettingsMenu() {
   bindSettingsMenuActions(menu);
 }
 
-function getMermaidSizeOptions() {
-  return [
-    { label: "Source height", value: "source" },
-    { label: "Readable", value: "readable" },
-    { label: "Large", value: "large" },
-  ];
-}
-
-function getPreviewWidthOptions() {
-  return [
-    { label: "Default", value: "default" },
-    { label: "Wide", value: "wide" },
-  ];
-}
-
 function isMarkdownMarker(nodeName) {
   return [
     "HeaderMark",
@@ -5658,207 +5377,4 @@ function isClickInsideTextRange(view, from, to, event) {
     event.clientY >= top &&
     event.clientY <= bottom
   );
-}
-
-function applyTheme(themeName) {
-  const theme = getTheme(themeName);
-  const rootStyle = document.documentElement.style;
-  document.documentElement.dataset.richTheme = themeName || "default";
-
-  for (const [key, value] of Object.entries(theme)) {
-    rootStyle.setProperty(
-      `--rip-${key.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`)}`,
-      value,
-    );
-  }
-}
-
-function applyPreviewWidth(previewWidth) {
-  const width = normalizePreviewWidth(previewWidth);
-  document.documentElement.dataset.previewWidth = width;
-  document.documentElement.style.setProperty(
-    "--rip-content-max-width",
-    width === "wide" ? "none" : "960px",
-  );
-}
-
-function getThemeOptions() {
-  return [
-    { value: "default", label: "Default" },
-    { value: "midnight", label: "Midnight" },
-    { value: "graphite", label: "Graphite" },
-    { value: "forest", label: "Forest" },
-    { value: "ivory", label: "Ivory" },
-    { value: "paper", label: "Paper" },
-    { value: "solar", label: "Solar" },
-  ];
-}
-
-function getTheme(themeName) {
-  const themes = {
-    default: {
-      bg: "var(--vscode-editor-background)",
-      fg: "var(--vscode-editor-foreground)",
-      muted: "var(--vscode-descriptionForeground)",
-      border: "var(--vscode-panel-border)",
-      panel: "var(--vscode-editorWidget-background)",
-      inputBg: "var(--vscode-input-background)",
-      codeBg: "var(--vscode-textCodeBlock-background)",
-      hover:
-        "color-mix(in srgb, var(--vscode-editor-selectionBackground) 16%, transparent)",
-      focus: "var(--vscode-focusBorder)",
-      caret: "var(--vscode-editorCursor-foreground)",
-      accent: "var(--vscode-button-background)",
-      buttonFg: "var(--vscode-button-foreground)",
-      heading: "var(--vscode-textLink-foreground)",
-      link: "var(--vscode-textLink-foreground)",
-      quoteBorder: "var(--vscode-textBlockQuote-border)",
-      rowAlt:
-        "color-mix(in srgb, var(--vscode-editorWidget-background) 45%, transparent)",
-      syntaxPurple: "var(--vscode-charts-purple, #c586c0)",
-      syntaxOrange: "var(--vscode-charts-orange, #ce9178)",
-      syntaxGreen: "var(--vscode-charts-green, #b5cea8)",
-      syntaxBlue: "var(--vscode-charts-blue, #9cdcfe)",
-      danger: "var(--vscode-errorForeground, #f14c4c)",
-    },
-    midnight: {
-      bg: "#0b1020",
-      fg: "#d9e4ff",
-      muted: "#8796b8",
-      border: "#26314f",
-      panel: "#111936",
-      inputBg: "#0f1730",
-      codeBg: "#070b16",
-      hover: "rgba(93, 144, 255, 0.14)",
-      focus: "#7aa2ff",
-      caret: "#ffffff",
-      accent: "#6f9cff",
-      buttonFg: "#081120",
-      heading: "#8fb4ff",
-      link: "#8fb4ff",
-      quoteBorder: "#5e7fd6",
-      rowAlt: "rgba(143, 180, 255, 0.08)",
-      syntaxPurple: "#d7a7ff",
-      syntaxOrange: "#ffc08a",
-      syntaxGreen: "#9ce6b3",
-      syntaxBlue: "#8bd7ff",
-      danger: "#ff8a8a",
-    },
-    graphite: {
-      bg: "#151617",
-      fg: "#e5e1d8",
-      muted: "#9b9891",
-      border: "#343536",
-      panel: "#202224",
-      inputBg: "#1b1d1f",
-      codeBg: "#101112",
-      hover: "rgba(229, 225, 216, 0.08)",
-      focus: "#d0a85c",
-      caret: "#f5f0e6",
-      accent: "#d0a85c",
-      buttonFg: "#171717",
-      heading: "#e2bd72",
-      link: "#e2bd72",
-      quoteBorder: "#8e7a55",
-      rowAlt: "rgba(255, 255, 255, 0.045)",
-      syntaxPurple: "#cfa8ff",
-      syntaxOrange: "#e6b17e",
-      syntaxGreen: "#9bcf9d",
-      syntaxBlue: "#8ebbdc",
-      danger: "#ff8f8f",
-    },
-    forest: {
-      bg: "#0f1712",
-      fg: "#dce8dc",
-      muted: "#8ea08f",
-      border: "#263529",
-      panel: "#17231a",
-      inputBg: "#121d15",
-      codeBg: "#0a100c",
-      hover: "rgba(121, 184, 136, 0.12)",
-      focus: "#79b888",
-      caret: "#effff0",
-      accent: "#79b888",
-      buttonFg: "#071008",
-      heading: "#a4d8a9",
-      link: "#9fd6b3",
-      quoteBorder: "#5b936a",
-      rowAlt: "rgba(164, 216, 169, 0.07)",
-      syntaxPurple: "#d0a8ff",
-      syntaxOrange: "#e9bd8c",
-      syntaxGreen: "#93d79b",
-      syntaxBlue: "#8fcbd4",
-      danger: "#ff8a8a",
-    },
-    ivory: {
-      bg: "#fbf5e8",
-      fg: "#2f2b25",
-      muted: "#776f62",
-      border: "#ded3bf",
-      panel: "#f1e7d5",
-      inputBg: "#fffaf0",
-      codeBg: "#f2eadc",
-      hover: "rgba(107, 78, 42, 0.09)",
-      focus: "#a46c28",
-      caret: "#2f2b25",
-      accent: "#a46c28",
-      buttonFg: "#fff8ee",
-      heading: "#7a4f1e",
-      link: "#8a5a24",
-      quoteBorder: "#bc8f55",
-      rowAlt: "rgba(122, 79, 30, 0.06)",
-      syntaxPurple: "#8a4fb0",
-      syntaxOrange: "#a75d17",
-      syntaxGreen: "#3f7a3f",
-      syntaxBlue: "#2e6f9f",
-      danger: "#b42318",
-    },
-    paper: {
-      bg: "#ffffff",
-      fg: "#202124",
-      muted: "#6b7280",
-      border: "#d7dbe2",
-      panel: "#f3f5f8",
-      inputBg: "#ffffff",
-      codeBg: "#f5f7fa",
-      hover: "rgba(31, 111, 235, 0.08)",
-      focus: "#1f6feb",
-      caret: "#202124",
-      accent: "#1f6feb",
-      buttonFg: "#ffffff",
-      heading: "#0b5cad",
-      link: "#0b5cad",
-      quoteBorder: "#8aa6c8",
-      rowAlt: "#f8fafc",
-      syntaxPurple: "#7c3aed",
-      syntaxOrange: "#b45309",
-      syntaxGreen: "#15803d",
-      syntaxBlue: "#0369a1",
-      danger: "#b42318",
-    },
-    solar: {
-      bg: "#fdf6e3",
-      fg: "#3b3a32",
-      muted: "#7b7662",
-      border: "#d8ceb0",
-      panel: "#eee5c8",
-      inputBg: "#fff9e8",
-      codeBg: "#f4edcf",
-      hover: "rgba(181, 137, 0, 0.1)",
-      focus: "#b58900",
-      caret: "#3b3a32",
-      accent: "#b58900",
-      buttonFg: "#fff8df",
-      heading: "#9b6d00",
-      link: "#0f6c8c",
-      quoteBorder: "#b58900",
-      rowAlt: "rgba(181, 137, 0, 0.07)",
-      syntaxPurple: "#6c54a3",
-      syntaxOrange: "#b85c00",
-      syntaxGreen: "#5f7f00",
-      syntaxBlue: "#227894",
-      danger: "#b42318",
-    },
-  };
-  return themes[themeName] || themes.default;
 }
