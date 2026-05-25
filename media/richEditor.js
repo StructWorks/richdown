@@ -402,11 +402,11 @@
         /* Tree.BranchShift */
       ), maxChunk = chunk << 1, minChunk = chunk >> 1;
       let chunked = [], currentLines = 0, currentLen = -1, currentChunk = [];
-      function add(child) {
+      function add2(child) {
         let last;
         if (child.lines > maxChunk && child instanceof _TextNode) {
           for (let node of child.children)
-            add(node);
+            add2(node);
         } else if (child.lines > minChunk && (currentLines > minChunk || !currentLines)) {
           flush();
           chunked.push(child);
@@ -430,7 +430,7 @@
         currentLines = currentChunk.length = 0;
       }
       for (let child of children)
-        add(child);
+        add2(child);
       flush();
       return chunked.length == 1 ? chunked[0] : new _TextNode(chunked, length);
     }
@@ -641,6 +641,12 @@
     if (!surrogateLow2(code1))
       return code0;
     return (code0 - 55296 << 10) + (code1 - 56320) + 65536;
+  }
+  function fromCodePoint(code) {
+    if (code <= 65535)
+      return String.fromCharCode(code);
+    code -= 65536;
+    return String.fromCharCode((code >> 10) + 55296, (code & 1023) + 56320);
   }
   function codePointSize2(code) {
     return code < 65536 ? 1 : 2;
@@ -2505,20 +2511,20 @@
     A single `$` is equivalent to `$1`, and `$$` will produce a
     literal dollar sign.
     */
-    phrase(phrase, ...insert2) {
+    phrase(phrase2, ...insert2) {
       for (let map of this.facet(_EditorState.phrases))
-        if (Object.prototype.hasOwnProperty.call(map, phrase)) {
-          phrase = map[phrase];
+        if (Object.prototype.hasOwnProperty.call(map, phrase2)) {
+          phrase2 = map[phrase2];
           break;
         }
       if (insert2.length)
-        phrase = phrase.replace(/\$(\$|\d*)/g, (m, i) => {
+        phrase2 = phrase2.replace(/\$(\$|\d*)/g, (m, i) => {
           if (i == "$")
             return "$";
           let n = +(i || 1);
           return !n || n > insert2.length ? m : insert2[n - 1];
         });
-      return phrase;
+      return phrase2;
     }
     /**
     Find the values for a given language data field, provided by the
@@ -2773,22 +2779,22 @@
     `Y`.)
     */
     update(updateSpec) {
-      let { add = [], sort = false, filterFrom = 0, filterTo = this.length } = updateSpec;
+      let { add: add2 = [], sort = false, filterFrom = 0, filterTo = this.length } = updateSpec;
       let filter = updateSpec.filter;
-      if (add.length == 0 && !filter)
+      if (add2.length == 0 && !filter)
         return this;
       if (sort)
-        add = add.slice().sort(cmpRange);
+        add2 = add2.slice().sort(cmpRange);
       if (this.isEmpty)
-        return add.length ? _RangeSet.of(add) : this;
+        return add2.length ? _RangeSet.of(add2) : this;
       let cur = new LayerCursor(this, null, -1).goto(0), i = 0, spill = [];
       let builder = new RangeSetBuilder();
-      while (cur.value || i < add.length) {
-        if (i < add.length && (cur.from - add[i].from || cur.startSide - add[i].value.startSide) >= 0) {
-          let range = add[i++];
+      while (cur.value || i < add2.length) {
+        if (i < add2.length && (cur.from - add2[i].from || cur.startSide - add2[i].value.startSide) >= 0) {
+          let range = add2[i++];
           if (!builder.addInner(range.from, range.to, range.value))
             spill.push(range);
-        } else if (cur.rangeIndex == 1 && cur.chunkIndex < this.chunk.length && (i == add.length || this.chunkEnd(cur.chunkIndex) < add[i].from) && (!filter || filterFrom > this.chunkEnd(cur.chunkIndex) || filterTo < this.chunkPos[cur.chunkIndex]) && builder.addChunk(this.chunkPos[cur.chunkIndex], this.chunk[cur.chunkIndex])) {
+        } else if (cur.rangeIndex == 1 && cur.chunkIndex < this.chunk.length && (i == add2.length || this.chunkEnd(cur.chunkIndex) < add2[i].from) && (!filter || filterFrom > this.chunkEnd(cur.chunkIndex) || filterTo < this.chunkPos[cur.chunkIndex]) && builder.addChunk(this.chunkPos[cur.chunkIndex], this.chunk[cur.chunkIndex])) {
           cur.nextChunk();
         } else {
           if (!filter || filterFrom > cur.to || filterTo < cur.from || filter(cur.from, cur.to, cur.value)) {
@@ -3655,6 +3661,35 @@
     if (name2 == "Right") name2 = "ArrowRight";
     if (name2 == "Down") name2 = "ArrowDown";
     return name2;
+  }
+
+  // node_modules/crelt/index.js
+  function crelt() {
+    var elt2 = arguments[0];
+    if (typeof elt2 == "string") elt2 = document.createElement(elt2);
+    var i = 1, next = arguments[1];
+    if (next && typeof next == "object" && next.nodeType == null && !Array.isArray(next)) {
+      for (var name2 in next) if (Object.prototype.hasOwnProperty.call(next, name2)) {
+        var value = next[name2];
+        if (typeof value == "string") elt2.setAttribute(name2, value);
+        else if (value != null) elt2[name2] = value;
+      }
+      i++;
+    }
+    for (; i < arguments.length; i++) add(elt2, arguments[i]);
+    return elt2;
+  }
+  function add(elt2, child) {
+    if (typeof child == "string") {
+      elt2.appendChild(document.createTextNode(child));
+    } else if (child == null) {
+    } else if (child.nodeType != null) {
+      elt2.appendChild(child);
+    } else if (Array.isArray(child)) {
+      for (var i = 0; i < child.length; i++) add(elt2, child[i]);
+    } else {
+      throw new RangeError("Unsupported child node: " + child);
+    }
   }
 
   // node_modules/@codemirror/view/dist/index.js
@@ -4935,9 +4970,9 @@
             update.to = to;
             level = update.inner;
           } else {
-            let add = { from, to, direction, inner: [] };
-            level.push(add);
-            level = add.inner;
+            let add2 = { from, to, direction, inner: [] };
+            level.push(add2);
+            level = add2.inner;
           }
         }
       }
@@ -8615,11 +8650,11 @@
       return new _BlockInfo(this.from, this.length + other.length, this.top, this.height + other.height, content2);
     }
   };
-  var QueryType = /* @__PURE__ */ (function(QueryType2) {
-    QueryType2[QueryType2["ByPos"] = 0] = "ByPos";
-    QueryType2[QueryType2["ByHeight"] = 1] = "ByHeight";
-    QueryType2[QueryType2["ByPosNoHeight"] = 2] = "ByPosNoHeight";
-    return QueryType2;
+  var QueryType = /* @__PURE__ */ (function(QueryType3) {
+    QueryType3[QueryType3["ByPos"] = 0] = "ByPos";
+    QueryType3[QueryType3["ByHeight"] = 1] = "ByHeight";
+    QueryType3[QueryType3["ByPosNoHeight"] = 2] = "ByPosNoHeight";
+    return QueryType3;
   })(QueryType || (QueryType = {}));
   var Epsilon = 1e-3;
   var HeightMap = class _HeightMap {
@@ -11844,6 +11879,9 @@
       Keymaps.set(bindings, map = buildKeymap(bindings.reduce((a, b) => a.concat(b), [])));
     return map;
   }
+  function runScopeHandlers(view2, event, scope) {
+    return runHandlers(getKeymap(view2.state), event, view2, scope);
+  }
   var storedPrefix = null;
   var PrefixTimeout = 4e3;
   function buildKeymap(bindings, platform = currentPlatform) {
@@ -11856,7 +11894,7 @@
       else if (current != is)
         throw new Error("Key binding " + name2 + " is used both as a regular binding and as a multi-stroke prefix");
     };
-    let add = (scope, key, command2, preventDefault, stopPropagation) => {
+    let add2 = (scope, key, command2, preventDefault, stopPropagation) => {
       var _a2, _b;
       let scopeObj = bound[scope] || (bound[scope] = /* @__PURE__ */ Object.create(null));
       let parts = key.split(/ (?!$)/).map((k) => normalizeKeyName(k, platform));
@@ -11906,9 +11944,9 @@
       if (!name2)
         continue;
       for (let scope of scopes) {
-        add(scope, name2, b.run, b.preventDefault, b.stopPropagation);
+        add2(scope, name2, b.run, b.preventDefault, b.stopPropagation);
         if (b.shift)
-          add(scope, "Shift-" + name2, b.shift, b.preventDefault, b.stopPropagation);
+          add2(scope, "Shift-" + name2, b.shift, b.preventDefault, b.stopPropagation);
       }
     }
     return bound;
@@ -12060,6 +12098,260 @@
       }
     }
   });
+  var panelConfig = /* @__PURE__ */ Facet.define({
+    combine(configs) {
+      let topContainer, bottomContainer;
+      for (let c of configs) {
+        topContainer = topContainer || c.topContainer;
+        bottomContainer = bottomContainer || c.bottomContainer;
+      }
+      return { topContainer, bottomContainer };
+    }
+  });
+  function getPanel(view2, panel) {
+    let plugin = view2.plugin(panelPlugin);
+    let index = plugin ? plugin.specs.indexOf(panel) : -1;
+    return index > -1 ? plugin.panels[index] : null;
+  }
+  var panelPlugin = /* @__PURE__ */ ViewPlugin.fromClass(class {
+    constructor(view2) {
+      this.input = view2.state.facet(showPanel);
+      this.specs = this.input.filter((s) => s);
+      this.panels = this.specs.map((spec) => spec(view2));
+      let conf = view2.state.facet(panelConfig);
+      this.top = new PanelGroup(view2, true, conf.topContainer);
+      this.bottom = new PanelGroup(view2, false, conf.bottomContainer);
+      this.top.sync(this.panels.filter((p) => p.top));
+      this.bottom.sync(this.panels.filter((p) => !p.top));
+      for (let p of this.panels) {
+        p.dom.classList.add("cm-panel");
+        if (p.mount)
+          p.mount();
+      }
+    }
+    update(update) {
+      let conf = update.state.facet(panelConfig);
+      if (this.top.container != conf.topContainer) {
+        this.top.sync([]);
+        this.top = new PanelGroup(update.view, true, conf.topContainer);
+      }
+      if (this.bottom.container != conf.bottomContainer) {
+        this.bottom.sync([]);
+        this.bottom = new PanelGroup(update.view, false, conf.bottomContainer);
+      }
+      this.top.syncClasses();
+      this.bottom.syncClasses();
+      let input = update.state.facet(showPanel);
+      if (input != this.input) {
+        let specs = input.filter((x) => x);
+        let panels = [], top2 = [], bottom = [], mount = [];
+        for (let spec of specs) {
+          let known = this.specs.indexOf(spec), panel;
+          if (known < 0) {
+            panel = spec(update.view);
+            mount.push(panel);
+          } else {
+            panel = this.panels[known];
+            if (panel.update)
+              panel.update(update);
+          }
+          panels.push(panel);
+          (panel.top ? top2 : bottom).push(panel);
+        }
+        this.specs = specs;
+        this.panels = panels;
+        this.top.sync(top2);
+        this.bottom.sync(bottom);
+        for (let p of mount) {
+          p.dom.classList.add("cm-panel");
+          if (p.mount)
+            p.mount();
+        }
+      } else {
+        for (let p of this.panels)
+          if (p.update)
+            p.update(update);
+      }
+    }
+    destroy() {
+      this.top.sync([]);
+      this.bottom.sync([]);
+    }
+  }, {
+    provide: (plugin) => EditorView.scrollMargins.of((view2) => {
+      let value = view2.plugin(plugin);
+      return value && { top: value.top.scrollMargin(), bottom: value.bottom.scrollMargin() };
+    })
+  });
+  var PanelGroup = class {
+    constructor(view2, top2, container) {
+      this.view = view2;
+      this.top = top2;
+      this.container = container;
+      this.dom = void 0;
+      this.classes = "";
+      this.panels = [];
+      this.syncClasses();
+    }
+    sync(panels) {
+      for (let p of this.panels)
+        if (p.destroy && panels.indexOf(p) < 0)
+          p.destroy();
+      this.panels = panels;
+      this.syncDOM();
+    }
+    syncDOM() {
+      if (this.panels.length == 0) {
+        if (this.dom) {
+          this.dom.remove();
+          this.dom = void 0;
+        }
+        return;
+      }
+      if (!this.dom) {
+        this.dom = document.createElement("div");
+        this.dom.className = this.top ? "cm-panels cm-panels-top" : "cm-panels cm-panels-bottom";
+        this.dom.style[this.top ? "top" : "bottom"] = "0";
+        let parent = this.container || this.view.dom;
+        parent.insertBefore(this.dom, this.top ? parent.firstChild : null);
+      }
+      let curDOM = this.dom.firstChild;
+      for (let panel of this.panels) {
+        if (panel.dom.parentNode == this.dom) {
+          while (curDOM != panel.dom)
+            curDOM = rm(curDOM);
+          curDOM = curDOM.nextSibling;
+        } else {
+          this.dom.insertBefore(panel.dom, curDOM);
+        }
+      }
+      while (curDOM)
+        curDOM = rm(curDOM);
+    }
+    scrollMargin() {
+      return !this.dom || this.container ? 0 : Math.max(0, this.top ? this.dom.getBoundingClientRect().bottom - Math.max(0, this.view.scrollDOM.getBoundingClientRect().top) : Math.min(innerHeight, this.view.scrollDOM.getBoundingClientRect().bottom) - this.dom.getBoundingClientRect().top);
+    }
+    syncClasses() {
+      if (!this.container || this.classes == this.view.themeClasses)
+        return;
+      for (let cls of this.classes.split(" "))
+        if (cls)
+          this.container.classList.remove(cls);
+      for (let cls of (this.classes = this.view.themeClasses).split(" "))
+        if (cls)
+          this.container.classList.add(cls);
+    }
+  };
+  function rm(node) {
+    let next = node.nextSibling;
+    node.remove();
+    return next;
+  }
+  var showPanel = /* @__PURE__ */ Facet.define({
+    enables: panelPlugin
+  });
+  function showDialog(view2, config) {
+    let resolve;
+    let promise = new Promise((r) => resolve = r);
+    let panelCtor = (view3) => createDialog(view3, config, resolve);
+    if (view2.state.field(dialogField, false)) {
+      view2.dispatch({ effects: openDialogEffect.of(panelCtor) });
+    } else {
+      view2.dispatch({ effects: StateEffect.appendConfig.of(dialogField.init(() => [panelCtor])) });
+    }
+    let close = closeDialogEffect.of(panelCtor);
+    return { close, result: promise.then((form) => {
+      let queue = view2.win.queueMicrotask || ((f) => view2.win.setTimeout(f, 10));
+      queue(() => {
+        if (view2.state.field(dialogField).indexOf(panelCtor) > -1)
+          view2.dispatch({ effects: close });
+      });
+      return form;
+    }) };
+  }
+  var dialogField = /* @__PURE__ */ StateField.define({
+    create() {
+      return [];
+    },
+    update(dialogs, tr) {
+      for (let e of tr.effects) {
+        if (e.is(openDialogEffect))
+          dialogs = [e.value].concat(dialogs);
+        else if (e.is(closeDialogEffect))
+          dialogs = dialogs.filter((d) => d != e.value);
+      }
+      return dialogs;
+    },
+    provide: (f) => showPanel.computeN([f], (state) => state.field(f))
+  });
+  var openDialogEffect = /* @__PURE__ */ StateEffect.define();
+  var closeDialogEffect = /* @__PURE__ */ StateEffect.define();
+  function createDialog(view2, config, result) {
+    let content2 = config.content ? config.content(view2, () => done(null)) : null;
+    if (!content2) {
+      content2 = crelt("form");
+      if (config.input) {
+        let input = crelt("input", config.input);
+        if (/^(text|password|number|email|tel|url)$/.test(input.type))
+          input.classList.add("cm-textfield");
+        if (!input.name)
+          input.name = "input";
+        content2.appendChild(crelt("label", (config.label || "") + ": ", input));
+      } else {
+        content2.appendChild(document.createTextNode(config.label || ""));
+      }
+      content2.appendChild(document.createTextNode(" "));
+      content2.appendChild(crelt("button", { class: "cm-button", type: "submit" }, config.submitLabel || "OK"));
+    }
+    let forms = content2.nodeName == "FORM" ? [content2] : content2.querySelectorAll("form");
+    for (let i = 0; i < forms.length; i++) {
+      let form = forms[i];
+      form.addEventListener("keydown", (event) => {
+        if (event.keyCode == 27) {
+          event.preventDefault();
+          done(null);
+        } else if (event.keyCode == 13) {
+          event.preventDefault();
+          done(form);
+        }
+      });
+      form.addEventListener("submit", (event) => {
+        event.preventDefault();
+        done(form);
+      });
+    }
+    let panel = crelt("div", content2, crelt("button", {
+      onclick: () => done(null),
+      "aria-label": view2.state.phrase("close"),
+      class: "cm-dialog-close",
+      type: "button"
+    }, ["\xD7"]));
+    if (config.class)
+      panel.className = config.class;
+    panel.classList.add("cm-dialog");
+    function done(form) {
+      if (panel.contains(panel.ownerDocument.activeElement))
+        view2.focus();
+      result(form);
+    }
+    return {
+      dom: panel,
+      top: config.top,
+      mount: () => {
+        if (config.focus) {
+          let focus;
+          if (typeof config.focus == "string")
+            focus = content2.querySelector(config.focus);
+          else
+            focus = content2.querySelector("input") || content2.querySelector("button");
+          if (focus && "select" in focus)
+            focus.select();
+          else if (focus && "focus" in focus)
+            focus.focus();
+        }
+      }
+    };
+  }
   var GutterMarker = class extends RangeValue {
     /**
     @internal
@@ -12433,8 +12725,8 @@
         domEventHandlers(a, b) {
           let result = Object.assign({}, a);
           for (let event in b) {
-            let exists = result[event], add = b[event];
-            result[event] = exists ? (view2, line, event2) => exists(view2, line, event2) || add(view2, line, event2) : add;
+            let exists = result[event], add2 = b[event];
+            result[event] = exists ? (view2, line, event2) => exists(view2, line, event2) || add2(view2, line, event2) : add2;
           }
           return result;
         }
@@ -12711,11 +13003,11 @@
       for (let type of this.types) {
         let newProps = null;
         for (let source of props) {
-          let add = source(type);
-          if (add) {
+          let add2 = source(type);
+          if (add2) {
             if (!newProps)
               newProps = Object.assign({}, type.props);
-            let value = add[1], prop = add[0];
+            let value = add2[1], prop = add2[0];
             if (prop.combine && prop.id in newProps)
               value = prop.combine(newProps[prop.id], value);
             newProps[prop.id] = value;
@@ -16026,11 +16318,11 @@
     let stack = ast.resolveStack(pos);
     let inner = ast.resolveInner(pos, -1).resolve(pos, 0).enterUnfinishedNodesBefore(pos);
     if (inner != stack.node) {
-      let add = [];
+      let add2 = [];
       for (let cur = inner; cur && !(cur.from < stack.node.from || cur.to > stack.node.to || cur.from == stack.node.from && cur.type == stack.node.type); cur = cur.parent)
-        add.push(cur);
-      for (let i = add.length - 1; i >= 0; i--)
-        stack = { node: add[i], next: stack };
+        add2.push(cur);
+      for (let i = add2.length - 1; i >= 0; i--)
+        stack = { node: add2[i], next: stack };
     }
     return indentFor(stack, cx, pos);
   }
@@ -16631,11 +16923,11 @@
         if (line.from > prevLine && (from == to || to > line.from)) {
           prevLine = line.from;
           let indent = /^\s*/.exec(line.text)[0].length;
-          let empty = indent == line.length;
+          let empty2 = indent == line.length;
           let comment2 = line.text.slice(indent, indent + token.length) == token ? indent : -1;
           if (indent < line.text.length && indent < minIndent)
             minIndent = indent;
-          lines.push({ line, comment: comment2, token, indent, empty, single: false });
+          lines.push({ line, comment: comment2, token, indent, empty: empty2, single: false });
         }
         pos = line.to + 1;
       }
@@ -16649,8 +16941,8 @@
     }
     if (option != 2 && lines.some((l) => l.comment < 0 && (!l.empty || l.single))) {
       let changes = [];
-      for (let { line, token, indent, empty, single } of lines)
-        if (single || !empty)
+      for (let { line, token, indent, empty: empty2, single } of lines)
+        if (single || !empty2)
           changes.push({ from: line.from + indent, insert: token + " " });
       let changeSet = state.changes(changes);
       return { changes: changeSet, selection: state.selection.map(changeSet, 1) };
@@ -21698,8 +21990,8 @@
       else if (text == ">" && around.name == "JSXFragmentTag") {
         return { range, changes: { from: head, insert: `</>` } };
       } else if (text == "/" && around.name == "JSXStartCloseTag") {
-        let empty = around.parent, base3 = empty.parent;
-        if (base3 && empty.from == head - 2 && ((name2 = elementName(state.doc, base3.firstChild, head)) || ((_a2 = base3.firstChild) === null || _a2 === void 0 ? void 0 : _a2.name) == "JSXFragmentTag")) {
+        let empty2 = around.parent, base3 = empty2.parent;
+        if (base3 && empty2.from == head - 2 && ((name2 = elementName(state.doc, base3.firstChild, head)) || ((_a2 = base3.firstChild) === null || _a2 === void 0 ? void 0 : _a2.name) == "JSXFragmentTag")) {
           let insert2 = `${name2}>`;
           return { range: EditorSelection.cursor(head + insert2.length, -1), changes: { from: head, insert: insert2 } };
         }
@@ -22900,7 +23192,7 @@
       let marks2 = [elt(Type.CodeMark, from, from + len)];
       if (infoFrom < infoTo)
         marks2.push(elt(Type.CodeInfo, cx.lineStart + infoFrom, cx.lineStart + infoTo));
-      for (let first = true, empty = true, hasLine = false; cx.nextLine() && line.depth >= cx.stack.length; first = false) {
+      for (let first = true, empty2 = true, hasLine = false; cx.nextLine() && line.depth >= cx.stack.length; first = false) {
         let i = line.pos;
         if (line.indent - line.baseIndent < 4)
           while (i < line.text.length && line.text.charCodeAt(i) == ch)
@@ -22908,7 +23200,7 @@
         if (i - line.pos >= len && line.skipSpace(i) == line.text.length) {
           for (let m of line.markers)
             marks2.push(m);
-          if (empty && hasLine)
+          if (empty2 && hasLine)
             addCodeText(marks2, cx.lineStart - 1, cx.lineStart);
           marks2.push(elt(Type.CodeMark, cx.lineStart + line.pos, cx.lineStart + i));
           cx.nextLine();
@@ -22917,14 +23209,14 @@
           hasLine = true;
           if (!first) {
             addCodeText(marks2, cx.lineStart - 1, cx.lineStart);
-            empty = false;
+            empty2 = false;
           }
           for (let m of line.markers)
             marks2.push(m);
           let textStart = cx.lineStart + line.basePos, textEnd = cx.lineStart + line.text.length;
           if (textStart < textEnd) {
             addCodeText(marks2, textStart, textEnd);
-            empty = false;
+            empty2 = false;
           }
         }
       }
@@ -23523,8 +23815,8 @@
       if (nonEmpty(config.props))
         nodeSet = nodeSet.extend(...config.props);
       if (nonEmpty(config.remove)) {
-        for (let rm of config.remove) {
-          let block = this.blockNames.indexOf(rm), inline = this.inlineNames.indexOf(rm);
+        for (let rm2 of config.remove) {
+          let block = this.blockNames.indexOf(rm2), inline = this.inlineNames.indexOf(rm2);
           if (block > -1)
             blockParsers[block] = leafBlockParsers[block] = void 0;
           if (inline > -1)
@@ -24662,8 +24954,8 @@
         return result + (trailing ? this.spaceAfter : "");
       }
     }
-    marker(doc2, add) {
-      let number2 = this.node.name == "OrderedList" ? String(+itemNumber(this.item, doc2)[2] + add) : "";
+    marker(doc2, add2) {
+      let number2 = this.node.name == "OrderedList" ? String(+itemNumber(this.item, doc2)[2] + add2) : "";
       return this.spaceBefore + number2 + this.type + this.spaceAfter;
     }
   };
@@ -24824,8 +25116,8 @@
     if (!second)
       return false;
     let line1 = doc2.lineAt(first.to), line2 = doc2.lineAt(second.from);
-    let empty = /^[\s>]*$/.test(line1.text);
-    return line1.number + (empty ? 0 : 1) < line2.number;
+    let empty2 = /^[\s>]*$/.test(line1.text);
+    return line1.number + (empty2 ? 0 : 1) < line2.number;
   }
   function blankLine(context, state, line) {
     let insert2 = "";
@@ -24983,6 +25275,1554 @@
     }
   });
 
+  // src/richEditorOutline.js
+  function createOutlineNavigation() {
+    let outlineRoot = null;
+    let outlineButton = null;
+    let outlinePanel = null;
+    let outlineList = null;
+    let outlineHeadings = [];
+    function render(editorView) {
+      if (outlineRoot) {
+        update(editorView, { rebuild: true });
+        return;
+      }
+      outlineRoot = document.createElement("div");
+      outlineRoot.className = "richdown-outline-root";
+      outlineButton = document.createElement("button");
+      outlineButton.type = "button";
+      outlineButton.className = "richdown-outline-button";
+      outlineButton.title = "Document sections";
+      outlineButton.setAttribute("aria-label", "Document sections");
+      outlineButton.textContent = "\u2630";
+      outlineButton.addEventListener("pointerdown", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        toggle();
+      });
+      outlineButton.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+      });
+      outlinePanel = document.createElement("nav");
+      outlinePanel.className = "richdown-outline-panel";
+      outlinePanel.hidden = true;
+      outlinePanel.setAttribute("aria-label", "Document sections");
+      outlinePanel.addEventListener("pointerdown", (event) => {
+        event.stopPropagation();
+      });
+      outlinePanel.addEventListener("click", (event) => {
+        event.stopPropagation();
+      });
+      const title = document.createElement("div");
+      title.className = "richdown-outline-title";
+      title.textContent = "Sections";
+      outlineList = document.createElement("div");
+      outlineList.className = "richdown-outline-list";
+      outlinePanel.appendChild(title);
+      outlinePanel.appendChild(outlineList);
+      outlineRoot.appendChild(outlinePanel);
+      outlineRoot.appendChild(outlineButton);
+      document.body.appendChild(outlineRoot);
+      update(editorView, { rebuild: true });
+    }
+    function sync(updateInfo) {
+      if (!outlineRoot) {
+        return;
+      }
+      if (updateInfo.docChanged) {
+        update(updateInfo.view, { rebuild: true });
+        return;
+      }
+      if (updateInfo.selectionSet || updateInfo.viewportChanged) {
+        update(updateInfo.view);
+      }
+    }
+    function toggle() {
+      if (!outlineRoot || !outlinePanel) {
+        return;
+      }
+      const nextOpen = outlinePanel.hidden;
+      outlinePanel.hidden = !nextOpen;
+      outlineRoot.classList.toggle("is-open", nextOpen);
+    }
+    function close() {
+      if (!outlineRoot || !outlinePanel || outlinePanel.hidden) {
+        return false;
+      }
+      outlinePanel.hidden = true;
+      outlineRoot.classList.remove("is-open");
+      return true;
+    }
+    function update(editorView, options = {}) {
+      if (!outlineList) {
+        return;
+      }
+      if (options.rebuild) {
+        outlineHeadings = collectDocumentHeadings(editorView.state.doc);
+        outlineList.replaceChildren(
+          ...outlineHeadings.length ? outlineHeadings.map(
+            (heading2, index) => createOutlineItem(editorView, heading2, index)
+          ) : [createOutlineEmptyState()]
+        );
+      }
+      updateActiveItem(editorView);
+    }
+    function createOutlineItem(editorView, heading2, index) {
+      const item = document.createElement("button");
+      item.type = "button";
+      item.className = "richdown-outline-item";
+      item.dataset.headingIndex = String(index);
+      item.title = heading2.text;
+      item.style.paddingLeft = `${7 + Math.max(0, heading2.level - 2) * 12}px`;
+      const level = document.createElement("span");
+      level.className = "richdown-outline-level";
+      level.textContent = `H${heading2.level}`;
+      const text = document.createElement("span");
+      text.className = "richdown-outline-text";
+      text.textContent = heading2.text;
+      item.appendChild(level);
+      item.appendChild(text);
+      item.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        jumpToHeading(editorView, heading2);
+      });
+      return item;
+    }
+    function jumpToHeading(editorView, heading2) {
+      editorView.dispatch({
+        selection: { anchor: Math.min(heading2.from, editorView.state.doc.length) },
+        scrollIntoView: true
+      });
+      editorView.focus();
+      close();
+    }
+    function updateActiveItem(editorView) {
+      if (!outlineList || outlineHeadings.length === 0) {
+        return;
+      }
+      const position = editorView.state.selection.main.from;
+      let activeIndex = -1;
+      for (let index = 0; index < outlineHeadings.length; index += 1) {
+        if (outlineHeadings[index].from <= position) {
+          activeIndex = index;
+        } else {
+          break;
+        }
+      }
+      for (const item of outlineList.querySelectorAll(".richdown-outline-item")) {
+        const isActive = Number.parseInt(item.dataset.headingIndex || "-1", 10) === activeIndex;
+        item.classList.toggle("is-active", isActive);
+        if (isActive) {
+          item.scrollIntoView({ block: "nearest" });
+        }
+      }
+    }
+    return { close, render, sync };
+  }
+  function createOutlineEmptyState() {
+    const empty2 = document.createElement("div");
+    empty2.className = "richdown-outline-empty";
+    empty2.textContent = "No sections";
+    return empty2;
+  }
+  function collectDocumentHeadings(doc2) {
+    const headings = [];
+    let inFence = false;
+    let fenceChar = "";
+    let fenceLength = 0;
+    for (let lineNumber = 1; lineNumber <= doc2.lines; lineNumber += 1) {
+      const line = doc2.line(lineNumber);
+      const fence = line.text.match(/^\s{0,3}(`{3,}|~{3,})/);
+      if (fence) {
+        const marker = fence[1];
+        if (!inFence) {
+          inFence = true;
+          fenceChar = marker[0];
+          fenceLength = marker.length;
+        } else if (marker[0] === fenceChar && marker.length >= fenceLength) {
+          inFence = false;
+          fenceChar = "";
+          fenceLength = 0;
+        }
+        continue;
+      }
+      if (inFence) {
+        continue;
+      }
+      const heading2 = line.text.match(/^\s{0,3}(#{2,3})\s+(.+?)\s*#*\s*$/);
+      if (!heading2) {
+        continue;
+      }
+      headings.push({
+        from: line.from,
+        level: heading2[1].length,
+        text: cleanOutlineHeadingText(heading2[2])
+      });
+    }
+    return headings;
+  }
+  function cleanOutlineHeadingText(text) {
+    return text.replace(/!\[([^\]]*)\]\([^)]+\)/g, "$1").replace(/\[([^\]]+)\]\([^)]+\)/g, "$1").replace(/`([^`]+)`/g, "$1").replace(/\*\*([^*]+)\*\*/g, "$1").replace(/__([^_]+)__/g, "$1").replace(/\*([^*]+)\*/g, "$1").replace(/_([^_]+)_/g, "$1").replace(/~~([^~]+)~~/g, "$1").trim();
+  }
+
+  // node_modules/@codemirror/search/dist/index.js
+  var basicNormalize = typeof String.prototype.normalize == "function" ? (x) => x.normalize("NFKD") : (x) => x;
+  var SearchCursor = class {
+    /**
+    Create a text cursor. The query is the search string, `from` to
+    `to` provides the region to search.
+    
+    When `normalize` is given, it will be called, on both the query
+    string and the content it is matched against, before comparing.
+    You can, for example, create a case-insensitive search by
+    passing `s => s.toLowerCase()`.
+    
+    Text is always normalized with
+    [`.normalize("NFKD")`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String/normalize)
+    (when supported).
+    */
+    constructor(text, query, from = 0, to = text.length, normalize, test) {
+      this.test = test;
+      this.value = { from: 0, to: 0, precise: false };
+      this.done = false;
+      this.matches = [];
+      this.buffer = "";
+      this.bufferPos = 0;
+      this.iter = text.iterRange(from, to);
+      this.bufferStart = from;
+      this.normalize = normalize ? (x) => normalize(basicNormalize(x)) : basicNormalize;
+      this.query = this.normalize(query);
+    }
+    peek() {
+      if (this.bufferPos == this.buffer.length) {
+        this.bufferStart += this.buffer.length;
+        this.iter.next();
+        if (this.iter.done)
+          return -1;
+        this.bufferPos = 0;
+        this.buffer = this.iter.value;
+      }
+      return codePointAt2(this.buffer, this.bufferPos);
+    }
+    /**
+    Look for the next match. Updates the iterator's
+    [`value`](https://codemirror.net/6/docs/ref/#search.SearchCursor.value) and
+    [`done`](https://codemirror.net/6/docs/ref/#search.SearchCursor.done) properties. Should be called
+    at least once before using the cursor.
+    */
+    next() {
+      while (this.matches.length)
+        this.matches.pop();
+      return this.nextOverlapping();
+    }
+    /**
+    The `next` method will ignore matches that partially overlap a
+    previous match. This method behaves like `next`, but includes
+    such matches.
+    */
+    nextOverlapping() {
+      for (; ; ) {
+        let next = this.peek();
+        if (next < 0) {
+          this.done = true;
+          return this;
+        }
+        let str = fromCodePoint(next), start = this.bufferStart + this.bufferPos;
+        this.bufferPos += codePointSize2(next);
+        let norm = this.normalize(str);
+        if (norm.length)
+          for (let i = 0, pos = start, posPrecise = true; ; i++) {
+            let code = norm.charCodeAt(i);
+            let match = this.match(code, pos, posPrecise, this.bufferPos + this.bufferStart, i == norm.length - 1);
+            if (match) {
+              this.value = match;
+              return this;
+            }
+            if (i == norm.length - 1)
+              break;
+            if (posPrecise && i < str.length && str.charCodeAt(i) == code)
+              pos++;
+            else
+              posPrecise = false;
+          }
+      }
+    }
+    match(code, pos, posPrecise, end, endPrecise) {
+      let match = null;
+      for (let i = 0; i < this.matches.length; ) {
+        let partial = this.matches[i], keep = false;
+        if (this.query.charCodeAt(partial.index) == code) {
+          if (partial.index == this.query.length - 1) {
+            match = { from: partial.from, to: end, precise: endPrecise && partial.precise };
+          } else {
+            partial.index++;
+            keep = true;
+          }
+        }
+        if (keep)
+          i++;
+        else
+          this.matches.splice(i, 1);
+      }
+      if (this.query.charCodeAt(0) == code) {
+        if (this.query.length == 1)
+          match = { from: pos, to: end, precise: posPrecise && endPrecise };
+        else
+          this.matches.push({ from: pos, index: 1, precise: posPrecise });
+      }
+      if (match && this.test && !this.test(match.from, match.to, this.buffer, this.bufferStart))
+        match = null;
+      return match;
+    }
+  };
+  if (typeof Symbol != "undefined")
+    SearchCursor.prototype[Symbol.iterator] = function() {
+      return this;
+    };
+  var empty = { from: -1, to: -1, match: /* @__PURE__ */ /.*/.exec(""), precise: true };
+  var baseFlags = "gm" + (/x/.unicode == null ? "" : "u");
+  var RegExpCursor = class {
+    /**
+    Create a cursor that will search the given range in the given
+    document. `query` should be the raw pattern (as you'd pass it to
+    `new RegExp`).
+    */
+    constructor(text, query, options, from = 0, to = text.length) {
+      this.text = text;
+      this.to = to;
+      this.curLine = "";
+      this.done = false;
+      this.value = empty;
+      if (/\\[sWDnr]|\n|\r|\[\^/.test(query))
+        return new MultilineRegExpCursor(text, query, options, from, to);
+      this.re = new RegExp(query, baseFlags + ((options === null || options === void 0 ? void 0 : options.ignoreCase) ? "i" : ""));
+      this.test = options === null || options === void 0 ? void 0 : options.test;
+      this.iter = text.iter();
+      let startLine = text.lineAt(from);
+      this.curLineStart = startLine.from;
+      this.matchPos = toCharEnd(text, from);
+      this.getLine(this.curLineStart);
+    }
+    getLine(skip) {
+      this.iter.next(skip);
+      if (this.iter.lineBreak) {
+        this.curLine = "";
+      } else {
+        this.curLine = this.iter.value;
+        if (this.curLineStart + this.curLine.length > this.to)
+          this.curLine = this.curLine.slice(0, this.to - this.curLineStart);
+        this.iter.next();
+      }
+    }
+    nextLine() {
+      this.curLineStart = this.curLineStart + this.curLine.length + 1;
+      if (this.curLineStart > this.to)
+        this.curLine = "";
+      else
+        this.getLine(0);
+    }
+    /**
+    Move to the next match, if there is one.
+    */
+    next() {
+      for (let off = this.matchPos - this.curLineStart; ; ) {
+        this.re.lastIndex = off;
+        let match = this.matchPos <= this.to && this.re.exec(this.curLine);
+        if (match) {
+          let from = this.curLineStart + match.index, to = from + match[0].length;
+          this.matchPos = toCharEnd(this.text, to + (from == to ? 1 : 0));
+          if (from == this.curLineStart + this.curLine.length)
+            this.nextLine();
+          if ((from < to || from > this.value.to) && (!this.test || this.test(from, to, match))) {
+            this.value = { from, to, precise: true, match };
+            return this;
+          }
+          off = this.matchPos - this.curLineStart;
+        } else if (this.curLineStart + this.curLine.length < this.to) {
+          this.nextLine();
+          off = 0;
+        } else {
+          this.done = true;
+          return this;
+        }
+      }
+    }
+  };
+  var flattened = /* @__PURE__ */ new WeakMap();
+  var FlattenedDoc = class _FlattenedDoc {
+    constructor(from, text) {
+      this.from = from;
+      this.text = text;
+    }
+    get to() {
+      return this.from + this.text.length;
+    }
+    static get(doc2, from, to) {
+      let cached = flattened.get(doc2);
+      if (!cached || cached.from >= to || cached.to <= from) {
+        let flat = new _FlattenedDoc(from, doc2.sliceString(from, to));
+        flattened.set(doc2, flat);
+        return flat;
+      }
+      if (cached.from == from && cached.to == to)
+        return cached;
+      let { text, from: cachedFrom } = cached;
+      if (cachedFrom > from) {
+        text = doc2.sliceString(from, cachedFrom) + text;
+        cachedFrom = from;
+      }
+      if (cached.to < to)
+        text += doc2.sliceString(cached.to, to);
+      flattened.set(doc2, new _FlattenedDoc(cachedFrom, text));
+      return new _FlattenedDoc(from, text.slice(from - cachedFrom, to - cachedFrom));
+    }
+  };
+  var MultilineRegExpCursor = class {
+    constructor(text, query, options, from, to) {
+      this.text = text;
+      this.to = to;
+      this.done = false;
+      this.value = empty;
+      this.matchPos = toCharEnd(text, from);
+      this.re = new RegExp(query, baseFlags + ((options === null || options === void 0 ? void 0 : options.ignoreCase) ? "i" : ""));
+      this.test = options === null || options === void 0 ? void 0 : options.test;
+      this.flat = FlattenedDoc.get(text, from, this.chunkEnd(
+        from + 5e3
+        /* Chunk.Base */
+      ));
+    }
+    chunkEnd(pos) {
+      return pos >= this.to ? this.to : this.text.lineAt(pos).to;
+    }
+    next() {
+      for (; ; ) {
+        let off = this.re.lastIndex = this.matchPos - this.flat.from;
+        let match = this.re.exec(this.flat.text);
+        if (match && !match[0] && match.index == off) {
+          this.re.lastIndex = off + 1;
+          match = this.re.exec(this.flat.text);
+        }
+        if (match) {
+          let from = this.flat.from + match.index, to = from + match[0].length;
+          if ((this.flat.to >= this.to || match.index + match[0].length <= this.flat.text.length - 10) && (!this.test || this.test(from, to, match))) {
+            this.value = { from, to, precise: true, match };
+            this.matchPos = toCharEnd(this.text, to + (from == to ? 1 : 0));
+            return this;
+          }
+        }
+        if (this.flat.to == this.to) {
+          this.done = true;
+          return this;
+        }
+        this.flat = FlattenedDoc.get(this.text, this.flat.from, this.chunkEnd(this.flat.from + this.flat.text.length * 2));
+      }
+    }
+  };
+  if (typeof Symbol != "undefined") {
+    RegExpCursor.prototype[Symbol.iterator] = MultilineRegExpCursor.prototype[Symbol.iterator] = function() {
+      return this;
+    };
+  }
+  function validRegExp(source) {
+    try {
+      new RegExp(source, baseFlags);
+      return true;
+    } catch (_a2) {
+      return false;
+    }
+  }
+  function toCharEnd(text, pos) {
+    if (pos >= text.length)
+      return pos;
+    let line = text.lineAt(pos), next;
+    while (pos < line.to && (next = line.text.charCodeAt(pos - line.from)) >= 56320 && next < 57344)
+      pos++;
+    return pos;
+  }
+  var gotoLine = (view2) => {
+    let { state } = view2;
+    let line = String(state.doc.lineAt(view2.state.selection.main.head).number);
+    let { close, result } = showDialog(view2, {
+      label: state.phrase("Go to line"),
+      input: { type: "text", name: "line", value: line },
+      focus: true,
+      submitLabel: state.phrase("go")
+    });
+    result.then((form) => {
+      let match = form && /^([+-])?(\d+)?(:\d+)?(%)?$/.exec(form.elements["line"].value);
+      if (!match) {
+        view2.dispatch({ effects: close });
+        return;
+      }
+      let startLine = state.doc.lineAt(state.selection.main.head);
+      let [, sign, ln, cl, percent2] = match;
+      let col = cl ? +cl.slice(1) : 0;
+      let line2 = ln ? +ln : startLine.number;
+      if (ln && percent2) {
+        let pc = line2 / 100;
+        if (sign)
+          pc = pc * (sign == "-" ? -1 : 1) + startLine.number / state.doc.lines;
+        line2 = Math.round(state.doc.lines * pc);
+      } else if (ln && sign) {
+        line2 = line2 * (sign == "-" ? -1 : 1) + startLine.number;
+      }
+      let docLine = state.doc.line(Math.max(1, Math.min(state.doc.lines, line2)));
+      let selection = EditorSelection.cursor(docLine.from + Math.max(0, Math.min(col, docLine.length)));
+      view2.dispatch({
+        effects: [close, EditorView.scrollIntoView(selection.from, { y: "center" })],
+        selection
+      });
+    });
+    return true;
+  };
+  var defaultHighlightOptions = {
+    highlightWordAroundCursor: false,
+    minSelectionLength: 1,
+    maxMatches: 100,
+    wholeWords: false
+  };
+  var highlightConfig = /* @__PURE__ */ Facet.define({
+    combine(options) {
+      return combineConfig(options, defaultHighlightOptions, {
+        highlightWordAroundCursor: (a, b) => a || b,
+        minSelectionLength: Math.min,
+        maxMatches: Math.min
+      });
+    }
+  });
+  function highlightSelectionMatches(options) {
+    let ext = [defaultTheme, matchHighlighter];
+    if (options)
+      ext.push(highlightConfig.of(options));
+    return ext;
+  }
+  var matchDeco = /* @__PURE__ */ Decoration.mark({ class: "cm-selectionMatch" });
+  var mainMatchDeco = /* @__PURE__ */ Decoration.mark({ class: "cm-selectionMatch cm-selectionMatch-main" });
+  function insideWordBoundaries(check, state, from, to) {
+    return (from == 0 || check(state.sliceDoc(from - 1, from)) != CharCategory.Word) && (to == state.doc.length || check(state.sliceDoc(to, to + 1)) != CharCategory.Word);
+  }
+  function insideWord(check, state, from, to) {
+    return check(state.sliceDoc(from, from + 1)) == CharCategory.Word && check(state.sliceDoc(to - 1, to)) == CharCategory.Word;
+  }
+  var matchHighlighter = /* @__PURE__ */ ViewPlugin.fromClass(class {
+    constructor(view2) {
+      this.decorations = this.getDeco(view2);
+    }
+    update(update) {
+      if (update.selectionSet || update.docChanged || update.viewportChanged)
+        this.decorations = this.getDeco(update.view);
+    }
+    getDeco(view2) {
+      let conf = view2.state.facet(highlightConfig);
+      let { state } = view2, sel = state.selection;
+      if (sel.ranges.length > 1)
+        return Decoration.none;
+      let range = sel.main, query, check = null;
+      if (range.empty) {
+        if (!conf.highlightWordAroundCursor)
+          return Decoration.none;
+        let word = state.wordAt(range.head);
+        if (!word)
+          return Decoration.none;
+        check = state.charCategorizer(range.head);
+        query = state.sliceDoc(word.from, word.to);
+      } else {
+        let len = range.to - range.from;
+        if (len < conf.minSelectionLength || len > 200)
+          return Decoration.none;
+        if (conf.wholeWords) {
+          query = state.sliceDoc(range.from, range.to);
+          check = state.charCategorizer(range.head);
+          if (!(insideWordBoundaries(check, state, range.from, range.to) && insideWord(check, state, range.from, range.to)))
+            return Decoration.none;
+        } else {
+          query = state.sliceDoc(range.from, range.to);
+          if (!query)
+            return Decoration.none;
+        }
+      }
+      let deco = [];
+      for (let part of view2.visibleRanges) {
+        let cursor = new SearchCursor(state.doc, query, part.from, part.to);
+        while (!cursor.next().done) {
+          let { from, to } = cursor.value;
+          if (!check || insideWordBoundaries(check, state, from, to)) {
+            if (range.empty && from <= range.from && to >= range.to)
+              deco.push(mainMatchDeco.range(from, to));
+            else if (from >= range.to || to <= range.from)
+              deco.push(matchDeco.range(from, to));
+            if (deco.length > conf.maxMatches)
+              return Decoration.none;
+          }
+        }
+      }
+      return Decoration.set(deco);
+    }
+  }, {
+    decorations: (v) => v.decorations
+  });
+  var defaultTheme = /* @__PURE__ */ EditorView.baseTheme({
+    ".cm-selectionMatch": { backgroundColor: "#99ff7780" },
+    ".cm-searchMatch .cm-selectionMatch": { backgroundColor: "transparent" }
+  });
+  var selectWord = ({ state, dispatch }) => {
+    let { selection } = state;
+    let newSel = EditorSelection.create(selection.ranges.map((range) => state.wordAt(range.head) || EditorSelection.cursor(range.head)), selection.mainIndex);
+    if (newSel.eq(selection))
+      return false;
+    dispatch(state.update({ selection: newSel }));
+    return true;
+  };
+  function findNextOccurrence(state, query) {
+    let { main, ranges } = state.selection;
+    let word = state.wordAt(main.head), fullWord = word && word.from == main.from && word.to == main.to;
+    for (let cycled = false, cursor = new SearchCursor(state.doc, query, ranges[ranges.length - 1].to); ; ) {
+      cursor.next();
+      if (cursor.done) {
+        if (cycled)
+          return null;
+        cursor = new SearchCursor(state.doc, query, 0, Math.max(0, ranges[ranges.length - 1].from - 1));
+        cycled = true;
+      } else {
+        if (cycled && ranges.some((r) => r.from == cursor.value.from))
+          continue;
+        if (fullWord) {
+          let word2 = state.wordAt(cursor.value.from);
+          if (!word2 || word2.from != cursor.value.from || word2.to != cursor.value.to)
+            continue;
+        }
+        return cursor.value;
+      }
+    }
+  }
+  var selectNextOccurrence = ({ state, dispatch }) => {
+    let { ranges } = state.selection;
+    if (ranges.some((sel) => sel.from === sel.to))
+      return selectWord({ state, dispatch });
+    let searchedText = state.sliceDoc(ranges[0].from, ranges[0].to);
+    if (state.selection.ranges.some((r) => state.sliceDoc(r.from, r.to) != searchedText))
+      return false;
+    let range = findNextOccurrence(state, searchedText);
+    if (!range)
+      return false;
+    dispatch(state.update({
+      selection: state.selection.addRange(EditorSelection.range(range.from, range.to), false),
+      effects: EditorView.scrollIntoView(range.to)
+    }));
+    return true;
+  };
+  var searchConfigFacet = /* @__PURE__ */ Facet.define({
+    combine(configs) {
+      return combineConfig(configs, {
+        top: false,
+        caseSensitive: false,
+        literal: false,
+        regexp: false,
+        wholeWord: false,
+        createPanel: (view2) => new SearchPanel(view2),
+        scrollToMatch: (range) => EditorView.scrollIntoView(range)
+      });
+    }
+  });
+  function search(config) {
+    return config ? [searchConfigFacet.of(config), searchExtensions] : searchExtensions;
+  }
+  var SearchQuery = class {
+    /**
+    Create a query object.
+    */
+    constructor(config) {
+      this.search = config.search;
+      this.caseSensitive = !!config.caseSensitive;
+      this.literal = !!config.literal;
+      this.regexp = !!config.regexp;
+      this.replace = config.replace || "";
+      this.valid = !!this.search && (!this.regexp || validRegExp(this.search));
+      this.unquoted = this.unquote(this.search);
+      this.wholeWord = !!config.wholeWord;
+      this.test = config.test;
+    }
+    /**
+    @internal
+    */
+    unquote(text) {
+      return this.literal ? text : text.replace(/\\([nrt\\])/g, (_, ch) => ch == "n" ? "\n" : ch == "r" ? "\r" : ch == "t" ? "	" : "\\");
+    }
+    /**
+    Compare this query to another query.
+    */
+    eq(other) {
+      return this.search == other.search && this.replace == other.replace && this.caseSensitive == other.caseSensitive && this.regexp == other.regexp && this.wholeWord == other.wholeWord && this.test == other.test;
+    }
+    /**
+    @internal
+    */
+    create() {
+      return this.regexp ? new RegExpQuery(this) : new StringQuery(this);
+    }
+    /**
+    Get a search cursor for this query, searching through the given
+    range in the given state.
+    */
+    getCursor(state, from = 0, to) {
+      let st = state.doc ? state : EditorState.create({ doc: state });
+      if (to == null)
+        to = st.doc.length;
+      return this.regexp ? regexpCursor(this, st, from, to) : stringCursor(this, st, from, to);
+    }
+  };
+  var QueryType2 = class {
+    constructor(spec) {
+      this.spec = spec;
+    }
+  };
+  function wrapStringTest(test, state, inner) {
+    return (from, to, buffer, bufferPos) => {
+      if (inner && !inner(from, to, buffer, bufferPos))
+        return false;
+      let match = from >= bufferPos && to <= bufferPos + buffer.length ? buffer.slice(from - bufferPos, to - bufferPos) : state.doc.sliceString(from, to);
+      return test(match, state, from, to);
+    };
+  }
+  function stringCursor(spec, state, from, to) {
+    let test;
+    if (spec.wholeWord)
+      test = stringWordTest(state.doc, state.charCategorizer(state.selection.main.head));
+    if (spec.test)
+      test = wrapStringTest(spec.test, state, test);
+    return new SearchCursor(state.doc, spec.unquoted, from, to, spec.caseSensitive ? void 0 : (x) => x.toLowerCase(), test);
+  }
+  function stringWordTest(doc2, categorizer) {
+    return (from, to, buf, bufPos) => {
+      if (bufPos > from || bufPos + buf.length < to) {
+        bufPos = Math.max(0, from - 2);
+        buf = doc2.sliceString(bufPos, Math.min(doc2.length, to + 2));
+      }
+      return (categorizer(charBefore(buf, from - bufPos)) != CharCategory.Word || categorizer(charAfter(buf, from - bufPos)) != CharCategory.Word) && (categorizer(charAfter(buf, to - bufPos)) != CharCategory.Word || categorizer(charBefore(buf, to - bufPos)) != CharCategory.Word);
+    };
+  }
+  var StringQuery = class extends QueryType2 {
+    constructor(spec) {
+      super(spec);
+    }
+    nextMatch(state, curFrom, curTo) {
+      let cursor = stringCursor(this.spec, state, curTo, state.doc.length).nextOverlapping();
+      if (cursor.done) {
+        let end = Math.min(state.doc.length, curFrom + this.spec.unquoted.length);
+        cursor = stringCursor(this.spec, state, 0, end).nextOverlapping();
+      }
+      return cursor.done || cursor.value.from == curFrom && cursor.value.to == curTo ? null : cursor.value;
+    }
+    // Searching in reverse is, rather than implementing an inverted search
+    // cursor, done by scanning chunk after chunk forward.
+    prevMatchInRange(state, from, to) {
+      for (let pos = to; ; ) {
+        let start = Math.max(from, pos - 1e4 - this.spec.unquoted.length);
+        let cursor = stringCursor(this.spec, state, start, pos), range = null;
+        while (!cursor.nextOverlapping().done)
+          range = cursor.value;
+        if (range)
+          return range;
+        if (start == from)
+          return null;
+        pos -= 1e4;
+      }
+    }
+    prevMatch(state, curFrom, curTo) {
+      let found = this.prevMatchInRange(state, 0, curFrom);
+      if (!found)
+        found = this.prevMatchInRange(state, Math.max(0, curTo - this.spec.unquoted.length), state.doc.length);
+      return found && (found.from != curFrom || found.to != curTo) ? found : null;
+    }
+    getReplacement(_result) {
+      return this.spec.unquote(this.spec.replace);
+    }
+    matchAll(state, limit) {
+      let cursor = stringCursor(this.spec, state, 0, state.doc.length), ranges = [];
+      while (!cursor.next().done) {
+        if (ranges.length >= limit)
+          return null;
+        ranges.push(cursor.value);
+      }
+      return ranges;
+    }
+    highlight(state, from, to, add2) {
+      let cursor = stringCursor(this.spec, state, Math.max(0, from - this.spec.unquoted.length), Math.min(to + this.spec.unquoted.length, state.doc.length));
+      while (!cursor.next().done)
+        add2(cursor.value.from, cursor.value.to);
+    }
+  };
+  function wrapRegexpTest(test, state, inner) {
+    return (from, to, match) => {
+      return (!inner || inner(from, to, match)) && test(match[0], state, from, to);
+    };
+  }
+  function regexpCursor(spec, state, from, to) {
+    let test;
+    if (spec.wholeWord)
+      test = regexpWordTest(state.charCategorizer(state.selection.main.head));
+    if (spec.test)
+      test = wrapRegexpTest(spec.test, state, test);
+    return new RegExpCursor(state.doc, spec.search, { ignoreCase: !spec.caseSensitive, test }, from, to);
+  }
+  function charBefore(str, index) {
+    return str.slice(findClusterBreak2(str, index, false), index);
+  }
+  function charAfter(str, index) {
+    return str.slice(index, findClusterBreak2(str, index));
+  }
+  function regexpWordTest(categorizer) {
+    return (_from, _to, match) => !match[0].length || (categorizer(charBefore(match.input, match.index)) != CharCategory.Word || categorizer(charAfter(match.input, match.index)) != CharCategory.Word) && (categorizer(charAfter(match.input, match.index + match[0].length)) != CharCategory.Word || categorizer(charBefore(match.input, match.index + match[0].length)) != CharCategory.Word);
+  }
+  var RegExpQuery = class extends QueryType2 {
+    nextMatch(state, curFrom, curTo) {
+      let cursor = regexpCursor(this.spec, state, curTo, state.doc.length).next();
+      if (cursor.done)
+        cursor = regexpCursor(this.spec, state, 0, curFrom).next();
+      return cursor.done ? null : cursor.value;
+    }
+    prevMatchInRange(state, from, to) {
+      for (let size = 1; ; size++) {
+        let start = Math.max(
+          from,
+          to - size * 1e4
+          /* FindPrev.ChunkSize */
+        );
+        let cursor = regexpCursor(this.spec, state, start, to), range = null;
+        while (!cursor.next().done)
+          range = cursor.value;
+        if (range && (start == from || range.from > start + 10))
+          return range;
+        if (start == from)
+          return null;
+      }
+    }
+    prevMatch(state, curFrom, curTo) {
+      return this.prevMatchInRange(state, 0, curFrom) || this.prevMatchInRange(state, curTo, state.doc.length);
+    }
+    getReplacement(result) {
+      return this.spec.unquote(this.spec.replace).replace(/\$([$&]|\d+)/g, (m, i) => {
+        if (i == "&")
+          return result.match[0];
+        if (i == "$")
+          return "$";
+        for (let l = i.length; l > 0; l--) {
+          let n = +i.slice(0, l);
+          if (n > 0 && n < result.match.length)
+            return result.match[n] + i.slice(l);
+        }
+        return m;
+      });
+    }
+    matchAll(state, limit) {
+      let cursor = regexpCursor(this.spec, state, 0, state.doc.length), ranges = [];
+      while (!cursor.next().done) {
+        if (ranges.length >= limit)
+          return null;
+        ranges.push(cursor.value);
+      }
+      return ranges;
+    }
+    highlight(state, from, to, add2) {
+      let cursor = regexpCursor(this.spec, state, Math.max(
+        0,
+        from - 250
+        /* RegExp.HighlightMargin */
+      ), Math.min(to + 250, state.doc.length));
+      while (!cursor.next().done)
+        add2(cursor.value.from, cursor.value.to);
+    }
+  };
+  var setSearchQuery = /* @__PURE__ */ StateEffect.define();
+  var togglePanel = /* @__PURE__ */ StateEffect.define();
+  var searchState = /* @__PURE__ */ StateField.define({
+    create(state) {
+      return new SearchState(defaultQuery(state).create(), null);
+    },
+    update(value, tr) {
+      for (let effect of tr.effects) {
+        if (effect.is(setSearchQuery))
+          value = new SearchState(effect.value.create(), value.panel);
+        else if (effect.is(togglePanel))
+          value = new SearchState(value.query, effect.value ? createSearchPanel : null);
+      }
+      return value;
+    },
+    provide: (f) => showPanel.from(f, (val) => val.panel)
+  });
+  var SearchState = class {
+    constructor(query, panel) {
+      this.query = query;
+      this.panel = panel;
+    }
+  };
+  var matchMark = /* @__PURE__ */ Decoration.mark({ class: "cm-searchMatch" });
+  var selectedMatchMark = /* @__PURE__ */ Decoration.mark({ class: "cm-searchMatch cm-searchMatch-selected" });
+  var searchHighlighter = /* @__PURE__ */ ViewPlugin.fromClass(class {
+    constructor(view2) {
+      this.view = view2;
+      this.decorations = this.highlight(view2.state.field(searchState));
+    }
+    update(update) {
+      let state = update.state.field(searchState);
+      if (state != update.startState.field(searchState) || update.docChanged || update.selectionSet || update.viewportChanged)
+        this.decorations = this.highlight(state);
+    }
+    highlight({ query, panel }) {
+      if (!panel || !query.spec.valid)
+        return Decoration.none;
+      let { view: view2 } = this;
+      let builder = new RangeSetBuilder();
+      for (let i = 0, ranges = view2.visibleRanges, l = ranges.length; i < l; i++) {
+        let { from, to } = ranges[i];
+        while (i < l - 1 && to > ranges[i + 1].from - 2 * 250)
+          to = ranges[++i].to;
+        query.highlight(view2.state, from, to, (from2, to2) => {
+          let selected = view2.state.selection.ranges.some((r) => r.from == from2 && r.to == to2);
+          builder.add(from2, to2, selected ? selectedMatchMark : matchMark);
+        });
+      }
+      return builder.finish();
+    }
+  }, {
+    decorations: (v) => v.decorations
+  });
+  function searchCommand(f) {
+    return (view2) => {
+      let state = view2.state.field(searchState, false);
+      return state && state.query.spec.valid ? f(view2, state) : openSearchPanel(view2);
+    };
+  }
+  var findNext = /* @__PURE__ */ searchCommand((view2, { query }) => {
+    let { to } = view2.state.selection.main;
+    let next = query.nextMatch(view2.state, to, to);
+    if (!next)
+      return false;
+    let selection = EditorSelection.single(next.from, next.to);
+    let config = view2.state.facet(searchConfigFacet);
+    view2.dispatch({
+      selection,
+      effects: [announceMatch(view2, next), config.scrollToMatch(selection.main, view2)],
+      userEvent: "select.search"
+    });
+    selectSearchInput(view2);
+    return true;
+  });
+  var findPrevious = /* @__PURE__ */ searchCommand((view2, { query }) => {
+    let { state } = view2, { from } = state.selection.main;
+    let prev = query.prevMatch(state, from, from);
+    if (!prev)
+      return false;
+    let selection = EditorSelection.single(prev.from, prev.to);
+    let config = view2.state.facet(searchConfigFacet);
+    view2.dispatch({
+      selection,
+      effects: [announceMatch(view2, prev), config.scrollToMatch(selection.main, view2)],
+      userEvent: "select.search"
+    });
+    selectSearchInput(view2);
+    return true;
+  });
+  var selectMatches = /* @__PURE__ */ searchCommand((view2, { query }) => {
+    let ranges = query.matchAll(view2.state, 1e3);
+    if (!ranges || !ranges.length)
+      return false;
+    view2.dispatch({
+      selection: EditorSelection.create(ranges.map((r) => EditorSelection.range(r.from, r.to))),
+      userEvent: "select.search.matches"
+    });
+    return true;
+  });
+  var selectSelectionMatches = ({ state, dispatch }) => {
+    let sel = state.selection;
+    if (sel.ranges.length > 1 || sel.main.empty)
+      return false;
+    let { from, to } = sel.main;
+    let ranges = [], main = 0;
+    for (let cur = new SearchCursor(state.doc, state.sliceDoc(from, to)); !cur.next().done; ) {
+      if (ranges.length > 1e3)
+        return false;
+      if (cur.value.from == from)
+        main = ranges.length;
+      ranges.push(EditorSelection.range(cur.value.from, cur.value.to));
+    }
+    dispatch(state.update({
+      selection: EditorSelection.create(ranges, main),
+      userEvent: "select.search.matches"
+    }));
+    return true;
+  };
+  var replaceNext = /* @__PURE__ */ searchCommand((view2, { query }) => {
+    let { state } = view2, { from, to } = state.selection.main;
+    if (state.readOnly)
+      return false;
+    let match = query.nextMatch(state, from, from);
+    if (!match)
+      return false;
+    let next = match;
+    let changes = [], selection, replacement;
+    let effects = [];
+    if (!next.precise) {
+      next = query.nextMatch(state, next.from, next.to);
+    } else if (next.from == from && next.to == to) {
+      replacement = state.toText(query.getReplacement(next));
+      changes.push({ from: next.from, to: next.to, insert: replacement });
+      effects.push(EditorView.announce.of(state.phrase("replaced match on line $", state.doc.lineAt(from).number) + "."));
+    }
+    let changeSet = view2.state.changes(changes);
+    if (next) {
+      selection = EditorSelection.single(next.from, next.to).map(changeSet);
+      effects.push(announceMatch(view2, next));
+      effects.push(state.facet(searchConfigFacet).scrollToMatch(selection.main, view2));
+    }
+    view2.dispatch({
+      changes: changeSet,
+      selection,
+      effects,
+      userEvent: "input.replace"
+    });
+    return true;
+  });
+  var replaceAll = /* @__PURE__ */ searchCommand((view2, { query }) => {
+    if (view2.state.readOnly)
+      return false;
+    let changes = [];
+    for (let match of query.matchAll(view2.state, 1e9)) {
+      let { from, to, precise } = match;
+      if (precise)
+        changes.push({ from, to, insert: query.getReplacement(match) });
+    }
+    if (!changes.length)
+      return false;
+    let announceText = view2.state.phrase("replaced $ matches", changes.length) + ".";
+    view2.dispatch({
+      changes,
+      effects: EditorView.announce.of(announceText),
+      userEvent: "input.replace.all"
+    });
+    return true;
+  });
+  function createSearchPanel(view2) {
+    return view2.state.facet(searchConfigFacet).createPanel(view2);
+  }
+  function defaultQuery(state, fallback) {
+    var _a2, _b, _c, _d, _e;
+    let sel = state.selection.main;
+    let selText = sel.empty || sel.to > sel.from + 100 ? "" : state.sliceDoc(sel.from, sel.to);
+    if (fallback && !selText)
+      return fallback;
+    let config = state.facet(searchConfigFacet);
+    return new SearchQuery({
+      search: ((_a2 = fallback === null || fallback === void 0 ? void 0 : fallback.literal) !== null && _a2 !== void 0 ? _a2 : config.literal) ? selText : selText.replace(/\n/g, "\\n"),
+      caseSensitive: (_b = fallback === null || fallback === void 0 ? void 0 : fallback.caseSensitive) !== null && _b !== void 0 ? _b : config.caseSensitive,
+      literal: (_c = fallback === null || fallback === void 0 ? void 0 : fallback.literal) !== null && _c !== void 0 ? _c : config.literal,
+      regexp: (_d = fallback === null || fallback === void 0 ? void 0 : fallback.regexp) !== null && _d !== void 0 ? _d : config.regexp,
+      wholeWord: (_e = fallback === null || fallback === void 0 ? void 0 : fallback.wholeWord) !== null && _e !== void 0 ? _e : config.wholeWord
+    });
+  }
+  function getSearchInput(view2) {
+    let panel = getPanel(view2, createSearchPanel);
+    return panel && panel.dom.querySelector("[main-field]");
+  }
+  function selectSearchInput(view2) {
+    let input = getSearchInput(view2);
+    if (input && input == view2.root.activeElement)
+      input.select();
+  }
+  var openSearchPanel = (view2) => {
+    let state = view2.state.field(searchState, false);
+    if (state && state.panel) {
+      let searchInput = getSearchInput(view2);
+      if (searchInput && searchInput != view2.root.activeElement) {
+        let query = defaultQuery(view2.state, state.query.spec);
+        if (query.valid)
+          view2.dispatch({ effects: setSearchQuery.of(query) });
+        searchInput.focus();
+        searchInput.select();
+      }
+    } else {
+      view2.dispatch({ effects: [
+        togglePanel.of(true),
+        state ? setSearchQuery.of(defaultQuery(view2.state, state.query.spec)) : StateEffect.appendConfig.of(searchExtensions)
+      ] });
+    }
+    return true;
+  };
+  var closeSearchPanel = (view2) => {
+    let state = view2.state.field(searchState, false);
+    if (!state || !state.panel)
+      return false;
+    let panel = getPanel(view2, createSearchPanel);
+    if (panel && panel.dom.contains(view2.root.activeElement))
+      view2.focus();
+    view2.dispatch({ effects: togglePanel.of(false) });
+    return true;
+  };
+  var searchKeymap = [
+    { key: "Mod-f", run: openSearchPanel, scope: "editor search-panel" },
+    { key: "F3", run: findNext, shift: findPrevious, scope: "editor search-panel", preventDefault: true },
+    { key: "Mod-g", run: findNext, shift: findPrevious, scope: "editor search-panel", preventDefault: true },
+    { key: "Escape", run: closeSearchPanel, scope: "editor search-panel" },
+    { key: "Mod-Shift-l", run: selectSelectionMatches },
+    { key: "Mod-Alt-g", run: gotoLine },
+    { key: "Mod-d", run: selectNextOccurrence, preventDefault: true }
+  ];
+  var SearchPanel = class {
+    constructor(view2) {
+      this.view = view2;
+      let query = this.query = view2.state.field(searchState).query.spec;
+      this.commit = this.commit.bind(this);
+      this.searchField = crelt("input", {
+        value: query.search,
+        placeholder: phrase(view2, "Find"),
+        "aria-label": phrase(view2, "Find"),
+        class: "cm-textfield",
+        name: "search",
+        form: "",
+        "main-field": "true",
+        onchange: this.commit,
+        onkeyup: this.commit
+      });
+      this.replaceField = crelt("input", {
+        value: query.replace,
+        placeholder: phrase(view2, "Replace"),
+        "aria-label": phrase(view2, "Replace"),
+        class: "cm-textfield",
+        name: "replace",
+        form: "",
+        onchange: this.commit,
+        onkeyup: this.commit
+      });
+      this.caseField = crelt("input", {
+        type: "checkbox",
+        name: "case",
+        form: "",
+        checked: query.caseSensitive,
+        onchange: this.commit
+      });
+      this.reField = crelt("input", {
+        type: "checkbox",
+        name: "re",
+        form: "",
+        checked: query.regexp,
+        onchange: this.commit
+      });
+      this.wordField = crelt("input", {
+        type: "checkbox",
+        name: "word",
+        form: "",
+        checked: query.wholeWord,
+        onchange: this.commit
+      });
+      function button(name2, onclick, content2) {
+        return crelt("button", { class: "cm-button", name: name2, onclick, type: "button" }, content2);
+      }
+      this.dom = crelt("div", { onkeydown: (e) => this.keydown(e), class: "cm-search" }, [
+        this.searchField,
+        button("next", () => findNext(view2), [phrase(view2, "next")]),
+        button("prev", () => findPrevious(view2), [phrase(view2, "previous")]),
+        button("select", () => selectMatches(view2), [phrase(view2, "all")]),
+        crelt("label", null, [this.caseField, phrase(view2, "match case")]),
+        crelt("label", null, [this.reField, phrase(view2, "regexp")]),
+        crelt("label", null, [this.wordField, phrase(view2, "by word")]),
+        ...view2.state.readOnly ? [] : [
+          crelt("br"),
+          this.replaceField,
+          button("replace", () => replaceNext(view2), [phrase(view2, "replace")]),
+          button("replaceAll", () => replaceAll(view2), [phrase(view2, "replace all")])
+        ],
+        crelt("button", {
+          name: "close",
+          onclick: () => closeSearchPanel(view2),
+          "aria-label": phrase(view2, "close"),
+          type: "button"
+        }, ["\xD7"])
+      ]);
+    }
+    commit() {
+      let query = new SearchQuery({
+        search: this.searchField.value,
+        caseSensitive: this.caseField.checked,
+        regexp: this.reField.checked,
+        wholeWord: this.wordField.checked,
+        replace: this.replaceField.value
+      });
+      if (!query.eq(this.query)) {
+        this.query = query;
+        this.view.dispatch({ effects: setSearchQuery.of(query) });
+      }
+    }
+    keydown(e) {
+      if (runScopeHandlers(this.view, e, "search-panel")) {
+        e.preventDefault();
+      } else if (e.keyCode == 13 && e.target == this.searchField) {
+        e.preventDefault();
+        (e.shiftKey ? findPrevious : findNext)(this.view);
+      } else if (e.keyCode == 13 && e.target == this.replaceField) {
+        e.preventDefault();
+        replaceNext(this.view);
+      }
+    }
+    update(update) {
+      for (let tr of update.transactions)
+        for (let effect of tr.effects) {
+          if (effect.is(setSearchQuery) && !effect.value.eq(this.query))
+            this.setQuery(effect.value);
+        }
+    }
+    setQuery(query) {
+      this.query = query;
+      this.searchField.value = query.search;
+      this.replaceField.value = query.replace;
+      this.caseField.checked = query.caseSensitive;
+      this.reField.checked = query.regexp;
+      this.wordField.checked = query.wholeWord;
+    }
+    mount() {
+      this.searchField.select();
+    }
+    get pos() {
+      return 80;
+    }
+    get top() {
+      return this.view.state.facet(searchConfigFacet).top;
+    }
+  };
+  function phrase(view2, phrase2) {
+    return view2.state.phrase(phrase2);
+  }
+  var AnnounceMargin = 30;
+  var Break = /[\s\.,:;?!]/;
+  function announceMatch(view2, { from, to }) {
+    let line = view2.state.doc.lineAt(from), lineEnd2 = view2.state.doc.lineAt(to).to;
+    let start = Math.max(line.from, from - AnnounceMargin), end = Math.min(lineEnd2, to + AnnounceMargin);
+    let text = view2.state.sliceDoc(start, end);
+    if (start != line.from) {
+      for (let i = 0; i < AnnounceMargin; i++)
+        if (!Break.test(text[i + 1]) && Break.test(text[i])) {
+          text = text.slice(i);
+          break;
+        }
+    }
+    if (end != lineEnd2) {
+      for (let i = text.length - 1; i > text.length - AnnounceMargin; i--)
+        if (!Break.test(text[i - 1]) && Break.test(text[i])) {
+          text = text.slice(0, i);
+          break;
+        }
+    }
+    return EditorView.announce.of(`${view2.state.phrase("current match")}. ${text} ${view2.state.phrase("on line")} ${line.number}.`);
+  }
+  var baseTheme3 = /* @__PURE__ */ EditorView.baseTheme({
+    ".cm-panel.cm-search": {
+      padding: "2px 6px 4px",
+      position: "relative",
+      "& [name=close]": {
+        position: "absolute",
+        top: "0",
+        right: "4px",
+        backgroundColor: "inherit",
+        border: "none",
+        font: "inherit",
+        padding: 0,
+        margin: 0
+      },
+      "& input, & button, & label": {
+        margin: ".2em .6em .2em 0"
+      },
+      "& input[type=checkbox]": {
+        marginRight: ".2em"
+      },
+      "& label": {
+        fontSize: "80%",
+        whiteSpace: "pre"
+      }
+    },
+    "&light .cm-searchMatch": { backgroundColor: "#ffff0054" },
+    "&dark .cm-searchMatch": { backgroundColor: "#00ffff8a" },
+    "&light .cm-searchMatch-selected": { backgroundColor: "#ff6a0054" },
+    "&dark .cm-searchMatch-selected": { backgroundColor: "#ff00ff8a" }
+  });
+  var searchExtensions = [
+    searchState,
+    /* @__PURE__ */ Prec.low(searchHighlighter),
+    baseTheme3
+  ];
+
+  // src/richEditorSearch.js
+  function createSearchExtensions() {
+    return [
+      search({ top: true }),
+      highlightSelectionMatches({
+        highlightWordAroundCursor: true,
+        minSelectionLength: 2
+      })
+    ];
+  }
+  function getSearchKeymap() {
+    return searchKeymap;
+  }
+  function installSearchShortcut({
+    getView,
+    closeSlashCommandMenu: closeSlashCommandMenu2,
+    closeTableContextMenu: closeTableContextMenu2
+  }) {
+    window.addEventListener(
+      "keydown",
+      (event) => {
+        const view2 = getView();
+        if (!view2 || !isSearchShortcut(event)) {
+          return;
+        }
+        event.preventDefault();
+        event.stopPropagation();
+        closeSlashCommandMenu2();
+        closeTableContextMenu2();
+        openSearchPanel(view2);
+      },
+      true
+    );
+  }
+  function isSearchShortcut(event) {
+    return (event.metaKey || event.ctrlKey) && !event.altKey && !event.shiftKey && event.key.toLowerCase() === "f";
+  }
+
+  // src/richEditorSettings.js
+  var mermaidPreviewSizes = ["source", "readable", "large"];
+  var previewWidths = ["default", "wide"];
+  function normalizeRichEditorSettings(nextSettings = {}) {
+    return {
+      richTheme: nextSettings.richTheme || "default",
+      showEmptyLineHint: nextSettings.showEmptyLineHint !== false,
+      richTablePreview: nextSettings.richTablePreview !== false,
+      mermaidPreview: nextSettings.mermaidPreview !== false,
+      mermaidPreviewSize: normalizeMermaidPreviewSize(
+        nextSettings.mermaidPreviewSize
+      ),
+      previewWidth: normalizePreviewWidth(nextSettings.previewWidth)
+    };
+  }
+  function normalizeMermaidPreviewSize(value) {
+    return mermaidPreviewSizes.includes(value) ? value : "readable";
+  }
+  function normalizePreviewWidth(value) {
+    return previewWidths.includes(value) ? value : "default";
+  }
+  function hasPreviewSettingChanged(previousSettings, nextSettings) {
+    return previousSettings.richTablePreview !== nextSettings.richTablePreview || previousSettings.mermaidPreview !== nextSettings.mermaidPreview || previousSettings.mermaidPreviewSize !== nextSettings.mermaidPreviewSize;
+  }
+  function applyTheme(themeName) {
+    const theme2 = getTheme(themeName);
+    const rootStyle = document.documentElement.style;
+    document.documentElement.dataset.richTheme = themeName || "default";
+    for (const [key, value] of Object.entries(theme2)) {
+      rootStyle.setProperty(
+        `--rip-${key.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`)}`,
+        value
+      );
+    }
+  }
+  function applyPreviewWidth(previewWidth) {
+    const width = normalizePreviewWidth(previewWidth);
+    document.documentElement.dataset.previewWidth = width;
+    document.documentElement.style.setProperty(
+      "--rip-content-max-width",
+      width === "wide" ? "none" : "960px"
+    );
+  }
+  function getThemeOptions() {
+    return [
+      { value: "default", label: "Default" },
+      { value: "midnight", label: "Midnight" },
+      { value: "graphite", label: "Graphite" },
+      { value: "forest", label: "Forest" },
+      { value: "ivory", label: "Ivory" },
+      { value: "paper", label: "Paper" },
+      { value: "solar", label: "Solar" }
+    ];
+  }
+  function getMermaidSizeOptions() {
+    return [
+      { label: "Source height", value: "source" },
+      { label: "Readable", value: "readable" },
+      { label: "Large", value: "large" }
+    ];
+  }
+  function getPreviewWidthOptions() {
+    return [
+      { label: "Default", value: "default" },
+      { label: "Wide", value: "wide" }
+    ];
+  }
+  function getTheme(themeName) {
+    const themes = {
+      default: {
+        bg: "var(--vscode-editor-background)",
+        fg: "var(--vscode-editor-foreground)",
+        muted: "var(--vscode-descriptionForeground)",
+        border: "var(--vscode-panel-border)",
+        panel: "var(--vscode-editorWidget-background)",
+        inputBg: "var(--vscode-input-background)",
+        codeBg: "var(--vscode-textCodeBlock-background)",
+        hover: "color-mix(in srgb, var(--vscode-editor-selectionBackground) 16%, transparent)",
+        focus: "var(--vscode-focusBorder)",
+        caret: "var(--vscode-editorCursor-foreground)",
+        accent: "var(--vscode-button-background)",
+        buttonFg: "var(--vscode-button-foreground)",
+        heading: "var(--vscode-textLink-foreground)",
+        link: "var(--vscode-textLink-foreground)",
+        quoteBorder: "var(--vscode-textBlockQuote-border)",
+        rowAlt: "color-mix(in srgb, var(--vscode-editorWidget-background) 45%, transparent)",
+        syntaxPurple: "var(--vscode-charts-purple, #c586c0)",
+        syntaxOrange: "var(--vscode-charts-orange, #ce9178)",
+        syntaxGreen: "var(--vscode-charts-green, #b5cea8)",
+        syntaxBlue: "var(--vscode-charts-blue, #9cdcfe)",
+        danger: "var(--vscode-errorForeground, #f14c4c)"
+      },
+      midnight: {
+        bg: "#0b1020",
+        fg: "#d9e4ff",
+        muted: "#8796b8",
+        border: "#26314f",
+        panel: "#111936",
+        inputBg: "#0f1730",
+        codeBg: "#070b16",
+        hover: "rgba(93, 144, 255, 0.14)",
+        focus: "#7aa2ff",
+        caret: "#ffffff",
+        accent: "#6f9cff",
+        buttonFg: "#081120",
+        heading: "#8fb4ff",
+        link: "#8fb4ff",
+        quoteBorder: "#5e7fd6",
+        rowAlt: "rgba(143, 180, 255, 0.08)",
+        syntaxPurple: "#d7a7ff",
+        syntaxOrange: "#ffc08a",
+        syntaxGreen: "#9ce6b3",
+        syntaxBlue: "#8bd7ff",
+        danger: "#ff8a8a"
+      },
+      graphite: {
+        bg: "#151617",
+        fg: "#e5e1d8",
+        muted: "#9b9891",
+        border: "#343536",
+        panel: "#202224",
+        inputBg: "#1b1d1f",
+        codeBg: "#101112",
+        hover: "rgba(229, 225, 216, 0.08)",
+        focus: "#d0a85c",
+        caret: "#f5f0e6",
+        accent: "#d0a85c",
+        buttonFg: "#171717",
+        heading: "#e2bd72",
+        link: "#e2bd72",
+        quoteBorder: "#8e7a55",
+        rowAlt: "rgba(255, 255, 255, 0.045)",
+        syntaxPurple: "#cfa8ff",
+        syntaxOrange: "#e6b17e",
+        syntaxGreen: "#9bcf9d",
+        syntaxBlue: "#8ebbdc",
+        danger: "#ff8f8f"
+      },
+      forest: {
+        bg: "#0f1712",
+        fg: "#dce8dc",
+        muted: "#8ea08f",
+        border: "#263529",
+        panel: "#17231a",
+        inputBg: "#121d15",
+        codeBg: "#0a100c",
+        hover: "rgba(121, 184, 136, 0.12)",
+        focus: "#79b888",
+        caret: "#effff0",
+        accent: "#79b888",
+        buttonFg: "#071008",
+        heading: "#a4d8a9",
+        link: "#9fd6b3",
+        quoteBorder: "#5b936a",
+        rowAlt: "rgba(164, 216, 169, 0.07)",
+        syntaxPurple: "#d0a8ff",
+        syntaxOrange: "#e9bd8c",
+        syntaxGreen: "#93d79b",
+        syntaxBlue: "#8fcbd4",
+        danger: "#ff8a8a"
+      },
+      ivory: {
+        bg: "#fbf5e8",
+        fg: "#2f2b25",
+        muted: "#776f62",
+        border: "#ded3bf",
+        panel: "#f1e7d5",
+        inputBg: "#fffaf0",
+        codeBg: "#f2eadc",
+        hover: "rgba(107, 78, 42, 0.09)",
+        focus: "#a46c28",
+        caret: "#2f2b25",
+        accent: "#a46c28",
+        buttonFg: "#fff8ee",
+        heading: "#7a4f1e",
+        link: "#8a5a24",
+        quoteBorder: "#bc8f55",
+        rowAlt: "rgba(122, 79, 30, 0.06)",
+        syntaxPurple: "#8a4fb0",
+        syntaxOrange: "#a75d17",
+        syntaxGreen: "#3f7a3f",
+        syntaxBlue: "#2e6f9f",
+        danger: "#b42318"
+      },
+      paper: {
+        bg: "#ffffff",
+        fg: "#202124",
+        muted: "#6b7280",
+        border: "#d7dbe2",
+        panel: "#f3f5f8",
+        inputBg: "#ffffff",
+        codeBg: "#f5f7fa",
+        hover: "rgba(31, 111, 235, 0.08)",
+        focus: "#1f6feb",
+        caret: "#202124",
+        accent: "#1f6feb",
+        buttonFg: "#ffffff",
+        heading: "#0b5cad",
+        link: "#0b5cad",
+        quoteBorder: "#8aa6c8",
+        rowAlt: "#f8fafc",
+        syntaxPurple: "#7c3aed",
+        syntaxOrange: "#b45309",
+        syntaxGreen: "#15803d",
+        syntaxBlue: "#0369a1",
+        danger: "#b42318"
+      },
+      solar: {
+        bg: "#fdf6e3",
+        fg: "#3b3a32",
+        muted: "#7b7662",
+        border: "#d8ceb0",
+        panel: "#eee5c8",
+        inputBg: "#fff9e8",
+        codeBg: "#f4edcf",
+        hover: "rgba(181, 137, 0, 0.1)",
+        focus: "#b58900",
+        caret: "#3b3a32",
+        accent: "#b58900",
+        buttonFg: "#fff8df",
+        heading: "#9b6d00",
+        link: "#0f6c8c",
+        quoteBorder: "#b58900",
+        rowAlt: "rgba(181, 137, 0, 0.07)",
+        syntaxPurple: "#6c54a3",
+        syntaxOrange: "#b85c00",
+        syntaxGreen: "#5f7f00",
+        syntaxBlue: "#227894",
+        danger: "#b42318"
+      }
+    };
+    return themes[themeName] || themes.default;
+  }
+
   // src/richEditor.js
   var vscode = acquireVsCodeApi();
   var root = document.querySelector("#editor");
@@ -25004,9 +26844,8 @@
   var previewDecorationRevision = 0;
   var lastSettingsMenuActionKey = "";
   var lastSettingsMenuActionTime = 0;
-  var mermaidPreviewSizes = ["source", "readable", "large"];
-  var previewWidths = ["default", "wide"];
   var settings = normalizeRichEditorSettings(initialSettings);
+  var outlineNavigation = createOutlineNavigation();
   applyTheme(settings.richTheme);
   applyPreviewWidth(settings.previewWidth);
   injectStyles();
@@ -25042,27 +26881,6 @@
       support: html()
     })
   ];
-  function normalizeRichEditorSettings(nextSettings = {}) {
-    return {
-      richTheme: nextSettings.richTheme || "default",
-      showEmptyLineHint: nextSettings.showEmptyLineHint !== false,
-      richTablePreview: nextSettings.richTablePreview !== false,
-      mermaidPreview: nextSettings.mermaidPreview !== false,
-      mermaidPreviewSize: normalizeMermaidPreviewSize(
-        nextSettings.mermaidPreviewSize
-      ),
-      previewWidth: normalizePreviewWidth(nextSettings.previewWidth)
-    };
-  }
-  function normalizeMermaidPreviewSize(value) {
-    return mermaidPreviewSizes.includes(value) ? value : "readable";
-  }
-  function normalizePreviewWidth(value) {
-    return previewWidths.includes(value) ? value : "default";
-  }
-  function hasPreviewSettingChanged(previousSettings, nextSettings) {
-    return previousSettings.richTablePreview !== nextSettings.richTablePreview || previousSettings.mermaidPreview !== nextSettings.mermaidPreview || previousSettings.mermaidPreviewSize !== nextSettings.mermaidPreviewSize;
-  }
   var markdownHighlightStyle = HighlightStyle.define([
     { tag: tags.heading, color: "var(--rip-heading)", fontWeight: "780" },
     {
@@ -25113,14 +26931,73 @@
     },
     { tag: tags.invalid, color: "var(--rip-danger)" }
   ]);
+  function reportRichdownError(context, error) {
+    const message = error instanceof Error ? error.message : String(error);
+    const stack = error instanceof Error ? error.stack : "";
+    console.error(`[Richdown] ${context}`, error);
+    vscode.postMessage({
+      type: "webviewError",
+      context,
+      message,
+      stack
+    });
+  }
+  function safeBuildDecorations(context, build) {
+    try {
+      return build();
+    } catch (error) {
+      reportRichdownError(context, error);
+      return Decoration.none;
+    }
+  }
+  function safeBuildDetailsDecorationState(state, openStates, activeEdit) {
+    try {
+      return buildDetailsDecorationState(state, openStates, activeEdit);
+    } catch (error) {
+      reportRichdownError("details-preview", error);
+      return {
+        activeEdit: null,
+        openStates,
+        decorations: Decoration.none
+      };
+    }
+  }
+  function safeBuildTableDecorationState(state, activeEdit) {
+    try {
+      return buildTableDecorationState(state, activeEdit);
+    } catch (error) {
+      reportRichdownError("table-preview", error);
+      return {
+        activeEdit: null,
+        decorations: Decoration.none
+      };
+    }
+  }
+  function safeBuildMermaidDecorationState(state, activeEdit) {
+    try {
+      return buildMermaidDecorationState(state, activeEdit);
+    } catch (error) {
+      reportRichdownError("mermaid-preview", error);
+      return {
+        activeEdit: null,
+        decorations: Decoration.none
+      };
+    }
+  }
   var blockLineDecorations = ViewPlugin.fromClass(
     class {
       constructor(view2) {
-        this.decorations = buildBlockLineDecorations(view2);
+        this.decorations = safeBuildDecorations(
+          "block-line-decorations",
+          () => buildBlockLineDecorations(view2)
+        );
       }
       update(update) {
         if (update.docChanged || update.viewportChanged || update.selectionSet) {
-          this.decorations = buildBlockLineDecorations(update.view);
+          this.decorations = safeBuildDecorations(
+            "block-line-decorations",
+            () => buildBlockLineDecorations(update.view)
+          );
         }
       }
     },
@@ -25131,11 +27008,17 @@
   var inlineDecorations = ViewPlugin.fromClass(
     class {
       constructor(view2) {
-        this.decorations = buildInlineDecorations(view2);
+        this.decorations = safeBuildDecorations(
+          "inline-decorations",
+          () => buildInlineDecorations(view2)
+        );
       }
       update(update) {
         if (update.docChanged || update.viewportChanged || update.selectionSet) {
-          this.decorations = buildInlineDecorations(update.view);
+          this.decorations = safeBuildDecorations(
+            "inline-decorations",
+            () => buildInlineDecorations(update.view)
+          );
         }
       }
     },
@@ -25158,7 +27041,7 @@
   });
   var detailsDecorationField = StateField.define({
     create(state) {
-      return buildDetailsDecorationState(state, /* @__PURE__ */ new Map(), null);
+      return safeBuildDetailsDecorationState(state, /* @__PURE__ */ new Map(), null);
     },
     update(value, transaction) {
       let openStates = value.openStates;
@@ -25193,7 +27076,11 @@
       if (!shouldRebuild) {
         return value;
       }
-      return buildDetailsDecorationState(transaction.state, openStates, activeEdit);
+      return safeBuildDetailsDecorationState(
+        transaction.state,
+        openStates,
+        activeEdit
+      );
     },
     provide: (field) => EditorView.decorations.from(field, (value) => value.decorations)
   });
@@ -25210,7 +27097,7 @@
   });
   var tableDecorationField = StateField.define({
     create(state) {
-      return buildTableDecorationState(state, null);
+      return safeBuildTableDecorationState(state, null);
     },
     update(value, transaction) {
       let activeEdit = value.activeEdit;
@@ -25242,7 +27129,7 @@
       if (!transaction.docChanged && !transaction.selection && !editChanged) {
         return value;
       }
-      return buildTableDecorationState(transaction.state, activeEdit);
+      return safeBuildTableDecorationState(transaction.state, activeEdit);
     },
     provide: (field) => EditorView.decorations.from(field, (value) => value.decorations)
   });
@@ -25259,7 +27146,7 @@
   });
   var mermaidDecorationField = StateField.define({
     create(state) {
-      return buildMermaidDecorationState(state, null);
+      return safeBuildMermaidDecorationState(state, null);
     },
     update(value, transaction) {
       let activeEdit = value.activeEdit;
@@ -25291,18 +27178,24 @@
       if (!transaction.docChanged && !transaction.selection && !editChanged) {
         return value;
       }
-      return buildMermaidDecorationState(transaction.state, activeEdit);
+      return safeBuildMermaidDecorationState(transaction.state, activeEdit);
     },
     provide: (field) => EditorView.decorations.from(field, (value) => value.decorations)
   });
   var taskCheckboxes = ViewPlugin.fromClass(
     class {
       constructor(view2) {
-        this.decorations = buildTaskCheckboxes(view2);
+        this.decorations = safeBuildDecorations(
+          "task-checkboxes",
+          () => buildTaskCheckboxes(view2)
+        );
       }
       update(update) {
         if (update.docChanged || update.viewportChanged || update.selectionSet) {
-          this.decorations = buildTaskCheckboxes(update.view);
+          this.decorations = safeBuildDecorations(
+            "task-checkboxes",
+            () => buildTaskCheckboxes(update.view)
+          );
         }
       }
     },
@@ -25313,11 +27206,17 @@
   var codeBlockCopyButtons = ViewPlugin.fromClass(
     class {
       constructor(view2) {
-        this.decorations = buildCodeBlockCopyButtons(view2);
+        this.decorations = safeBuildDecorations(
+          "code-copy-buttons",
+          () => buildCodeBlockCopyButtons(view2)
+        );
       }
       update(update) {
         if (update.docChanged || update.viewportChanged) {
-          this.decorations = buildCodeBlockCopyButtons(update.view);
+          this.decorations = safeBuildDecorations(
+            "code-copy-buttons",
+            () => buildCodeBlockCopyButtons(update.view)
+          );
         }
       }
     },
@@ -25437,789 +27336,946 @@
     }
   ];
   var view;
-  queueMicrotask(() => {
-    view = new EditorView({
-      parent: root,
-      state: EditorState.create({
-        doc: initialDocument,
-        extensions: [
-          lineNumbers(),
-          history(),
-          highlightActiveLine(),
-          highlightActiveLineGutter(),
-          syntaxHighlighting(markdownHighlightStyle),
-          markdown({
-            extensions: GFM,
-            codeLanguages
-          }),
-          detailsDecorationField,
-          tableDecorationField,
-          mermaidDecorationField,
-          blockLineDecorations,
-          codeBlockCopyButtons,
-          inlineDecorations,
-          taskCheckboxes,
-          EditorView.domEventHandlers({
-            blur(event, view2) {
-              closeSlashCommandMenu();
-              exitDetailsEditMode(view2, true);
-              exitTableEditMode(view2, true);
-              exitMermaidEditMode(view2, true);
-              return false;
-            },
-            mousedown(event, view2) {
-              if (event.button !== 0 || event.metaKey || event.ctrlKey) {
-                return false;
-              }
-              const linkTarget = findLinkAtClick(view2, event);
-              if (!linkTarget) {
-                return false;
-              }
-              const line = view2.state.doc.lineAt(linkTarget.position);
-              if (isLineFocused(view2.state, line)) {
-                return false;
-              }
-              event.preventDefault();
-              return true;
-            },
-            click(event, view2) {
-              const linkTarget = findLinkAtClick(view2, event);
-              if (!linkTarget) {
-                return false;
-              }
-              const line = view2.state.doc.lineAt(linkTarget.position);
-              const linkNeedsModifier = isLineFocused(view2.state, line);
-              if (linkNeedsModifier && !event.metaKey && !event.ctrlKey) {
-                return false;
-              }
-              event.preventDefault();
-              vscode.postMessage({ type: "openLink", href: linkTarget.href });
-              return true;
-            }
-          }),
-          keymap.of([
-            indentWithTab,
-            ...slashCommandKeymap,
-            ...defaultKeymap,
-            ...historyKeymap
-          ]),
-          EditorView.lineWrapping,
-          EditorView.updateListener.of((update) => {
-            syncSlashCommandMenu(update);
-            if (!update.docChanged || applyingExternalUpdate) {
-              return;
-            }
-            vscode.postMessage({
-              type: "edit",
-              text: update.state.doc.toString()
-            });
-          }),
-          EditorView.theme({
-            "&": {
-              height: "100%",
-              color: "var(--rip-fg)",
-              backgroundColor: "var(--rip-bg)",
-              fontSize: "15px"
-            },
-            ".cm-scroller": {
-              fontFamily: "var(--vscode-editor-font-family, var(--vscode-font-family))",
-              lineHeight: "1.72",
-              overflow: "auto"
-            },
-            ".cm-content": {
-              maxWidth: "var(--rip-content-max-width, 960px)",
-              minHeight: "100%",
-              margin: "0 auto",
-              padding: "28px clamp(18px, 5vw, 64px) 72px",
-              caretColor: "var(--rip-caret)"
-            },
-            "&.cm-focused": { outline: "none" },
-            "&.cm-focused .cm-cursor": {
-              borderLeftColor: "var(--rip-caret)",
-              borderLeftWidth: "2px"
-            },
-            ".cm-gutters": {
-              color: "var(--rip-muted)",
-              backgroundColor: "var(--rip-bg)",
-              borderRight: "1px solid var(--rip-border)"
-            },
-            ".cm-activeLineGutter": {
-              color: "var(--rip-heading)",
-              backgroundColor: "var(--rip-hover)"
-            },
-            ".cm-activeLine": {
-              backgroundColor: "var(--rip-hover)"
-            },
-            ".cm-content ::selection": {
-              backgroundColor: "color-mix(in srgb, var(--rip-link) 42%, transparent)"
-            },
-            ".cm-heading-line": {
-              fontWeight: "780",
-              lineHeight: "1.38"
-            },
-            ".cm-heading-1": {
-              color: "var(--rip-heading)",
-              fontSize: "2.12rem",
-              borderBottom: "1px solid var(--rip-border)",
-              paddingBottom: "0.12em"
-            },
-            ".cm-heading-2": {
-              fontSize: "1.62rem",
-              borderBottom: "1px solid var(--rip-border)",
-              paddingBottom: "0.08em"
-            },
-            ".cm-heading-3": { fontSize: "1.32rem" },
-            ".cm-heading-4": { fontSize: "1.15rem" },
-            ".cm-heading-5": {
-              color: "var(--rip-muted)",
-              fontSize: "1rem",
-              textTransform: "uppercase"
-            },
-            ".cm-heading-6": {
-              color: "var(--rip-muted)",
-              fontSize: "0.96rem",
-              fontStyle: "italic"
-            },
-            ".cm-markdown-marker": {
-              color: "var(--rip-muted)",
-              fontSize: "0",
-              opacity: "0"
-            },
-            ".cm-line.cm-activeLine .cm-markdown-marker": {
-              fontSize: "inherit",
-              opacity: "0.9"
-            },
-            ".cm-quote-line": {
-              color: "var(--rip-muted)",
-              borderLeft: "4px solid var(--rip-quote-border)",
-              paddingLeft: "0.8em"
-            },
-            ".cm-line.cm-activeLine.cm-quote-line": { color: "var(--rip-fg)" },
-            ".cm-link": {
-              color: "var(--rip-link)",
-              textDecoration: "underline",
-              textUnderlineOffset: "2px"
-            },
-            ".cm-line:not(.cm-activeLine) .cm-link": {
-              cursor: "pointer"
-            },
-            ".cm-inline-code": {
-              border: "1px solid var(--rip-border)",
-              borderRadius: "4px",
-              padding: "0 0.26em",
-              backgroundColor: "color-mix(in srgb, var(--rip-code-bg) 74%, transparent)"
-            },
-            ".cm-list-line": {
-              position: "relative"
-            },
-            ".cm-list-marker": {
-              minWidth: "1.7em",
-              display: "inline-flex",
-              alignItems: "center",
-              justifyContent: "center",
-              marginRight: "0.15em",
-              color: "var(--rip-muted)",
-              fontFamily: "var(--vscode-font-family)",
-              fontWeight: "700",
-              fontVariantNumeric: "tabular-nums"
-            },
-            ".cm-list-marker.is-unordered": {
-              color: "var(--rip-heading)"
-            },
-            ".cm-list-marker.is-ordered": {
-              minWidth: "2.2em",
-              justifyContent: "flex-end",
-              paddingRight: "0.25em",
-              color: "var(--rip-muted)",
-              fontSize: "0.92em"
-            },
-            ".cm-list-depth-1 .cm-list-marker.is-unordered": {
-              color: "var(--rip-link)"
-            },
-            ".cm-list-depth-2 .cm-list-marker.is-unordered": {
-              color: "var(--rip-syntax-green)"
-            },
-            ".cm-image-preview": {
-              maxWidth: "100%",
-              display: "inline-flex",
-              flexDirection: "column",
-              alignItems: "flex-start",
-              gap: "6px",
-              margin: "0",
-              verticalAlign: "top",
-              cursor: "text"
-            },
-            ".cm-image-preview img": {
-              width: "auto",
-              height: "auto",
-              maxWidth: "min(100%, 720px)",
-              maxHeight: "460px",
-              display: "block",
-              border: "1px solid var(--rip-border)",
-              borderRadius: "8px",
-              backgroundColor: "var(--rip-panel)",
-              aspectRatio: "auto",
-              objectFit: "contain"
-            },
-            ".cm-image-preview-caption": {
-              color: "var(--rip-muted)",
-              font: "12px var(--vscode-font-family)"
-            },
-            ".cm-image-preview-error": {
-              maxWidth: "100%",
-              border: "1px solid var(--rip-border)",
-              borderRadius: "6px",
-              padding: "6px 8px",
-              color: "var(--rip-muted)",
-              backgroundColor: "var(--rip-panel)",
-              font: "12px var(--vscode-font-family)"
-            },
-            ".cm-details-preview": {
-              display: "block",
-              boxSizing: "border-box",
-              maxWidth: "100%",
-              margin: "0",
-              border: "1px solid var(--rip-border)",
-              borderRadius: "8px",
-              overflow: "hidden",
-              color: "var(--rip-fg)",
-              backgroundColor: "var(--rip-panel)"
-            },
-            ".cm-details-preview.cm-widgetBuffer": {
-              display: "none"
-            },
-            ".cm-details-summary": {
-              width: "100%",
-              display: "flex",
-              alignItems: "center",
-              gap: "8px",
-              border: "0",
-              padding: "8px 10px",
-              color: "var(--rip-heading)",
-              backgroundColor: "color-mix(in srgb, var(--rip-panel) 86%, var(--rip-bg))",
-              font: "700 14px var(--vscode-font-family)",
-              textAlign: "left",
-              cursor: "pointer"
-            },
-            ".cm-details-disclosure": {
-              width: "1.2em",
-              display: "inline-grid",
-              placeItems: "center",
-              color: "var(--rip-muted)",
-              fontSize: "13px"
-            },
-            ".cm-details-body": {
-              display: "grid",
-              gap: "6px",
-              borderTop: "1px solid var(--rip-border)",
-              padding: "8px 10px 10px"
-            },
-            ".cm-details-body-line": {
-              margin: "0",
-              lineHeight: "1.55"
-            },
-            ".cm-codeblock-line": {
-              position: "relative",
-              fontFamily: "var(--vscode-editor-font-family, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace)",
-              paddingLeft: "12px",
-              paddingRight: "72px",
-              backgroundColor: "color-mix(in srgb, var(--rip-panel) 92%, var(--rip-code-bg))",
-              boxShadow: "inset 1px 0 0 var(--rip-border), inset -1px 0 0 var(--rip-border)"
-            },
-            ".cm-codeblock-first": {
-              borderTopLeftRadius: "8px",
-              borderTopRightRadius: "8px",
-              boxShadow: "inset 1px 0 0 var(--rip-border), inset -1px 0 0 var(--rip-border), inset 0 1px 0 var(--rip-border)"
-            },
-            ".cm-codeblock-last": {
-              borderBottomLeftRadius: "8px",
-              borderBottomRightRadius: "8px",
-              boxShadow: "inset 1px 0 0 var(--rip-border), inset -1px 0 0 var(--rip-border), inset 0 -1px 0 var(--rip-border)"
-            },
-            ".cm-codeblock-first.cm-codeblock-last": {
-              boxShadow: "inset 1px 0 0 var(--rip-border), inset -1px 0 0 var(--rip-border), inset 0 1px 0 var(--rip-border), inset 0 -1px 0 var(--rip-border)"
-            },
-            ".cm-codeblock-line.cm-activeLine": {
-              backgroundColor: "color-mix(in srgb, var(--rip-panel) 78%, var(--rip-hover))"
-            },
-            ".cm-codeblock-line .cm-markdown-marker": {
-              opacity: "0"
-            },
-            ".cm-line.cm-activeLine.cm-codeblock-line .cm-markdown-marker": {
-              opacity: "0.9"
-            },
-            ".cm-code-copy-widget": {
-              position: "absolute",
-              top: "3px",
-              right: "7px",
-              zIndex: "2",
-              display: "inline-flex"
-            },
-            ".cm-code-copy-button": {
-              height: "22px",
-              border: "1px solid var(--rip-border)",
-              borderRadius: "5px",
-              padding: "0 7px",
-              color: "var(--rip-muted)",
-              backgroundColor: "color-mix(in srgb, var(--rip-panel) 88%, transparent)",
-              font: "11px var(--vscode-font-family)",
-              cursor: "pointer"
-            },
-            ".cm-code-copy-button:hover": {
-              color: "var(--rip-heading)",
-              borderColor: "var(--rip-focus)",
-              backgroundColor: "var(--rip-hover)"
-            },
-            ".cm-thematic-break-line": {
-              color: "transparent",
-              position: "relative"
-            },
-            ".cm-thematic-break-line::after": {
-              content: '""',
-              position: "absolute",
-              left: "0",
-              right: "0",
-              top: "50%",
-              borderTop: "1px solid var(--rip-border)",
-              transform: "translateY(-50%)"
-            },
-            ".cm-line.cm-activeLine.cm-thematic-break-line": {
-              color: "var(--rip-fg)"
-            },
-            ".cm-line.cm-activeLine.cm-thematic-break-line::after": {
-              display: "none"
-            },
-            ".cm-table-line": {
-              backgroundColor: "var(--rip-row-alt)",
-              fontFamily: "var(--vscode-editor-font-family, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace)",
-              fontFeatureSettings: '"tnum" 1, "liga" 0, "calt" 0',
-              fontVariantLigatures: "none",
-              lineHeight: "1.62",
-              boxShadow: "inset 0 1px 0 color-mix(in srgb, var(--rip-border) 42%, transparent), inset 1px 0 0 color-mix(in srgb, var(--rip-border) 58%, transparent), inset -1px 0 0 color-mix(in srgb, var(--rip-border) 58%, transparent)"
-            },
-            ".cm-table-header-line": {
-              color: "var(--rip-heading)",
-              backgroundColor: "color-mix(in srgb, var(--rip-panel) 72%, var(--rip-bg))",
-              fontWeight: "760",
-              boxShadow: "inset 0 1px 0 var(--rip-border), inset 0 -1px 0 var(--rip-border), inset 1px 0 0 color-mix(in srgb, var(--rip-border) 70%, transparent), inset -1px 0 0 color-mix(in srgb, var(--rip-border) 70%, transparent)"
-            },
-            ".cm-table-delimiter-line": {
-              color: "var(--rip-muted)",
-              backgroundColor: "color-mix(in srgb, var(--rip-panel) 38%, var(--rip-bg))",
-              fontSize: "0.92em",
-              boxShadow: "inset 0 -1px 0 color-mix(in srgb, var(--rip-border) 70%, transparent), inset 1px 0 0 color-mix(in srgb, var(--rip-border) 58%, transparent), inset -1px 0 0 color-mix(in srgb, var(--rip-border) 58%, transparent)"
-            },
-            ".cm-table-body-line": {
-              backgroundColor: "color-mix(in srgb, var(--rip-row-alt) 78%, transparent)"
-            },
-            ".cm-table-line .cm-markdown-marker": {
-              opacity: "0"
-            },
-            ".cm-line.cm-activeLine.cm-table-line .cm-markdown-marker": {
-              opacity: "0.9"
-            },
-            ".cm-table-pipe": {
-              color: "transparent",
-              display: "inline-block",
-              width: "1ch",
-              position: "relative",
-              textAlign: "center",
-              fontWeight: "400",
-              textShadow: "none"
-            },
-            ".cm-table-pipe::after": {
-              content: '""',
-              position: "absolute",
-              left: "50%",
-              top: "-0.22em",
-              bottom: "-0.22em",
-              width: "1px",
-              transform: "translateX(-50%)",
-              backgroundColor: "color-mix(in srgb, var(--rip-border) 76%, transparent)"
-            },
-            ".cm-table-header-cell": {
-              color: "var(--rip-heading)",
-              fontWeight: "760",
-              backgroundColor: "color-mix(in srgb, var(--rip-heading) 7%, transparent)",
-              borderRadius: "3px",
-              boxDecorationBreak: "clone"
-            },
-            ".cm-table-cell": {
-              color: "var(--rip-fg)",
-              backgroundColor: "color-mix(in srgb, var(--rip-bg) 18%, transparent)",
-              borderRadius: "3px",
-              boxDecorationBreak: "clone"
-            },
-            ".cm-table-delimiter-text": {
-              color: "var(--rip-muted)",
-              opacity: "0.32"
-            },
-            ".cm-rich-table-preview": {
-              display: "block",
-              boxSizing: "border-box",
-              maxWidth: "100%",
-              margin: "0",
-              border: "1px solid var(--rip-border)",
-              borderRadius: "8px",
-              overflow: "hidden",
-              backgroundColor: "var(--rip-panel)",
-              boxShadow: "0 10px 28px rgba(0, 0, 0, 0.12)",
-              cursor: "text"
-            },
-            ".cm-rich-table-preview.cm-widgetBuffer": {
-              display: "none"
-            },
-            ".cm-rich-table-scroll": {
-              width: "100%",
-              overflowX: "auto"
-            },
-            ".cm-rich-table": {
-              width: "100%",
-              minWidth: "max-content",
-              borderCollapse: "separate",
-              borderSpacing: "0",
-              color: "var(--rip-fg)",
-              fontFamily: "var(--vscode-font-family)",
-              fontSize: "0.95rem",
-              lineHeight: "1.45"
-            },
-            ".cm-rich-table th, .cm-rich-table td": {
-              maxWidth: "34ch",
-              borderRight: "1px solid var(--rip-border)",
-              borderBottom: "1px solid var(--rip-border)",
-              padding: "0",
-              textAlign: "left",
-              verticalAlign: "top",
-              whiteSpace: "normal"
-            },
-            ".cm-rich-table th:last-child, .cm-rich-table td:last-child": {
-              borderRight: "0"
-            },
-            ".cm-rich-table tbody tr:last-child td": {
-              borderBottom: "0"
-            },
-            ".cm-rich-table th": {
-              color: "var(--rip-heading)",
-              backgroundColor: "color-mix(in srgb, var(--rip-heading) 10%, var(--rip-panel))",
-              fontWeight: "760"
-            },
-            ".cm-rich-table tbody tr:nth-child(even) td": {
-              backgroundColor: "var(--rip-row-alt)"
-            },
-            ".cm-rich-table tbody tr:hover td": {
-              backgroundColor: "var(--rip-hover)"
-            },
-            ".cm-rich-table .align-center": {
-              textAlign: "center"
-            },
-            ".cm-rich-table .align-right": {
-              textAlign: "right"
-            },
-            ".cm-rich-table code": {
-              padding: "0.08em 0.32em",
-              border: "1px solid var(--rip-border)",
-              borderRadius: "4px",
-              backgroundColor: "var(--rip-code-bg)",
-              fontFamily: "var(--vscode-editor-font-family, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace)"
-            },
-            ".cm-rich-table strong": {
-              fontWeight: "760"
-            },
-            ".cm-rich-table em": {
-              fontStyle: "italic"
-            },
-            ".cm-rich-table a": {
-              color: "var(--rip-link)",
-              textDecoration: "underline",
-              textUnderlineOffset: "2px"
-            },
-            ".cm-rich-table-cell": {
-              position: "relative",
-              cursor: "text"
-            },
-            ".cm-rich-table-cell-preview, .cm-rich-table-cell-editor": {
-              minWidth: "7ch",
-              minHeight: "2.45em",
-              display: "block",
-              boxSizing: "border-box",
-              padding: "8px 12px",
-              whiteSpace: "pre-wrap",
-              overflowWrap: "anywhere"
-            },
-            ".cm-rich-table-cell-preview": {
-              outline: "none"
-            },
-            ".cm-rich-table-cell-editor": {
-              display: "none",
-              outline: "none"
-            },
-            ".cm-rich-table-cell.is-editing .cm-rich-table-cell-preview": {
-              display: "none"
-            },
-            ".cm-rich-table-cell.is-editing .cm-rich-table-cell-editor": {
-              display: "block"
-            },
-            ".cm-rich-table-cell-editor:focus": {
-              backgroundColor: "color-mix(in srgb, var(--rip-focus) 13%, transparent)",
-              boxShadow: "inset 0 0 0 1px var(--rip-focus)"
-            },
-            ".cm-rich-table-cell-preview:empty::before, .cm-rich-table-cell-editor:empty::before": {
-              content: '"Cell"',
-              color: "var(--rip-muted)",
-              opacity: "0.55"
-            },
-            ".cm-inline-markdown-image": {
-              maxWidth: "100%",
-              display: "inline-flex",
-              alignItems: "center",
-              verticalAlign: "middle"
-            },
-            ".cm-inline-markdown-image img": {
-              width: "auto",
-              height: "auto",
-              maxWidth: "min(180px, 100%)",
-              maxHeight: "140px",
-              display: "block",
-              border: "1px solid var(--rip-border)",
-              borderRadius: "6px",
-              aspectRatio: "auto",
-              objectFit: "contain",
-              backgroundColor: "var(--rip-bg)",
-              cursor: "pointer"
-            },
-            ".cm-inline-markdown-image-error": {
-              color: "var(--rip-muted)",
-              fontSize: "0.92em"
-            },
-            ".cm-rich-table-toolbar": {
-              display: "flex",
-              justifyContent: "flex-end",
-              gap: "6px",
-              borderTop: "1px solid var(--rip-border)",
-              padding: "6px 8px",
-              backgroundColor: "color-mix(in srgb, var(--rip-panel) 88%, var(--rip-bg))"
-            },
-            ".cm-rich-table-action": {
-              height: "26px",
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "5px",
-              border: "1px solid var(--rip-border)",
-              borderRadius: "6px",
-              padding: "0 9px",
-              color: "var(--rip-fg)",
-              backgroundColor: "var(--rip-input-bg)",
-              font: "12px var(--vscode-font-family)",
-              cursor: "pointer"
-            },
-            ".cm-rich-table-action:hover": {
-              borderColor: "var(--rip-focus)",
-              backgroundColor: "var(--rip-hover)"
-            },
-            ".cm-rich-table-action-icon": {
-              color: "var(--rip-heading)",
-              fontWeight: "760"
-            },
-            ".cm-mermaid-preview": {
-              display: "block",
-              boxSizing: "border-box",
-              maxWidth: "100%",
-              height: "var(--mermaid-source-height, auto)",
-              margin: "0",
-              border: "1px solid var(--rip-border)",
-              borderRadius: "8px",
-              overflow: "hidden",
-              backgroundColor: "var(--rip-panel)",
-              boxShadow: "none",
-              cursor: "text",
-              position: "relative"
-            },
-            ".cm-mermaid-preview.cm-widgetBuffer": {
-              display: "none"
-            },
-            ".cm-mermaid-output": {
-              height: "100%",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              padding: "10px",
-              overflow: "hidden",
-              position: "relative"
-            },
-            ".cm-mermaid-canvas": {
-              width: "100%",
-              height: "100%",
-              position: "relative",
-              overflow: "auto"
-            },
-            ".cm-mermaid-stage": {
-              position: "absolute",
-              left: "0",
-              top: "0",
-              transformOrigin: "0 0",
-              willChange: "transform"
-            },
-            ".cm-mermaid-stage svg": {
-              display: "block",
-              maxWidth: "none",
-              maxHeight: "none",
-              width: "100%",
-              height: "100%"
-            },
-            ".cm-mermaid-toolbar": {
-              position: "absolute",
-              top: "7px",
-              right: "7px",
-              zIndex: "2",
-              display: "inline-flex",
-              gap: "4px",
-              padding: "3px",
-              border: "1px solid var(--rip-border)",
-              borderRadius: "7px",
-              backgroundColor: "color-mix(in srgb, var(--rip-panel) 92%, transparent)",
-              boxShadow: "0 8px 18px rgba(0, 0, 0, 0.18)"
-            },
-            ".cm-mermaid-tool-button": {
-              minWidth: "25px",
-              height: "24px",
-              display: "inline-grid",
-              placeItems: "center",
-              border: "0",
-              borderRadius: "5px",
-              padding: "0 7px",
-              color: "var(--rip-fg)",
-              backgroundColor: "transparent",
-              font: "12px var(--vscode-font-family)",
-              cursor: "pointer"
-            },
-            ".cm-mermaid-tool-button:hover": {
-              color: "var(--rip-heading)",
-              backgroundColor: "var(--rip-hover)"
-            },
-            ".cm-mermaid-status": {
-              color: "var(--rip-muted)",
-              font: "13px var(--vscode-font-family)"
-            },
-            ".cm-mermaid-error": {
-              width: "100%",
-              margin: "0",
-              color: "var(--rip-danger)",
-              whiteSpace: "pre-wrap",
-              font: "12px var(--vscode-editor-font-family, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace)"
-            },
-            ".cm-task-checkbox": {
-              width: "1.05em",
-              height: "1.05em",
-              display: "inline-grid",
-              placeItems: "center",
-              margin: "0 0.36em 0 0.08em",
-              border: "1.5px solid var(--rip-border)",
-              borderRadius: "4px",
-              color: "var(--rip-button-fg)",
-              backgroundColor: "var(--rip-input-bg)",
-              verticalAlign: "-0.16em",
-              cursor: "pointer"
-            },
-            ".cm-task-checkbox.is-checked": {
-              borderColor: "var(--rip-accent)",
-              backgroundColor: "var(--rip-accent)"
-            },
-            ".cm-task-checkbox.is-checked::after": {
-              content: '"\u2713"',
-              color: "var(--rip-button-fg)",
-              fontSize: "0.82em",
-              lineHeight: "1"
-            },
-            ".cm-settings-root": {
-              position: "fixed",
-              right: "18px",
-              bottom: "18px",
-              zIndex: "10",
-              display: "grid",
-              justifyItems: "end",
-              gap: "8px",
-              fontFamily: "var(--vscode-font-family)"
-            },
-            ".cm-settings-button": {
-              width: "36px",
-              height: "36px",
-              display: "grid",
-              placeItems: "center",
-              border: "1px solid var(--rip-border)",
-              borderRadius: "999px",
-              color: "var(--rip-fg)",
-              background: "var(--rip-panel)",
-              boxShadow: "0 8px 22px rgba(0, 0, 0, 0.22)",
-              cursor: "pointer",
-              fontSize: "16px"
-            },
-            ".cm-settings-button:hover": {
-              borderColor: "var(--rip-focus)",
-              background: "var(--rip-hover)"
-            },
-            ".cm-settings-menu": {
-              width: "238px",
-              maxHeight: "min(520px, calc(100vh - 64px))",
-              overflowY: "auto",
-              border: "1px solid var(--rip-border)",
-              borderRadius: "8px",
-              padding: "10px",
-              color: "var(--rip-fg)",
-              background: "var(--rip-panel)",
-              boxShadow: "0 14px 36px rgba(0, 0, 0, 0.3)"
-            },
-            ".cm-settings-menu[hidden]": { display: "none" },
-            ".cm-settings-section": {
-              display: "grid",
-              gap: "4px",
-              paddingTop: "10px",
-              borderTop: "1px solid color-mix(in srgb, var(--rip-border) 72%, transparent)"
-            },
-            ".cm-settings-section:first-child": {
-              paddingTop: "0",
-              borderTop: "0"
-            },
-            ".cm-settings-menu-title": {
-              padding: "0 2px 3px",
-              color: "var(--rip-heading)",
-              fontSize: "11px",
-              fontWeight: "700",
-              textTransform: "uppercase"
-            },
-            ".cm-settings-subtitle": {
-              marginTop: "5px",
-              padding: "0 2px 1px",
-              color: "var(--rip-muted)",
-              fontSize: "11px",
-              fontWeight: "650"
-            },
-            ".cm-settings-menu-item": {
-              width: "100%",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              border: "0",
-              borderRadius: "6px",
-              padding: "7px 8px",
-              color: "var(--rip-fg)",
-              background: "transparent",
-              cursor: "pointer",
-              font: "13px var(--vscode-font-family)",
-              textAlign: "left"
-            },
-            ".cm-settings-menu-item:hover, .cm-settings-menu-item.is-active": {
-              background: "var(--rip-hover)"
-            },
-            ".cm-settings-menu-item.is-active": {
-              color: "var(--rip-heading)",
-              fontWeight: "700"
-            }
-          })
-        ]
-      })
-    });
-    renderSettingsButton();
+  var fallbackTextarea = null;
+  installSearchShortcut({
+    getView: () => view,
+    closeSlashCommandMenu,
+    closeTableContextMenu
   });
+  queueMicrotask(() => {
+    try {
+      view = new EditorView({
+        parent: root,
+        state: EditorState.create({
+          doc: initialDocument,
+          extensions: [
+            lineNumbers(),
+            history(),
+            highlightActiveLine(),
+            highlightActiveLineGutter(),
+            ...createSearchExtensions(),
+            syntaxHighlighting(markdownHighlightStyle),
+            markdown({
+              extensions: GFM,
+              codeLanguages
+            }),
+            detailsDecorationField,
+            tableDecorationField,
+            mermaidDecorationField,
+            blockLineDecorations,
+            codeBlockCopyButtons,
+            inlineDecorations,
+            taskCheckboxes,
+            EditorView.domEventHandlers({
+              blur(event, view2) {
+                closeSlashCommandMenu();
+                exitDetailsEditMode(view2, true);
+                exitTableEditMode(view2, true);
+                exitMermaidEditMode(view2, true);
+                return false;
+              },
+              mousedown(event, view2) {
+                if (event.button !== 0 || event.metaKey || event.ctrlKey) {
+                  return false;
+                }
+                const linkTarget = findLinkAtClick(view2, event);
+                if (!linkTarget) {
+                  return false;
+                }
+                const line = view2.state.doc.lineAt(linkTarget.position);
+                if (isLineFocused(view2.state, line)) {
+                  return false;
+                }
+                event.preventDefault();
+                return true;
+              },
+              click(event, view2) {
+                const linkTarget = findLinkAtClick(view2, event);
+                if (!linkTarget) {
+                  return false;
+                }
+                const line = view2.state.doc.lineAt(linkTarget.position);
+                const linkNeedsModifier = isLineFocused(view2.state, line);
+                if (linkNeedsModifier && !event.metaKey && !event.ctrlKey) {
+                  return false;
+                }
+                event.preventDefault();
+                vscode.postMessage({ type: "openLink", href: linkTarget.href });
+                return true;
+              }
+            }),
+            keymap.of([
+              indentWithTab,
+              ...slashCommandKeymap,
+              ...getSearchKeymap(),
+              ...defaultKeymap,
+              ...historyKeymap
+            ]),
+            EditorView.lineWrapping,
+            EditorView.updateListener.of((update) => {
+              syncSlashCommandMenu(update);
+              outlineNavigation.sync(update);
+              if (!update.docChanged || applyingExternalUpdate) {
+                return;
+              }
+              vscode.postMessage({
+                type: "edit",
+                text: update.state.doc.toString()
+              });
+            }),
+            EditorView.theme({
+              "&": {
+                height: "100%",
+                color: "var(--rip-fg)",
+                backgroundColor: "var(--rip-bg)",
+                fontSize: "15px"
+              },
+              ".cm-scroller": {
+                fontFamily: "var(--vscode-editor-font-family, var(--vscode-font-family))",
+                lineHeight: "1.72",
+                overflow: "auto"
+              },
+              ".cm-content": {
+                maxWidth: "var(--rip-content-max-width, 960px)",
+                minHeight: "100%",
+                margin: "0 auto",
+                padding: "28px clamp(18px, 5vw, 64px) 72px",
+                caretColor: "var(--rip-caret)"
+              },
+              "&.cm-focused": { outline: "none" },
+              "&.cm-focused .cm-cursor": {
+                borderLeftColor: "var(--rip-caret)",
+                borderLeftWidth: "2px"
+              },
+              ".cm-gutters": {
+                color: "var(--rip-muted)",
+                backgroundColor: "var(--rip-bg)",
+                borderRight: "1px solid var(--rip-border)"
+              },
+              ".cm-activeLineGutter": {
+                color: "var(--rip-heading)",
+                backgroundColor: "var(--rip-hover)"
+              },
+              ".cm-activeLine": {
+                backgroundColor: "var(--rip-hover)"
+              },
+              ".cm-panels": {
+                color: "var(--rip-fg)",
+                backgroundColor: "var(--rip-panel)",
+                borderColor: "var(--rip-border)",
+                fontFamily: "var(--vscode-font-family)"
+              },
+              ".cm-panel.cm-search": {
+                display: "flex",
+                flexWrap: "wrap",
+                alignItems: "center",
+                gap: "6px",
+                padding: "8px 34px 8px 10px",
+                borderBottom: "1px solid var(--rip-border)"
+              },
+              ".cm-panel.cm-search input.cm-textfield": {
+                minWidth: "180px",
+                height: "28px",
+                boxSizing: "border-box",
+                border: "1px solid var(--rip-border)",
+                borderRadius: "5px",
+                padding: "3px 7px",
+                color: "var(--rip-fg)",
+                backgroundColor: "var(--rip-input-bg)",
+                font: "13px var(--vscode-font-family)",
+                outline: "none"
+              },
+              ".cm-panel.cm-search input.cm-textfield:focus": {
+                borderColor: "var(--rip-focus)"
+              },
+              ".cm-panel.cm-search button": {
+                minHeight: "26px",
+                appearance: "none",
+                border: "1px solid var(--rip-border)",
+                borderRadius: "5px",
+                padding: "2px 8px",
+                color: "var(--rip-fg)",
+                backgroundColor: "var(--rip-input-bg)",
+                backgroundImage: "none",
+                boxShadow: "none",
+                font: "12px var(--vscode-font-family)",
+                cursor: "pointer"
+              },
+              ".cm-panel.cm-search button[name=next], .cm-panel.cm-search button[name=prev]": {
+                color: "var(--rip-button-fg)",
+                borderColor: "var(--rip-accent)",
+                backgroundColor: "var(--rip-accent)"
+              },
+              ".cm-panel.cm-search button:hover": {
+                borderColor: "var(--rip-focus)",
+                backgroundColor: "var(--rip-hover)",
+                color: "var(--rip-fg)"
+              },
+              ".cm-panel.cm-search button[name=next]:hover, .cm-panel.cm-search button[name=prev]:hover": {
+                color: "var(--rip-button-fg)",
+                borderColor: "var(--rip-focus)",
+                backgroundColor: "color-mix(in srgb, var(--rip-accent) 86%, var(--rip-bg))"
+              },
+              ".cm-panel.cm-search input[type=checkbox]": {
+                accentColor: "var(--rip-accent)"
+              },
+              ".cm-panel.cm-search [name=close]": {
+                top: "8px",
+                right: "9px",
+                width: "24px",
+                height: "24px",
+                border: "0",
+                color: "var(--rip-muted)",
+                backgroundColor: "transparent",
+                backgroundImage: "none",
+                fontSize: "17px"
+              },
+              ".cm-panel.cm-search [name=close]:hover": {
+                color: "var(--rip-heading)",
+                backgroundColor: "var(--rip-hover)"
+              },
+              ".cm-panel.cm-search label": {
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "3px",
+                color: "var(--rip-muted)",
+                fontSize: "12px"
+              },
+              ".cm-searchMatch": {
+                backgroundColor: "color-mix(in srgb, var(--rip-syntax-orange) 38%, transparent)",
+                outline: "1px solid color-mix(in srgb, var(--rip-syntax-orange) 45%, transparent)"
+              },
+              ".cm-searchMatch-selected": {
+                backgroundColor: "color-mix(in srgb, var(--rip-heading) 46%, transparent)",
+                outline: "1px solid var(--rip-heading)"
+              },
+              ".cm-selectionMatch": {
+                backgroundColor: "color-mix(in srgb, var(--rip-link) 24%, transparent)"
+              },
+              ".cm-content ::selection": {
+                backgroundColor: "color-mix(in srgb, var(--rip-link) 42%, transparent)"
+              },
+              ".cm-heading-line": {
+                fontWeight: "780",
+                lineHeight: "1.38"
+              },
+              ".cm-heading-1": {
+                color: "var(--rip-heading)",
+                fontSize: "2.12rem",
+                borderBottom: "1px solid var(--rip-border)",
+                paddingBottom: "0.12em"
+              },
+              ".cm-heading-2": {
+                fontSize: "1.62rem",
+                borderBottom: "1px solid var(--rip-border)",
+                paddingBottom: "0.08em"
+              },
+              ".cm-heading-3": { fontSize: "1.32rem" },
+              ".cm-heading-4": { fontSize: "1.15rem" },
+              ".cm-heading-5": {
+                color: "var(--rip-muted)",
+                fontSize: "1rem",
+                textTransform: "uppercase"
+              },
+              ".cm-heading-6": {
+                color: "var(--rip-muted)",
+                fontSize: "0.96rem",
+                fontStyle: "italic"
+              },
+              ".cm-markdown-marker": {
+                color: "var(--rip-muted)",
+                fontSize: "0",
+                opacity: "0"
+              },
+              ".cm-line.cm-activeLine .cm-markdown-marker": {
+                fontSize: "inherit",
+                opacity: "0.9"
+              },
+              ".cm-quote-line": {
+                color: "var(--rip-muted)",
+                borderLeft: "4px solid var(--rip-quote-border)",
+                paddingLeft: "0.8em"
+              },
+              ".cm-line.cm-activeLine.cm-quote-line": { color: "var(--rip-fg)" },
+              ".cm-link": {
+                color: "var(--rip-link)",
+                textDecoration: "underline",
+                textUnderlineOffset: "2px"
+              },
+              ".cm-line:not(.cm-activeLine) .cm-link": {
+                cursor: "pointer"
+              },
+              ".cm-inline-code": {
+                border: "1px solid var(--rip-border)",
+                borderRadius: "4px",
+                padding: "0 0.26em",
+                backgroundColor: "color-mix(in srgb, var(--rip-code-bg) 74%, transparent)"
+              },
+              ".cm-list-line": {
+                position: "relative"
+              },
+              ".cm-list-marker": {
+                minWidth: "1.7em",
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                marginRight: "0.15em",
+                color: "var(--rip-muted)",
+                fontFamily: "var(--vscode-font-family)",
+                fontWeight: "700",
+                fontVariantNumeric: "tabular-nums"
+              },
+              ".cm-list-marker.is-unordered": {
+                color: "var(--rip-heading)"
+              },
+              ".cm-list-marker.is-ordered": {
+                minWidth: "2.2em",
+                justifyContent: "flex-end",
+                paddingRight: "0.25em",
+                color: "var(--rip-muted)",
+                fontSize: "0.92em"
+              },
+              ".cm-list-depth-1 .cm-list-marker.is-unordered": {
+                color: "var(--rip-link)"
+              },
+              ".cm-list-depth-2 .cm-list-marker.is-unordered": {
+                color: "var(--rip-syntax-green)"
+              },
+              ".cm-image-preview": {
+                maxWidth: "100%",
+                display: "inline-flex",
+                flexDirection: "column",
+                alignItems: "flex-start",
+                gap: "6px",
+                margin: "0",
+                verticalAlign: "top",
+                cursor: "text"
+              },
+              ".cm-image-preview img": {
+                width: "auto",
+                height: "auto",
+                maxWidth: "min(100%, 720px)",
+                maxHeight: "460px",
+                display: "block",
+                border: "1px solid var(--rip-border)",
+                borderRadius: "8px",
+                backgroundColor: "var(--rip-panel)",
+                aspectRatio: "auto",
+                objectFit: "contain"
+              },
+              ".cm-image-preview-caption": {
+                color: "var(--rip-muted)",
+                font: "12px var(--vscode-font-family)"
+              },
+              ".cm-image-preview-error": {
+                maxWidth: "100%",
+                border: "1px solid var(--rip-border)",
+                borderRadius: "6px",
+                padding: "6px 8px",
+                color: "var(--rip-muted)",
+                backgroundColor: "var(--rip-panel)",
+                font: "12px var(--vscode-font-family)"
+              },
+              ".cm-details-preview": {
+                display: "block",
+                boxSizing: "border-box",
+                maxWidth: "100%",
+                margin: "0",
+                border: "1px solid var(--rip-border)",
+                borderRadius: "8px",
+                overflow: "hidden",
+                color: "var(--rip-fg)",
+                backgroundColor: "var(--rip-panel)"
+              },
+              ".cm-details-preview.cm-widgetBuffer": {
+                display: "none"
+              },
+              ".cm-details-summary": {
+                width: "100%",
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                border: "0",
+                padding: "8px 10px",
+                color: "var(--rip-heading)",
+                backgroundColor: "color-mix(in srgb, var(--rip-panel) 86%, var(--rip-bg))",
+                font: "700 14px var(--vscode-font-family)",
+                textAlign: "left",
+                cursor: "pointer"
+              },
+              ".cm-details-disclosure": {
+                width: "1.2em",
+                display: "inline-grid",
+                placeItems: "center",
+                color: "var(--rip-muted)",
+                fontSize: "13px"
+              },
+              ".cm-details-body": {
+                display: "grid",
+                gap: "6px",
+                borderTop: "1px solid var(--rip-border)",
+                padding: "8px 10px 10px"
+              },
+              ".cm-details-body-line": {
+                margin: "0",
+                lineHeight: "1.55"
+              },
+              ".cm-codeblock-line": {
+                position: "relative",
+                fontFamily: "var(--vscode-editor-font-family, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace)",
+                paddingLeft: "12px",
+                paddingRight: "72px",
+                backgroundColor: "color-mix(in srgb, var(--rip-panel) 92%, var(--rip-code-bg))",
+                boxShadow: "inset 1px 0 0 var(--rip-border), inset -1px 0 0 var(--rip-border)"
+              },
+              ".cm-codeblock-first": {
+                borderTopLeftRadius: "8px",
+                borderTopRightRadius: "8px",
+                boxShadow: "inset 1px 0 0 var(--rip-border), inset -1px 0 0 var(--rip-border), inset 0 1px 0 var(--rip-border)"
+              },
+              ".cm-codeblock-last": {
+                borderBottomLeftRadius: "8px",
+                borderBottomRightRadius: "8px",
+                boxShadow: "inset 1px 0 0 var(--rip-border), inset -1px 0 0 var(--rip-border), inset 0 -1px 0 var(--rip-border)"
+              },
+              ".cm-codeblock-first.cm-codeblock-last": {
+                boxShadow: "inset 1px 0 0 var(--rip-border), inset -1px 0 0 var(--rip-border), inset 0 1px 0 var(--rip-border), inset 0 -1px 0 var(--rip-border)"
+              },
+              ".cm-codeblock-line.cm-activeLine": {
+                backgroundColor: "color-mix(in srgb, var(--rip-panel) 78%, var(--rip-hover))"
+              },
+              ".cm-codeblock-line .cm-markdown-marker": {
+                opacity: "0"
+              },
+              ".cm-line.cm-activeLine.cm-codeblock-line .cm-markdown-marker": {
+                opacity: "0.9"
+              },
+              ".cm-code-copy-widget": {
+                position: "absolute",
+                top: "3px",
+                right: "7px",
+                zIndex: "2",
+                display: "inline-flex"
+              },
+              ".cm-code-copy-button": {
+                height: "22px",
+                border: "1px solid var(--rip-border)",
+                borderRadius: "5px",
+                padding: "0 7px",
+                color: "var(--rip-muted)",
+                backgroundColor: "color-mix(in srgb, var(--rip-panel) 88%, transparent)",
+                font: "11px var(--vscode-font-family)",
+                cursor: "pointer"
+              },
+              ".cm-code-copy-button:hover": {
+                color: "var(--rip-heading)",
+                borderColor: "var(--rip-focus)",
+                backgroundColor: "var(--rip-hover)"
+              },
+              ".cm-thematic-break-line": {
+                color: "transparent",
+                position: "relative"
+              },
+              ".cm-thematic-break-line::after": {
+                content: '""',
+                position: "absolute",
+                left: "0",
+                right: "0",
+                top: "50%",
+                borderTop: "1px solid var(--rip-border)",
+                transform: "translateY(-50%)"
+              },
+              ".cm-line.cm-activeLine.cm-thematic-break-line": {
+                color: "var(--rip-fg)"
+              },
+              ".cm-line.cm-activeLine.cm-thematic-break-line::after": {
+                display: "none"
+              },
+              ".cm-table-line": {
+                backgroundColor: "var(--rip-row-alt)",
+                fontFamily: "var(--vscode-editor-font-family, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace)",
+                fontFeatureSettings: '"tnum" 1, "liga" 0, "calt" 0',
+                fontVariantLigatures: "none",
+                lineHeight: "1.62",
+                boxShadow: "inset 0 1px 0 color-mix(in srgb, var(--rip-border) 42%, transparent), inset 1px 0 0 color-mix(in srgb, var(--rip-border) 58%, transparent), inset -1px 0 0 color-mix(in srgb, var(--rip-border) 58%, transparent)"
+              },
+              ".cm-table-header-line": {
+                color: "var(--rip-heading)",
+                backgroundColor: "color-mix(in srgb, var(--rip-panel) 72%, var(--rip-bg))",
+                fontWeight: "760",
+                boxShadow: "inset 0 1px 0 var(--rip-border), inset 0 -1px 0 var(--rip-border), inset 1px 0 0 color-mix(in srgb, var(--rip-border) 70%, transparent), inset -1px 0 0 color-mix(in srgb, var(--rip-border) 70%, transparent)"
+              },
+              ".cm-table-delimiter-line": {
+                color: "var(--rip-muted)",
+                backgroundColor: "color-mix(in srgb, var(--rip-panel) 38%, var(--rip-bg))",
+                fontSize: "0.92em",
+                boxShadow: "inset 0 -1px 0 color-mix(in srgb, var(--rip-border) 70%, transparent), inset 1px 0 0 color-mix(in srgb, var(--rip-border) 58%, transparent), inset -1px 0 0 color-mix(in srgb, var(--rip-border) 58%, transparent)"
+              },
+              ".cm-table-body-line": {
+                backgroundColor: "color-mix(in srgb, var(--rip-row-alt) 78%, transparent)"
+              },
+              ".cm-table-line .cm-markdown-marker": {
+                opacity: "0"
+              },
+              ".cm-line.cm-activeLine.cm-table-line .cm-markdown-marker": {
+                opacity: "0.9"
+              },
+              ".cm-table-pipe": {
+                color: "transparent",
+                display: "inline-block",
+                width: "1ch",
+                position: "relative",
+                textAlign: "center",
+                fontWeight: "400",
+                textShadow: "none"
+              },
+              ".cm-table-pipe::after": {
+                content: '""',
+                position: "absolute",
+                left: "50%",
+                top: "-0.22em",
+                bottom: "-0.22em",
+                width: "1px",
+                transform: "translateX(-50%)",
+                backgroundColor: "color-mix(in srgb, var(--rip-border) 76%, transparent)"
+              },
+              ".cm-table-header-cell": {
+                color: "var(--rip-heading)",
+                fontWeight: "760",
+                backgroundColor: "color-mix(in srgb, var(--rip-heading) 7%, transparent)",
+                borderRadius: "3px",
+                boxDecorationBreak: "clone"
+              },
+              ".cm-table-cell": {
+                color: "var(--rip-fg)",
+                backgroundColor: "color-mix(in srgb, var(--rip-bg) 18%, transparent)",
+                borderRadius: "3px",
+                boxDecorationBreak: "clone"
+              },
+              ".cm-table-delimiter-text": {
+                color: "var(--rip-muted)",
+                opacity: "0.32"
+              },
+              ".cm-rich-table-preview": {
+                display: "block",
+                boxSizing: "border-box",
+                maxWidth: "100%",
+                margin: "0",
+                border: "1px solid var(--rip-border)",
+                borderRadius: "8px",
+                overflow: "hidden",
+                backgroundColor: "var(--rip-panel)",
+                boxShadow: "0 10px 28px rgba(0, 0, 0, 0.12)",
+                cursor: "text"
+              },
+              ".cm-rich-table-preview.cm-widgetBuffer": {
+                display: "none"
+              },
+              ".cm-rich-table-scroll": {
+                width: "100%",
+                overflowX: "auto"
+              },
+              ".cm-rich-table": {
+                width: "100%",
+                minWidth: "max-content",
+                borderCollapse: "separate",
+                borderSpacing: "0",
+                color: "var(--rip-fg)",
+                fontFamily: "var(--vscode-font-family)",
+                fontSize: "0.95rem",
+                lineHeight: "1.45"
+              },
+              ".cm-rich-table th, .cm-rich-table td": {
+                maxWidth: "34ch",
+                borderRight: "1px solid var(--rip-border)",
+                borderBottom: "1px solid var(--rip-border)",
+                padding: "0",
+                textAlign: "left",
+                verticalAlign: "top",
+                whiteSpace: "normal"
+              },
+              ".cm-rich-table th:last-child, .cm-rich-table td:last-child": {
+                borderRight: "0"
+              },
+              ".cm-rich-table tbody tr:last-child td": {
+                borderBottom: "0"
+              },
+              ".cm-rich-table th": {
+                color: "var(--rip-heading)",
+                backgroundColor: "color-mix(in srgb, var(--rip-heading) 10%, var(--rip-panel))",
+                fontWeight: "760"
+              },
+              ".cm-rich-table tbody tr:nth-child(even) td": {
+                backgroundColor: "var(--rip-row-alt)"
+              },
+              ".cm-rich-table tbody tr:hover td": {
+                backgroundColor: "var(--rip-hover)"
+              },
+              ".cm-rich-table .align-center": {
+                textAlign: "center"
+              },
+              ".cm-rich-table .align-right": {
+                textAlign: "right"
+              },
+              ".cm-rich-table code": {
+                padding: "0.08em 0.32em",
+                border: "1px solid var(--rip-border)",
+                borderRadius: "4px",
+                backgroundColor: "var(--rip-code-bg)",
+                fontFamily: "var(--vscode-editor-font-family, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace)"
+              },
+              ".cm-rich-table strong": {
+                fontWeight: "760"
+              },
+              ".cm-rich-table em": {
+                fontStyle: "italic"
+              },
+              ".cm-rich-table a": {
+                color: "var(--rip-link)",
+                textDecoration: "underline",
+                textUnderlineOffset: "2px"
+              },
+              ".cm-rich-table-cell": {
+                position: "relative",
+                cursor: "text"
+              },
+              ".cm-rich-table-cell-preview, .cm-rich-table-cell-editor": {
+                minWidth: "7ch",
+                minHeight: "2.45em",
+                display: "block",
+                boxSizing: "border-box",
+                padding: "8px 12px",
+                whiteSpace: "pre-wrap",
+                overflowWrap: "anywhere"
+              },
+              ".cm-rich-table-cell-preview": {
+                outline: "none"
+              },
+              ".cm-rich-table-cell-editor": {
+                display: "none",
+                outline: "none"
+              },
+              ".cm-rich-table-cell.is-editing .cm-rich-table-cell-preview": {
+                display: "none"
+              },
+              ".cm-rich-table-cell.is-editing .cm-rich-table-cell-editor": {
+                display: "block"
+              },
+              ".cm-rich-table-cell-editor:focus": {
+                backgroundColor: "color-mix(in srgb, var(--rip-focus) 13%, transparent)",
+                boxShadow: "inset 0 0 0 1px var(--rip-focus)"
+              },
+              ".cm-rich-table-cell-preview:empty::before, .cm-rich-table-cell-editor:empty::before": {
+                content: '"Cell"',
+                color: "var(--rip-muted)",
+                opacity: "0.55"
+              },
+              ".cm-inline-markdown-image": {
+                maxWidth: "100%",
+                display: "inline-flex",
+                alignItems: "center",
+                verticalAlign: "middle"
+              },
+              ".cm-inline-markdown-image img": {
+                width: "auto",
+                height: "auto",
+                maxWidth: "min(180px, 100%)",
+                maxHeight: "140px",
+                display: "block",
+                border: "1px solid var(--rip-border)",
+                borderRadius: "6px",
+                aspectRatio: "auto",
+                objectFit: "contain",
+                backgroundColor: "var(--rip-bg)",
+                cursor: "pointer"
+              },
+              ".cm-inline-markdown-image-error": {
+                color: "var(--rip-muted)",
+                fontSize: "0.92em"
+              },
+              ".cm-rich-table-toolbar": {
+                display: "flex",
+                justifyContent: "flex-end",
+                gap: "6px",
+                borderTop: "1px solid var(--rip-border)",
+                padding: "6px 8px",
+                backgroundColor: "color-mix(in srgb, var(--rip-panel) 88%, var(--rip-bg))"
+              },
+              ".cm-rich-table-action": {
+                height: "26px",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "5px",
+                border: "1px solid var(--rip-border)",
+                borderRadius: "6px",
+                padding: "0 9px",
+                color: "var(--rip-fg)",
+                backgroundColor: "var(--rip-input-bg)",
+                font: "12px var(--vscode-font-family)",
+                cursor: "pointer"
+              },
+              ".cm-rich-table-action:hover": {
+                borderColor: "var(--rip-focus)",
+                backgroundColor: "var(--rip-hover)"
+              },
+              ".cm-rich-table-action-icon": {
+                color: "var(--rip-heading)",
+                fontWeight: "760"
+              },
+              ".cm-mermaid-preview": {
+                display: "block",
+                boxSizing: "border-box",
+                maxWidth: "100%",
+                height: "var(--mermaid-source-height, auto)",
+                margin: "0",
+                border: "1px solid var(--rip-border)",
+                borderRadius: "8px",
+                overflow: "hidden",
+                backgroundColor: "var(--rip-panel)",
+                boxShadow: "none",
+                cursor: "text",
+                position: "relative"
+              },
+              ".cm-mermaid-preview.cm-widgetBuffer": {
+                display: "none"
+              },
+              ".cm-mermaid-output": {
+                height: "100%",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: "10px",
+                overflow: "hidden",
+                position: "relative"
+              },
+              ".cm-mermaid-canvas": {
+                width: "100%",
+                height: "100%",
+                position: "relative",
+                overflow: "auto"
+              },
+              ".cm-mermaid-stage": {
+                position: "absolute",
+                left: "0",
+                top: "0",
+                transformOrigin: "0 0",
+                willChange: "transform"
+              },
+              ".cm-mermaid-stage svg": {
+                display: "block",
+                maxWidth: "none",
+                maxHeight: "none",
+                width: "100%",
+                height: "100%"
+              },
+              ".cm-mermaid-toolbar": {
+                position: "absolute",
+                top: "7px",
+                right: "7px",
+                zIndex: "2",
+                display: "inline-flex",
+                gap: "4px",
+                padding: "3px",
+                border: "1px solid var(--rip-border)",
+                borderRadius: "7px",
+                backgroundColor: "color-mix(in srgb, var(--rip-panel) 92%, transparent)",
+                boxShadow: "0 8px 18px rgba(0, 0, 0, 0.18)"
+              },
+              ".cm-mermaid-tool-button": {
+                minWidth: "25px",
+                height: "24px",
+                display: "inline-grid",
+                placeItems: "center",
+                border: "0",
+                borderRadius: "5px",
+                padding: "0 7px",
+                color: "var(--rip-fg)",
+                backgroundColor: "transparent",
+                font: "12px var(--vscode-font-family)",
+                cursor: "pointer"
+              },
+              ".cm-mermaid-tool-button:hover": {
+                color: "var(--rip-heading)",
+                backgroundColor: "var(--rip-hover)"
+              },
+              ".cm-mermaid-status": {
+                color: "var(--rip-muted)",
+                font: "13px var(--vscode-font-family)"
+              },
+              ".cm-mermaid-error": {
+                width: "100%",
+                margin: "0",
+                color: "var(--rip-danger)",
+                whiteSpace: "pre-wrap",
+                font: "12px var(--vscode-editor-font-family, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace)"
+              },
+              ".cm-task-checkbox": {
+                width: "1.05em",
+                height: "1.05em",
+                display: "inline-grid",
+                placeItems: "center",
+                margin: "0 0.36em 0 0.08em",
+                border: "1.5px solid var(--rip-border)",
+                borderRadius: "4px",
+                color: "var(--rip-button-fg)",
+                backgroundColor: "var(--rip-input-bg)",
+                verticalAlign: "-0.16em",
+                cursor: "pointer"
+              },
+              ".cm-task-checkbox.is-checked": {
+                borderColor: "var(--rip-accent)",
+                backgroundColor: "var(--rip-accent)"
+              },
+              ".cm-task-checkbox.is-checked::after": {
+                content: '"\u2713"',
+                color: "var(--rip-button-fg)",
+                fontSize: "0.82em",
+                lineHeight: "1"
+              },
+              ".cm-settings-root": {
+                position: "fixed",
+                right: "18px",
+                bottom: "18px",
+                zIndex: "10",
+                display: "grid",
+                justifyItems: "end",
+                gap: "8px",
+                fontFamily: "var(--vscode-font-family)"
+              },
+              ".cm-settings-button": {
+                width: "36px",
+                height: "36px",
+                display: "grid",
+                placeItems: "center",
+                border: "1px solid var(--rip-border)",
+                borderRadius: "999px",
+                color: "var(--rip-fg)",
+                background: "var(--rip-panel)",
+                boxShadow: "0 8px 22px rgba(0, 0, 0, 0.22)",
+                cursor: "pointer",
+                fontSize: "16px"
+              },
+              ".cm-settings-button:hover": {
+                borderColor: "var(--rip-focus)",
+                background: "var(--rip-hover)"
+              },
+              ".cm-settings-menu": {
+                width: "238px",
+                maxHeight: "min(520px, calc(100vh - 64px))",
+                overflowY: "auto",
+                border: "1px solid var(--rip-border)",
+                borderRadius: "8px",
+                padding: "10px",
+                color: "var(--rip-fg)",
+                background: "var(--rip-panel)",
+                boxShadow: "0 14px 36px rgba(0, 0, 0, 0.3)"
+              },
+              ".cm-settings-menu[hidden]": { display: "none" },
+              ".cm-settings-section": {
+                display: "grid",
+                gap: "4px",
+                paddingTop: "10px",
+                borderTop: "1px solid color-mix(in srgb, var(--rip-border) 72%, transparent)"
+              },
+              ".cm-settings-section:first-child": {
+                paddingTop: "0",
+                borderTop: "0"
+              },
+              ".cm-settings-menu-title": {
+                padding: "0 2px 3px",
+                color: "var(--rip-heading)",
+                fontSize: "11px",
+                fontWeight: "700",
+                textTransform: "uppercase"
+              },
+              ".cm-settings-subtitle": {
+                marginTop: "5px",
+                padding: "0 2px 1px",
+                color: "var(--rip-muted)",
+                fontSize: "11px",
+                fontWeight: "650"
+              },
+              ".cm-settings-menu-item": {
+                width: "100%",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                border: "0",
+                borderRadius: "6px",
+                padding: "7px 8px",
+                color: "var(--rip-fg)",
+                background: "transparent",
+                cursor: "pointer",
+                font: "13px var(--vscode-font-family)",
+                textAlign: "left"
+              },
+              ".cm-settings-menu-item:hover, .cm-settings-menu-item.is-active": {
+                background: "var(--rip-hover)"
+              },
+              ".cm-settings-menu-item.is-active": {
+                color: "var(--rip-heading)",
+                fontWeight: "700"
+              }
+            })
+          ]
+        })
+      });
+      renderSettingsButton();
+      outlineNavigation.render(view);
+    } catch (error) {
+      reportRichdownError("editor-startup", error);
+      renderPlainTextFallback(initialDocument);
+    }
+  });
+  function renderPlainTextFallback(text) {
+    view = null;
+    root.replaceChildren();
+    const container = document.createElement("div");
+    container.className = "richdown-fallback";
+    const banner = document.createElement("div");
+    banner.className = "richdown-fallback-banner";
+    banner.textContent = "Rich preview could not start, so this file is open in plain Markdown mode.";
+    const textarea = document.createElement("textarea");
+    textarea.className = "richdown-fallback-editor";
+    textarea.value = text;
+    textarea.spellcheck = true;
+    textarea.addEventListener("input", () => {
+      if (applyingExternalUpdate) {
+        return;
+      }
+      vscode.postMessage({
+        type: "edit",
+        text: textarea.value
+      });
+    });
+    container.appendChild(banner);
+    container.appendChild(textarea);
+    root.appendChild(container);
+    fallbackTextarea = textarea;
+    textarea.focus({ preventScroll: true });
+  }
+  function applyFallbackDocumentUpdate(nextText) {
+    if (typeof nextText !== "string" || !fallbackTextarea) {
+      return;
+    }
+    if (nextText === fallbackTextarea.value) {
+      return;
+    }
+    const selectionStart = fallbackTextarea.selectionStart;
+    const selectionEnd = fallbackTextarea.selectionEnd;
+    const scrollTop = fallbackTextarea.scrollTop;
+    const scrollLeft = fallbackTextarea.scrollLeft;
+    applyingExternalUpdate = true;
+    try {
+      fallbackTextarea.value = nextText;
+      fallbackTextarea.selectionStart = Math.min(selectionStart, nextText.length);
+      fallbackTextarea.selectionEnd = Math.min(selectionEnd, nextText.length);
+      fallbackTextarea.scrollTop = scrollTop;
+      fallbackTextarea.scrollLeft = scrollLeft;
+    } finally {
+      applyingExternalUpdate = false;
+    }
+  }
   window.addEventListener("message", (event) => {
     if (!event.data) return;
     if (event.data.type === "resolvedImage") {
@@ -26257,8 +28313,11 @@
       return;
     }
     if (event.data.type !== "update") return;
-    if (!view) return;
     const nextText = event.data.text;
+    if (!view) {
+      applyFallbackDocumentUpdate(nextText);
+      return;
+    }
     applyExternalDocumentUpdate(view, nextText);
   });
   function applyExternalDocumentUpdate(editorView, nextText) {
@@ -26342,6 +28401,9 @@
   window.addEventListener("click", (event) => {
     if (!event.target.closest(".cm-table-context-menu")) {
       closeTableContextMenu();
+    }
+    if (!event.target.closest(".richdown-outline-root")) {
+      outlineNavigation.close();
     }
     if (event.target.closest(".cm-settings-root")) return;
     const menu = document.querySelector(".cm-settings-menu");
@@ -26583,11 +28645,10 @@
         }
       });
     }
-    const builder = new RangeSetBuilder();
-    ranges.sort((left, right) => left.from - right.from).forEach((range) => {
-      builder.add(range.from, range.from, range.decoration);
-    });
-    return builder.finish();
+    return Decoration.set(
+      ranges.map((range) => range.decoration.range(range.from)),
+      true
+    );
   }
   function getCodeBlockCopyInfo(doc2, node) {
     const openingLine = doc2.lineAt(node.from);
@@ -26760,8 +28821,186 @@
       font-family: var(--vscode-font-family);
       pointer-events: none;
     }
+    .richdown-fallback {
+      height: 100%;
+      display: grid;
+      grid-template-rows: auto 1fr;
+      color: var(--rip-fg);
+      background: var(--rip-bg);
+      font-family: var(--vscode-font-family);
+    }
+    .richdown-fallback-banner {
+      border-bottom: 1px solid var(--rip-border);
+      padding: 8px 12px;
+      color: var(--rip-muted);
+      background: var(--rip-panel);
+      font-size: 12px;
+    }
+    .richdown-fallback-editor {
+      width: 100%;
+      height: 100%;
+      min-height: 0;
+      resize: none;
+      border: 0;
+      outline: 0;
+      padding: 24px clamp(18px, 5vw, 64px) 72px;
+      color: var(--rip-fg);
+      background: var(--rip-bg);
+      caret-color: var(--rip-caret);
+      font: 15px/1.72 var(--vscode-editor-font-family, var(--vscode-font-family));
+      white-space: pre-wrap;
+    }
     .cm-settings-root * {
       box-sizing: border-box;
+    }
+    .richdown-outline-root {
+      position: fixed;
+      right: 18px;
+      bottom: 64px;
+      z-index: 9999;
+      display: grid;
+      justify-items: end;
+      gap: 8px;
+      font-family: var(--vscode-font-family);
+      pointer-events: none;
+    }
+    .richdown-outline-root * {
+      box-sizing: border-box;
+    }
+    .richdown-outline-button {
+      width: 36px;
+      height: 36px;
+      display: grid;
+      place-items: center;
+      border: 1px solid var(--rip-border);
+      border-radius: 999px;
+      color: var(--rip-fg);
+      background: var(--rip-panel);
+      box-shadow: 0 8px 22px rgba(0, 0, 0, 0.22);
+      cursor: pointer;
+      font-size: 16px;
+      line-height: 1;
+      pointer-events: auto;
+    }
+    .richdown-outline-button:hover,
+    .richdown-outline-root.is-open .richdown-outline-button {
+      border-color: var(--rip-focus);
+      background: var(--rip-hover);
+    }
+    .richdown-outline-panel {
+      width: 238px;
+      max-height: min(520px, calc(100vh - 112px));
+      overflow-y: auto;
+      border: 1px solid var(--rip-border);
+      border-radius: 8px;
+      padding: 10px;
+      color: var(--rip-fg);
+      background: var(--rip-panel);
+      box-shadow: 0 14px 36px rgba(0, 0, 0, 0.3);
+      pointer-events: auto;
+    }
+    .richdown-outline-panel[hidden] {
+      display: none;
+    }
+    .richdown-outline-title {
+      margin: 0 0 6px;
+      padding: 0 2px 4px;
+      color: var(--rip-heading);
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      border-bottom: 1px solid color-mix(in srgb, var(--rip-border) 72%, transparent);
+    }
+    .richdown-outline-list {
+      display: grid;
+      gap: 2px;
+    }
+    .richdown-outline-item {
+      width: 100%;
+      min-width: 0;
+      display: grid;
+      grid-template-columns: auto 1fr;
+      align-items: center;
+      gap: 6px;
+      border: 0;
+      border-radius: 6px;
+      padding: 6px 7px;
+      color: var(--rip-fg);
+      background: transparent;
+      cursor: pointer;
+      font: 12px var(--vscode-font-family);
+      text-align: left;
+    }
+    .richdown-outline-item:hover,
+    .richdown-outline-item.is-active {
+      background: var(--rip-hover);
+    }
+    .richdown-outline-item.is-active {
+      color: var(--rip-heading);
+      font-weight: 700;
+    }
+    .richdown-outline-level {
+      width: 1.4em;
+      color: var(--rip-muted);
+      font-size: 10px;
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+    .richdown-outline-text {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .richdown-outline-empty {
+      padding: 8px 7px 2px;
+      color: var(--rip-muted);
+      font-size: 12px;
+    }
+    @media (min-width: 1440px) {
+      html[data-preview-width="default"] body .cm-editor .cm-content {
+        max-width: 900px;
+        margin-left: max(32px, calc((100vw - 1220px) / 2));
+        margin-right: 320px;
+      }
+      html[data-preview-width="wide"] body .cm-editor .cm-content {
+        max-width: none;
+        margin-left: 32px;
+        margin-right: 320px;
+      }
+      .richdown-outline-root {
+        top: 32px;
+        right: 24px;
+        bottom: auto;
+        width: 260px;
+        max-height: calc(100vh - 64px);
+        justify-items: stretch;
+        pointer-events: auto;
+      }
+      .richdown-outline-button {
+        display: none;
+      }
+      .richdown-outline-panel {
+        width: 100%;
+        max-height: calc(100vh - 64px);
+        border: 0;
+        border-left: 1px solid var(--vscode-panel-border, rgba(127, 127, 127, 0.28));
+        border-radius: 0;
+        padding: 2px 0 2px 14px;
+        background: transparent;
+        box-shadow: none;
+      }
+      .richdown-outline-panel[hidden] {
+        display: block;
+      }
+      .richdown-outline-title {
+        margin-bottom: 8px;
+        border-bottom: 0;
+      }
+      .richdown-outline-item {
+        padding-top: 5px;
+        padding-bottom: 5px;
+      }
     }
     .cm-settings-button {
       width: 36px;
@@ -27055,7 +29294,6 @@
     const ranges = [];
     const imageRanges = [];
     const previewedDetailsRanges = getPreviewedDetailsRanges(view2.state);
-    const builder = new RangeSetBuilder();
     for (const range of view2.visibleRanges) {
       let position = range.from;
       while (position <= range.to) {
@@ -27138,10 +29376,10 @@
         }
       });
     }
-    ranges.sort((left, right) => left.from - right.from || right.to - left.to).forEach((range) => {
-      builder.add(range.from, range.to, range.decoration);
-    });
-    return builder.finish();
+    return Decoration.set(
+      ranges.map((range) => range.decoration.range(range.from, range.to)),
+      true
+    );
   }
   function buildDetailsDecorationState(state, openStates, activeEdit) {
     const builder = new RangeSetBuilder();
@@ -29160,19 +31398,6 @@ ${rowText}`;
   `;
     bindSettingsMenuActions(menu);
   }
-  function getMermaidSizeOptions() {
-    return [
-      { label: "Source height", value: "source" },
-      { label: "Readable", value: "readable" },
-      { label: "Large", value: "large" }
-    ];
-  }
-  function getPreviewWidthOptions() {
-    return [
-      { label: "Default", value: "default" },
-      { label: "Wide", value: "wide" }
-    ];
-  }
   function isMarkdownMarker(nodeName) {
     return [
       "HeaderMark",
@@ -29262,201 +31487,5 @@ ${rowText}`;
     const top2 = Math.min(start.top, end.top) - 3;
     const bottom = Math.max(start.bottom, end.bottom) + 3;
     return event.clientX >= left && event.clientX <= right && event.clientY >= top2 && event.clientY <= bottom;
-  }
-  function applyTheme(themeName) {
-    const theme2 = getTheme(themeName);
-    const rootStyle = document.documentElement.style;
-    document.documentElement.dataset.richTheme = themeName || "default";
-    for (const [key, value] of Object.entries(theme2)) {
-      rootStyle.setProperty(
-        `--rip-${key.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`)}`,
-        value
-      );
-    }
-  }
-  function applyPreviewWidth(previewWidth) {
-    const width = normalizePreviewWidth(previewWidth);
-    document.documentElement.dataset.previewWidth = width;
-    document.documentElement.style.setProperty(
-      "--rip-content-max-width",
-      width === "wide" ? "none" : "960px"
-    );
-  }
-  function getThemeOptions() {
-    return [
-      { value: "default", label: "Default" },
-      { value: "midnight", label: "Midnight" },
-      { value: "graphite", label: "Graphite" },
-      { value: "forest", label: "Forest" },
-      { value: "ivory", label: "Ivory" },
-      { value: "paper", label: "Paper" },
-      { value: "solar", label: "Solar" }
-    ];
-  }
-  function getTheme(themeName) {
-    const themes = {
-      default: {
-        bg: "var(--vscode-editor-background)",
-        fg: "var(--vscode-editor-foreground)",
-        muted: "var(--vscode-descriptionForeground)",
-        border: "var(--vscode-panel-border)",
-        panel: "var(--vscode-editorWidget-background)",
-        inputBg: "var(--vscode-input-background)",
-        codeBg: "var(--vscode-textCodeBlock-background)",
-        hover: "color-mix(in srgb, var(--vscode-editor-selectionBackground) 16%, transparent)",
-        focus: "var(--vscode-focusBorder)",
-        caret: "var(--vscode-editorCursor-foreground)",
-        accent: "var(--vscode-button-background)",
-        buttonFg: "var(--vscode-button-foreground)",
-        heading: "var(--vscode-textLink-foreground)",
-        link: "var(--vscode-textLink-foreground)",
-        quoteBorder: "var(--vscode-textBlockQuote-border)",
-        rowAlt: "color-mix(in srgb, var(--vscode-editorWidget-background) 45%, transparent)",
-        syntaxPurple: "var(--vscode-charts-purple, #c586c0)",
-        syntaxOrange: "var(--vscode-charts-orange, #ce9178)",
-        syntaxGreen: "var(--vscode-charts-green, #b5cea8)",
-        syntaxBlue: "var(--vscode-charts-blue, #9cdcfe)",
-        danger: "var(--vscode-errorForeground, #f14c4c)"
-      },
-      midnight: {
-        bg: "#0b1020",
-        fg: "#d9e4ff",
-        muted: "#8796b8",
-        border: "#26314f",
-        panel: "#111936",
-        inputBg: "#0f1730",
-        codeBg: "#070b16",
-        hover: "rgba(93, 144, 255, 0.14)",
-        focus: "#7aa2ff",
-        caret: "#ffffff",
-        accent: "#6f9cff",
-        buttonFg: "#081120",
-        heading: "#8fb4ff",
-        link: "#8fb4ff",
-        quoteBorder: "#5e7fd6",
-        rowAlt: "rgba(143, 180, 255, 0.08)",
-        syntaxPurple: "#d7a7ff",
-        syntaxOrange: "#ffc08a",
-        syntaxGreen: "#9ce6b3",
-        syntaxBlue: "#8bd7ff",
-        danger: "#ff8a8a"
-      },
-      graphite: {
-        bg: "#151617",
-        fg: "#e5e1d8",
-        muted: "#9b9891",
-        border: "#343536",
-        panel: "#202224",
-        inputBg: "#1b1d1f",
-        codeBg: "#101112",
-        hover: "rgba(229, 225, 216, 0.08)",
-        focus: "#d0a85c",
-        caret: "#f5f0e6",
-        accent: "#d0a85c",
-        buttonFg: "#171717",
-        heading: "#e2bd72",
-        link: "#e2bd72",
-        quoteBorder: "#8e7a55",
-        rowAlt: "rgba(255, 255, 255, 0.045)",
-        syntaxPurple: "#cfa8ff",
-        syntaxOrange: "#e6b17e",
-        syntaxGreen: "#9bcf9d",
-        syntaxBlue: "#8ebbdc",
-        danger: "#ff8f8f"
-      },
-      forest: {
-        bg: "#0f1712",
-        fg: "#dce8dc",
-        muted: "#8ea08f",
-        border: "#263529",
-        panel: "#17231a",
-        inputBg: "#121d15",
-        codeBg: "#0a100c",
-        hover: "rgba(121, 184, 136, 0.12)",
-        focus: "#79b888",
-        caret: "#effff0",
-        accent: "#79b888",
-        buttonFg: "#071008",
-        heading: "#a4d8a9",
-        link: "#9fd6b3",
-        quoteBorder: "#5b936a",
-        rowAlt: "rgba(164, 216, 169, 0.07)",
-        syntaxPurple: "#d0a8ff",
-        syntaxOrange: "#e9bd8c",
-        syntaxGreen: "#93d79b",
-        syntaxBlue: "#8fcbd4",
-        danger: "#ff8a8a"
-      },
-      ivory: {
-        bg: "#fbf5e8",
-        fg: "#2f2b25",
-        muted: "#776f62",
-        border: "#ded3bf",
-        panel: "#f1e7d5",
-        inputBg: "#fffaf0",
-        codeBg: "#f2eadc",
-        hover: "rgba(107, 78, 42, 0.09)",
-        focus: "#a46c28",
-        caret: "#2f2b25",
-        accent: "#a46c28",
-        buttonFg: "#fff8ee",
-        heading: "#7a4f1e",
-        link: "#8a5a24",
-        quoteBorder: "#bc8f55",
-        rowAlt: "rgba(122, 79, 30, 0.06)",
-        syntaxPurple: "#8a4fb0",
-        syntaxOrange: "#a75d17",
-        syntaxGreen: "#3f7a3f",
-        syntaxBlue: "#2e6f9f",
-        danger: "#b42318"
-      },
-      paper: {
-        bg: "#ffffff",
-        fg: "#202124",
-        muted: "#6b7280",
-        border: "#d7dbe2",
-        panel: "#f3f5f8",
-        inputBg: "#ffffff",
-        codeBg: "#f5f7fa",
-        hover: "rgba(31, 111, 235, 0.08)",
-        focus: "#1f6feb",
-        caret: "#202124",
-        accent: "#1f6feb",
-        buttonFg: "#ffffff",
-        heading: "#0b5cad",
-        link: "#0b5cad",
-        quoteBorder: "#8aa6c8",
-        rowAlt: "#f8fafc",
-        syntaxPurple: "#7c3aed",
-        syntaxOrange: "#b45309",
-        syntaxGreen: "#15803d",
-        syntaxBlue: "#0369a1",
-        danger: "#b42318"
-      },
-      solar: {
-        bg: "#fdf6e3",
-        fg: "#3b3a32",
-        muted: "#7b7662",
-        border: "#d8ceb0",
-        panel: "#eee5c8",
-        inputBg: "#fff9e8",
-        codeBg: "#f4edcf",
-        hover: "rgba(181, 137, 0, 0.1)",
-        focus: "#b58900",
-        caret: "#3b3a32",
-        accent: "#b58900",
-        buttonFg: "#fff8df",
-        heading: "#9b6d00",
-        link: "#0f6c8c",
-        quoteBorder: "#b58900",
-        rowAlt: "rgba(181, 137, 0, 0.07)",
-        syntaxPurple: "#6c54a3",
-        syntaxOrange: "#b85c00",
-        syntaxGreen: "#5f7f00",
-        syntaxBlue: "#227894",
-        danger: "#b42318"
-      }
-    };
-    return themes[themeName] || themes.default;
   }
 })();

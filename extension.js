@@ -556,6 +556,16 @@ class RichdownEditorProvider {
         return;
       }
 
+      if (event.type === 'webviewError') {
+        console.warn(
+          `[Richdown] ${event.context || 'webview'}: ${event.message || 'Unknown webview error'}`
+        );
+        if (event.stack) {
+          console.warn(event.stack);
+        }
+        return;
+      }
+
       if (event.type === 'setTheme') {
         if (!richThemeValues.includes(event.theme)) {
           return;

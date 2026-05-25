@@ -33,6 +33,23 @@ import {
 } from "@codemirror/view";
 import { tags } from "@lezer/highlight";
 import { GFM } from "@lezer/markdown";
+import { createOutlineNavigation } from "./richEditorOutline.js";
+import {
+  createSearchExtensions,
+  getSearchKeymap,
+  installSearchShortcut,
+} from "./richEditorSearch.js";
+import {
+  applyPreviewWidth,
+  applyTheme,
+  getMermaidSizeOptions,
+  getPreviewWidthOptions,
+  getThemeOptions,
+  hasPreviewSettingChanged,
+  normalizeMermaidPreviewSize,
+  normalizePreviewWidth,
+  normalizeRichEditorSettings,
+} from "./richEditorSettings.js";
 
 const vscode = acquireVsCodeApi();
 const root = document.querySelector("#editor");
@@ -55,9 +72,8 @@ let tableContextMenu = null;
 let previewDecorationRevision = 0;
 let lastSettingsMenuActionKey = "";
 let lastSettingsMenuActionTime = 0;
-const mermaidPreviewSizes = ["source", "readable", "large"];
-const previewWidths = ["default", "wide"];
 let settings = normalizeRichEditorSettings(initialSettings);
+const outlineNavigation = createOutlineNavigation();
 
 applyTheme(settings.richTheme);
 applyPreviewWidth(settings.previewWidth);
@@ -95,35 +111,6 @@ const codeLanguages = [
     support: html(),
   }),
 ];
-
-function normalizeRichEditorSettings(nextSettings = {}) {
-  return {
-    richTheme: nextSettings.richTheme || "default",
-    showEmptyLineHint: nextSettings.showEmptyLineHint !== false,
-    richTablePreview: nextSettings.richTablePreview !== false,
-    mermaidPreview: nextSettings.mermaidPreview !== false,
-    mermaidPreviewSize: normalizeMermaidPreviewSize(
-      nextSettings.mermaidPreviewSize,
-    ),
-    previewWidth: normalizePreviewWidth(nextSettings.previewWidth),
-  };
-}
-
-function normalizeMermaidPreviewSize(value) {
-  return mermaidPreviewSizes.includes(value) ? value : "readable";
-}
-
-function normalizePreviewWidth(value) {
-  return previewWidths.includes(value) ? value : "default";
-}
-
-function hasPreviewSettingChanged(previousSettings, nextSettings) {
-  return (
-    previousSettings.richTablePreview !== nextSettings.richTablePreview ||
-    previousSettings.mermaidPreview !== nextSettings.mermaidPreview ||
-    previousSettings.mermaidPreviewSize !== nextSettings.mermaidPreviewSize
-  );
-}
 
 const markdownHighlightStyle = HighlightStyle.define([
   { tag: tags.heading, color: "var(--rip-heading)", fontWeight: "780" },
@@ -176,15 +163,77 @@ const markdownHighlightStyle = HighlightStyle.define([
   { tag: tags.invalid, color: "var(--rip-danger)" },
 ]);
 
+function reportRichdownError(context, error) {
+  const message = error instanceof Error ? error.message : String(error);
+  const stack = error instanceof Error ? error.stack : "";
+  console.error(`[Richdown] ${context}`, error);
+  vscode.postMessage({
+    type: "webviewError",
+    context,
+    message,
+    stack,
+  });
+}
+
+function safeBuildDecorations(context, build) {
+  try {
+    return build();
+  } catch (error) {
+    reportRichdownError(context, error);
+    return Decoration.none;
+  }
+}
+
+function safeBuildDetailsDecorationState(state, openStates, activeEdit) {
+  try {
+    return buildDetailsDecorationState(state, openStates, activeEdit);
+  } catch (error) {
+    reportRichdownError("details-preview", error);
+    return {
+      activeEdit: null,
+      openStates,
+      decorations: Decoration.none,
+    };
+  }
+}
+
+function safeBuildTableDecorationState(state, activeEdit) {
+  try {
+    return buildTableDecorationState(state, activeEdit);
+  } catch (error) {
+    reportRichdownError("table-preview", error);
+    return {
+      activeEdit: null,
+      decorations: Decoration.none,
+    };
+  }
+}
+
+function safeBuildMermaidDecorationState(state, activeEdit) {
+  try {
+    return buildMermaidDecorationState(state, activeEdit);
+  } catch (error) {
+    reportRichdownError("mermaid-preview", error);
+    return {
+      activeEdit: null,
+      decorations: Decoration.none,
+    };
+  }
+}
+
 const blockLineDecorations = ViewPlugin.fromClass(
   class {
     constructor(view) {
-      this.decorations = buildBlockLineDecorations(view);
+      this.decorations = safeBuildDecorations("block-line-decorations", () =>
+        buildBlockLineDecorations(view),
+      );
     }
 
     update(update) {
       if (update.docChanged || update.viewportChanged || update.selectionSet) {
-        this.decorations = buildBlockLineDecorations(update.view);
+        this.decorations = safeBuildDecorations("block-line-decorations", () =>
+          buildBlockLineDecorations(update.view),
+        );
       }
     }
   },
@@ -196,12 +245,16 @@ const blockLineDecorations = ViewPlugin.fromClass(
 const inlineDecorations = ViewPlugin.fromClass(
   class {
     constructor(view) {
-      this.decorations = buildInlineDecorations(view);
+      this.decorations = safeBuildDecorations("inline-decorations", () =>
+        buildInlineDecorations(view),
+      );
     }
 
     update(update) {
       if (update.docChanged || update.viewportChanged || update.selectionSet) {
-        this.decorations = buildInlineDecorations(update.view);
+        this.decorations = safeBuildDecorations("inline-decorations", () =>
+          buildInlineDecorations(update.view),
+        );
       }
     }
   },
@@ -227,7 +280,7 @@ const setActiveDetailsEdit = StateEffect.define({
 
 const detailsDecorationField = StateField.define({
   create(state) {
-    return buildDetailsDecorationState(state, new Map(), null);
+    return safeBuildDetailsDecorationState(state, new Map(), null);
   },
 
   update(value, transaction) {
@@ -271,7 +324,11 @@ const detailsDecorationField = StateField.define({
       return value;
     }
 
-    return buildDetailsDecorationState(transaction.state, openStates, activeEdit);
+    return safeBuildDetailsDecorationState(
+      transaction.state,
+      openStates,
+      activeEdit,
+    );
   },
 
   provide: (field) =>
@@ -292,7 +349,7 @@ const setActiveTableEdit = StateEffect.define({
 
 const tableDecorationField = StateField.define({
   create(state) {
-    return buildTableDecorationState(state, null);
+    return safeBuildTableDecorationState(state, null);
   },
 
   update(value, transaction) {
@@ -333,7 +390,7 @@ const tableDecorationField = StateField.define({
       return value;
     }
 
-    return buildTableDecorationState(transaction.state, activeEdit);
+    return safeBuildTableDecorationState(transaction.state, activeEdit);
   },
 
   provide: (field) =>
@@ -354,7 +411,7 @@ const setActiveMermaidEdit = StateEffect.define({
 
 const mermaidDecorationField = StateField.define({
   create(state) {
-    return buildMermaidDecorationState(state, null);
+    return safeBuildMermaidDecorationState(state, null);
   },
 
   update(value, transaction) {
@@ -395,7 +452,7 @@ const mermaidDecorationField = StateField.define({
       return value;
     }
 
-    return buildMermaidDecorationState(transaction.state, activeEdit);
+    return safeBuildMermaidDecorationState(transaction.state, activeEdit);
   },
 
   provide: (field) =>
@@ -405,12 +462,16 @@ const mermaidDecorationField = StateField.define({
 const taskCheckboxes = ViewPlugin.fromClass(
   class {
     constructor(view) {
-      this.decorations = buildTaskCheckboxes(view);
+      this.decorations = safeBuildDecorations("task-checkboxes", () =>
+        buildTaskCheckboxes(view),
+      );
     }
 
     update(update) {
       if (update.docChanged || update.viewportChanged || update.selectionSet) {
-        this.decorations = buildTaskCheckboxes(update.view);
+        this.decorations = safeBuildDecorations("task-checkboxes", () =>
+          buildTaskCheckboxes(update.view),
+        );
       }
     }
   },
@@ -422,12 +483,16 @@ const taskCheckboxes = ViewPlugin.fromClass(
 const codeBlockCopyButtons = ViewPlugin.fromClass(
   class {
     constructor(view) {
-      this.decorations = buildCodeBlockCopyButtons(view);
+      this.decorations = safeBuildDecorations("code-copy-buttons", () =>
+        buildCodeBlockCopyButtons(view),
+      );
     }
 
     update(update) {
       if (update.docChanged || update.viewportChanged) {
-        this.decorations = buildCodeBlockCopyButtons(update.view);
+        this.decorations = safeBuildDecorations("code-copy-buttons", () =>
+          buildCodeBlockCopyButtons(update.view),
+        );
       }
     }
   },
@@ -550,16 +615,26 @@ const slashCommandKeymap = [
 ];
 
 let view;
+let fallbackTextarea = null;
+
+installSearchShortcut({
+  getView: () => view,
+  closeSlashCommandMenu,
+  closeTableContextMenu,
+});
+
 queueMicrotask(() => {
-  view = new EditorView({
-    parent: root,
-    state: EditorState.create({
-      doc: initialDocument,
-      extensions: [
+  try {
+    view = new EditorView({
+      parent: root,
+      state: EditorState.create({
+        doc: initialDocument,
+        extensions: [
         lineNumbers(),
         history(),
         highlightActiveLine(),
         highlightActiveLineGutter(),
+        ...createSearchExtensions(),
         syntaxHighlighting(markdownHighlightStyle),
         markdown({
           extensions: GFM,
@@ -615,12 +690,14 @@ queueMicrotask(() => {
         keymap.of([
           indentWithTab,
           ...slashCommandKeymap,
+          ...getSearchKeymap(),
           ...defaultKeymap,
           ...historyKeymap,
         ]),
         EditorView.lineWrapping,
         EditorView.updateListener.of((update) => {
           syncSlashCommandMenu(update);
+          outlineNavigation.sync(update);
           if (!update.docChanged || applyingExternalUpdate) {
             return;
           }
@@ -665,6 +742,105 @@ queueMicrotask(() => {
           },
           ".cm-activeLine": {
             backgroundColor: "var(--rip-hover)",
+          },
+          ".cm-panels": {
+            color: "var(--rip-fg)",
+            backgroundColor: "var(--rip-panel)",
+            borderColor: "var(--rip-border)",
+            fontFamily: "var(--vscode-font-family)",
+          },
+          ".cm-panel.cm-search": {
+            display: "flex",
+            flexWrap: "wrap",
+            alignItems: "center",
+            gap: "6px",
+            padding: "8px 34px 8px 10px",
+            borderBottom: "1px solid var(--rip-border)",
+          },
+          ".cm-panel.cm-search input.cm-textfield": {
+            minWidth: "180px",
+            height: "28px",
+            boxSizing: "border-box",
+            border: "1px solid var(--rip-border)",
+            borderRadius: "5px",
+            padding: "3px 7px",
+            color: "var(--rip-fg)",
+            backgroundColor: "var(--rip-input-bg)",
+            font: "13px var(--vscode-font-family)",
+            outline: "none",
+          },
+          ".cm-panel.cm-search input.cm-textfield:focus": {
+            borderColor: "var(--rip-focus)",
+          },
+          ".cm-panel.cm-search button": {
+            minHeight: "26px",
+            appearance: "none",
+            border: "1px solid var(--rip-border)",
+            borderRadius: "5px",
+            padding: "2px 8px",
+            color: "var(--rip-fg)",
+            backgroundColor: "var(--rip-input-bg)",
+            backgroundImage: "none",
+            boxShadow: "none",
+            font: "12px var(--vscode-font-family)",
+            cursor: "pointer",
+          },
+          ".cm-panel.cm-search button[name=next], .cm-panel.cm-search button[name=prev]":
+            {
+              color: "var(--rip-button-fg)",
+              borderColor: "var(--rip-accent)",
+              backgroundColor: "var(--rip-accent)",
+            },
+          ".cm-panel.cm-search button:hover": {
+            borderColor: "var(--rip-focus)",
+            backgroundColor: "var(--rip-hover)",
+            color: "var(--rip-fg)",
+          },
+          ".cm-panel.cm-search button[name=next]:hover, .cm-panel.cm-search button[name=prev]:hover":
+            {
+              color: "var(--rip-button-fg)",
+              borderColor: "var(--rip-focus)",
+              backgroundColor:
+                "color-mix(in srgb, var(--rip-accent) 86%, var(--rip-bg))",
+            },
+          ".cm-panel.cm-search input[type=checkbox]": {
+            accentColor: "var(--rip-accent)",
+          },
+          ".cm-panel.cm-search [name=close]": {
+            top: "8px",
+            right: "9px",
+            width: "24px",
+            height: "24px",
+            border: "0",
+            color: "var(--rip-muted)",
+            backgroundColor: "transparent",
+            backgroundImage: "none",
+            fontSize: "17px",
+          },
+          ".cm-panel.cm-search [name=close]:hover": {
+            color: "var(--rip-heading)",
+            backgroundColor: "var(--rip-hover)",
+          },
+          ".cm-panel.cm-search label": {
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "3px",
+            color: "var(--rip-muted)",
+            fontSize: "12px",
+          },
+          ".cm-searchMatch": {
+            backgroundColor:
+              "color-mix(in srgb, var(--rip-syntax-orange) 38%, transparent)",
+            outline: "1px solid color-mix(in srgb, var(--rip-syntax-orange) 45%, transparent)",
+          },
+          ".cm-searchMatch-selected": {
+            backgroundColor:
+              "color-mix(in srgb, var(--rip-heading) 46%, transparent)",
+            outline: "1px solid var(--rip-heading)",
+          },
+          ".cm-selectionMatch": {
+            backgroundColor:
+              "color-mix(in srgb, var(--rip-link) 24%, transparent)",
           },
           ".cm-content ::selection": {
             backgroundColor:
@@ -1359,11 +1535,73 @@ queueMicrotask(() => {
             fontWeight: "700",
           },
         }),
-      ],
-    }),
-  });
-  renderSettingsButton();
+        ],
+      }),
+    });
+    renderSettingsButton();
+    outlineNavigation.render(view);
+  } catch (error) {
+    reportRichdownError("editor-startup", error);
+    renderPlainTextFallback(initialDocument);
+  }
 });
+
+function renderPlainTextFallback(text) {
+  view = null;
+  root.replaceChildren();
+
+  const container = document.createElement("div");
+  container.className = "richdown-fallback";
+
+  const banner = document.createElement("div");
+  banner.className = "richdown-fallback-banner";
+  banner.textContent =
+    "Rich preview could not start, so this file is open in plain Markdown mode.";
+
+  const textarea = document.createElement("textarea");
+  textarea.className = "richdown-fallback-editor";
+  textarea.value = text;
+  textarea.spellcheck = true;
+  textarea.addEventListener("input", () => {
+    if (applyingExternalUpdate) {
+      return;
+    }
+    vscode.postMessage({
+      type: "edit",
+      text: textarea.value,
+    });
+  });
+
+  container.appendChild(banner);
+  container.appendChild(textarea);
+  root.appendChild(container);
+  fallbackTextarea = textarea;
+  textarea.focus({ preventScroll: true });
+}
+
+function applyFallbackDocumentUpdate(nextText) {
+  if (typeof nextText !== "string" || !fallbackTextarea) {
+    return;
+  }
+  if (nextText === fallbackTextarea.value) {
+    return;
+  }
+
+  const selectionStart = fallbackTextarea.selectionStart;
+  const selectionEnd = fallbackTextarea.selectionEnd;
+  const scrollTop = fallbackTextarea.scrollTop;
+  const scrollLeft = fallbackTextarea.scrollLeft;
+  applyingExternalUpdate = true;
+  try {
+    fallbackTextarea.value = nextText;
+    fallbackTextarea.selectionStart = Math.min(selectionStart, nextText.length);
+    fallbackTextarea.selectionEnd = Math.min(selectionEnd, nextText.length);
+    fallbackTextarea.scrollTop = scrollTop;
+    fallbackTextarea.scrollLeft = scrollLeft;
+  } finally {
+    applyingExternalUpdate = false;
+  }
+}
 
 window.addEventListener("message", (event) => {
   if (!event.data) return;
@@ -1406,9 +1644,12 @@ window.addEventListener("message", (event) => {
   }
 
   if (event.data.type !== "update") return;
-  if (!view) return;
 
   const nextText = event.data.text;
+  if (!view) {
+    applyFallbackDocumentUpdate(nextText);
+    return;
+  }
   applyExternalDocumentUpdate(view, nextText);
 });
 
@@ -1509,6 +1750,9 @@ function mapPositionThroughTextChange(position, change, oldLength, newLength) {
 window.addEventListener("click", (event) => {
   if (!event.target.closest(".cm-table-context-menu")) {
     closeTableContextMenu();
+  }
+  if (!event.target.closest(".richdown-outline-root")) {
+    outlineNavigation.close();
   }
   if (event.target.closest(".cm-settings-root")) return;
   const menu = document.querySelector(".cm-settings-menu");
@@ -1781,13 +2025,10 @@ function buildCodeBlockCopyButtons(view) {
     });
   }
 
-  const builder = new RangeSetBuilder();
-  ranges
-    .sort((left, right) => left.from - right.from)
-    .forEach((range) => {
-      builder.add(range.from, range.from, range.decoration);
-    });
-  return builder.finish();
+  return Decoration.set(
+    ranges.map((range) => range.decoration.range(range.from)),
+    true,
+  );
 }
 
 function getCodeBlockCopyInfo(doc, node) {
@@ -2015,8 +2256,186 @@ function injectStyles() {
       font-family: var(--vscode-font-family);
       pointer-events: none;
     }
+    .richdown-fallback {
+      height: 100%;
+      display: grid;
+      grid-template-rows: auto 1fr;
+      color: var(--rip-fg);
+      background: var(--rip-bg);
+      font-family: var(--vscode-font-family);
+    }
+    .richdown-fallback-banner {
+      border-bottom: 1px solid var(--rip-border);
+      padding: 8px 12px;
+      color: var(--rip-muted);
+      background: var(--rip-panel);
+      font-size: 12px;
+    }
+    .richdown-fallback-editor {
+      width: 100%;
+      height: 100%;
+      min-height: 0;
+      resize: none;
+      border: 0;
+      outline: 0;
+      padding: 24px clamp(18px, 5vw, 64px) 72px;
+      color: var(--rip-fg);
+      background: var(--rip-bg);
+      caret-color: var(--rip-caret);
+      font: 15px/1.72 var(--vscode-editor-font-family, var(--vscode-font-family));
+      white-space: pre-wrap;
+    }
     .cm-settings-root * {
       box-sizing: border-box;
+    }
+    .richdown-outline-root {
+      position: fixed;
+      right: 18px;
+      bottom: 64px;
+      z-index: 9999;
+      display: grid;
+      justify-items: end;
+      gap: 8px;
+      font-family: var(--vscode-font-family);
+      pointer-events: none;
+    }
+    .richdown-outline-root * {
+      box-sizing: border-box;
+    }
+    .richdown-outline-button {
+      width: 36px;
+      height: 36px;
+      display: grid;
+      place-items: center;
+      border: 1px solid var(--rip-border);
+      border-radius: 999px;
+      color: var(--rip-fg);
+      background: var(--rip-panel);
+      box-shadow: 0 8px 22px rgba(0, 0, 0, 0.22);
+      cursor: pointer;
+      font-size: 16px;
+      line-height: 1;
+      pointer-events: auto;
+    }
+    .richdown-outline-button:hover,
+    .richdown-outline-root.is-open .richdown-outline-button {
+      border-color: var(--rip-focus);
+      background: var(--rip-hover);
+    }
+    .richdown-outline-panel {
+      width: 238px;
+      max-height: min(520px, calc(100vh - 112px));
+      overflow-y: auto;
+      border: 1px solid var(--rip-border);
+      border-radius: 8px;
+      padding: 10px;
+      color: var(--rip-fg);
+      background: var(--rip-panel);
+      box-shadow: 0 14px 36px rgba(0, 0, 0, 0.3);
+      pointer-events: auto;
+    }
+    .richdown-outline-panel[hidden] {
+      display: none;
+    }
+    .richdown-outline-title {
+      margin: 0 0 6px;
+      padding: 0 2px 4px;
+      color: var(--rip-heading);
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      border-bottom: 1px solid color-mix(in srgb, var(--rip-border) 72%, transparent);
+    }
+    .richdown-outline-list {
+      display: grid;
+      gap: 2px;
+    }
+    .richdown-outline-item {
+      width: 100%;
+      min-width: 0;
+      display: grid;
+      grid-template-columns: auto 1fr;
+      align-items: center;
+      gap: 6px;
+      border: 0;
+      border-radius: 6px;
+      padding: 6px 7px;
+      color: var(--rip-fg);
+      background: transparent;
+      cursor: pointer;
+      font: 12px var(--vscode-font-family);
+      text-align: left;
+    }
+    .richdown-outline-item:hover,
+    .richdown-outline-item.is-active {
+      background: var(--rip-hover);
+    }
+    .richdown-outline-item.is-active {
+      color: var(--rip-heading);
+      font-weight: 700;
+    }
+    .richdown-outline-level {
+      width: 1.4em;
+      color: var(--rip-muted);
+      font-size: 10px;
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+    .richdown-outline-text {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .richdown-outline-empty {
+      padding: 8px 7px 2px;
+      color: var(--rip-muted);
+      font-size: 12px;
+    }
+    @media (min-width: 1440px) {
+      html[data-preview-width="default"] body .cm-editor .cm-content {
+        max-width: 900px;
+        margin-left: max(32px, calc((100vw - 1220px) / 2));
+        margin-right: 320px;
+      }
+      html[data-preview-width="wide"] body .cm-editor .cm-content {
+        max-width: none;
+        margin-left: 32px;
+        margin-right: 320px;
+      }
+      .richdown-outline-root {
+        top: 32px;
+        right: 24px;
+        bottom: auto;
+        width: 260px;
+        max-height: calc(100vh - 64px);
+        justify-items: stretch;
+        pointer-events: auto;
+      }
+      .richdown-outline-button {
+        display: none;
+      }
+      .richdown-outline-panel {
+        width: 100%;
+        max-height: calc(100vh - 64px);
+        border: 0;
+        border-left: 1px solid var(--vscode-panel-border, rgba(127, 127, 127, 0.28));
+        border-radius: 0;
+        padding: 2px 0 2px 14px;
+        background: transparent;
+        box-shadow: none;
+      }
+      .richdown-outline-panel[hidden] {
+        display: block;
+      }
+      .richdown-outline-title {
+        margin-bottom: 8px;
+        border-bottom: 0;
+      }
+      .richdown-outline-item {
+        padding-top: 5px;
+        padding-bottom: 5px;
+      }
     }
     .cm-settings-button {
       width: 36px;
@@ -2364,7 +2783,6 @@ function buildInlineDecorations(view) {
   const ranges = [];
   const imageRanges = [];
   const previewedDetailsRanges = getPreviewedDetailsRanges(view.state);
-  const builder = new RangeSetBuilder();
 
   for (const range of view.visibleRanges) {
     let position = range.from;
@@ -2461,13 +2879,10 @@ function buildInlineDecorations(view) {
     });
   }
 
-  ranges
-    .sort((left, right) => left.from - right.from || right.to - left.to)
-    .forEach((range) => {
-      builder.add(range.from, range.to, range.decoration);
-    });
-
-  return builder.finish();
+  return Decoration.set(
+    ranges.map((range) => range.decoration.range(range.from, range.to)),
+    true,
+  );
 }
 
 function buildDetailsDecorationState(state, openStates, activeEdit) {
@@ -4854,21 +5269,6 @@ function updateSettingsMenu() {
   bindSettingsMenuActions(menu);
 }
 
-function getMermaidSizeOptions() {
-  return [
-    { label: "Source height", value: "source" },
-    { label: "Readable", value: "readable" },
-    { label: "Large", value: "large" },
-  ];
-}
-
-function getPreviewWidthOptions() {
-  return [
-    { label: "Default", value: "default" },
-    { label: "Wide", value: "wide" },
-  ];
-}
-
 function isMarkdownMarker(nodeName) {
   return [
     "HeaderMark",
@@ -4977,207 +5377,4 @@ function isClickInsideTextRange(view, from, to, event) {
     event.clientY >= top &&
     event.clientY <= bottom
   );
-}
-
-function applyTheme(themeName) {
-  const theme = getTheme(themeName);
-  const rootStyle = document.documentElement.style;
-  document.documentElement.dataset.richTheme = themeName || "default";
-
-  for (const [key, value] of Object.entries(theme)) {
-    rootStyle.setProperty(
-      `--rip-${key.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`)}`,
-      value,
-    );
-  }
-}
-
-function applyPreviewWidth(previewWidth) {
-  const width = normalizePreviewWidth(previewWidth);
-  document.documentElement.dataset.previewWidth = width;
-  document.documentElement.style.setProperty(
-    "--rip-content-max-width",
-    width === "wide" ? "none" : "960px",
-  );
-}
-
-function getThemeOptions() {
-  return [
-    { value: "default", label: "Default" },
-    { value: "midnight", label: "Midnight" },
-    { value: "graphite", label: "Graphite" },
-    { value: "forest", label: "Forest" },
-    { value: "ivory", label: "Ivory" },
-    { value: "paper", label: "Paper" },
-    { value: "solar", label: "Solar" },
-  ];
-}
-
-function getTheme(themeName) {
-  const themes = {
-    default: {
-      bg: "var(--vscode-editor-background)",
-      fg: "var(--vscode-editor-foreground)",
-      muted: "var(--vscode-descriptionForeground)",
-      border: "var(--vscode-panel-border)",
-      panel: "var(--vscode-editorWidget-background)",
-      inputBg: "var(--vscode-input-background)",
-      codeBg: "var(--vscode-textCodeBlock-background)",
-      hover:
-        "color-mix(in srgb, var(--vscode-editor-selectionBackground) 16%, transparent)",
-      focus: "var(--vscode-focusBorder)",
-      caret: "var(--vscode-editorCursor-foreground)",
-      accent: "var(--vscode-button-background)",
-      buttonFg: "var(--vscode-button-foreground)",
-      heading: "var(--vscode-textLink-foreground)",
-      link: "var(--vscode-textLink-foreground)",
-      quoteBorder: "var(--vscode-textBlockQuote-border)",
-      rowAlt:
-        "color-mix(in srgb, var(--vscode-editorWidget-background) 45%, transparent)",
-      syntaxPurple: "var(--vscode-charts-purple, #c586c0)",
-      syntaxOrange: "var(--vscode-charts-orange, #ce9178)",
-      syntaxGreen: "var(--vscode-charts-green, #b5cea8)",
-      syntaxBlue: "var(--vscode-charts-blue, #9cdcfe)",
-      danger: "var(--vscode-errorForeground, #f14c4c)",
-    },
-    midnight: {
-      bg: "#0b1020",
-      fg: "#d9e4ff",
-      muted: "#8796b8",
-      border: "#26314f",
-      panel: "#111936",
-      inputBg: "#0f1730",
-      codeBg: "#070b16",
-      hover: "rgba(93, 144, 255, 0.14)",
-      focus: "#7aa2ff",
-      caret: "#ffffff",
-      accent: "#6f9cff",
-      buttonFg: "#081120",
-      heading: "#8fb4ff",
-      link: "#8fb4ff",
-      quoteBorder: "#5e7fd6",
-      rowAlt: "rgba(143, 180, 255, 0.08)",
-      syntaxPurple: "#d7a7ff",
-      syntaxOrange: "#ffc08a",
-      syntaxGreen: "#9ce6b3",
-      syntaxBlue: "#8bd7ff",
-      danger: "#ff8a8a",
-    },
-    graphite: {
-      bg: "#151617",
-      fg: "#e5e1d8",
-      muted: "#9b9891",
-      border: "#343536",
-      panel: "#202224",
-      inputBg: "#1b1d1f",
-      codeBg: "#101112",
-      hover: "rgba(229, 225, 216, 0.08)",
-      focus: "#d0a85c",
-      caret: "#f5f0e6",
-      accent: "#d0a85c",
-      buttonFg: "#171717",
-      heading: "#e2bd72",
-      link: "#e2bd72",
-      quoteBorder: "#8e7a55",
-      rowAlt: "rgba(255, 255, 255, 0.045)",
-      syntaxPurple: "#cfa8ff",
-      syntaxOrange: "#e6b17e",
-      syntaxGreen: "#9bcf9d",
-      syntaxBlue: "#8ebbdc",
-      danger: "#ff8f8f",
-    },
-    forest: {
-      bg: "#0f1712",
-      fg: "#dce8dc",
-      muted: "#8ea08f",
-      border: "#263529",
-      panel: "#17231a",
-      inputBg: "#121d15",
-      codeBg: "#0a100c",
-      hover: "rgba(121, 184, 136, 0.12)",
-      focus: "#79b888",
-      caret: "#effff0",
-      accent: "#79b888",
-      buttonFg: "#071008",
-      heading: "#a4d8a9",
-      link: "#9fd6b3",
-      quoteBorder: "#5b936a",
-      rowAlt: "rgba(164, 216, 169, 0.07)",
-      syntaxPurple: "#d0a8ff",
-      syntaxOrange: "#e9bd8c",
-      syntaxGreen: "#93d79b",
-      syntaxBlue: "#8fcbd4",
-      danger: "#ff8a8a",
-    },
-    ivory: {
-      bg: "#fbf5e8",
-      fg: "#2f2b25",
-      muted: "#776f62",
-      border: "#ded3bf",
-      panel: "#f1e7d5",
-      inputBg: "#fffaf0",
-      codeBg: "#f2eadc",
-      hover: "rgba(107, 78, 42, 0.09)",
-      focus: "#a46c28",
-      caret: "#2f2b25",
-      accent: "#a46c28",
-      buttonFg: "#fff8ee",
-      heading: "#7a4f1e",
-      link: "#8a5a24",
-      quoteBorder: "#bc8f55",
-      rowAlt: "rgba(122, 79, 30, 0.06)",
-      syntaxPurple: "#8a4fb0",
-      syntaxOrange: "#a75d17",
-      syntaxGreen: "#3f7a3f",
-      syntaxBlue: "#2e6f9f",
-      danger: "#b42318",
-    },
-    paper: {
-      bg: "#ffffff",
-      fg: "#202124",
-      muted: "#6b7280",
-      border: "#d7dbe2",
-      panel: "#f3f5f8",
-      inputBg: "#ffffff",
-      codeBg: "#f5f7fa",
-      hover: "rgba(31, 111, 235, 0.08)",
-      focus: "#1f6feb",
-      caret: "#202124",
-      accent: "#1f6feb",
-      buttonFg: "#ffffff",
-      heading: "#0b5cad",
-      link: "#0b5cad",
-      quoteBorder: "#8aa6c8",
-      rowAlt: "#f8fafc",
-      syntaxPurple: "#7c3aed",
-      syntaxOrange: "#b45309",
-      syntaxGreen: "#15803d",
-      syntaxBlue: "#0369a1",
-      danger: "#b42318",
-    },
-    solar: {
-      bg: "#fdf6e3",
-      fg: "#3b3a32",
-      muted: "#7b7662",
-      border: "#d8ceb0",
-      panel: "#eee5c8",
-      inputBg: "#fff9e8",
-      codeBg: "#f4edcf",
-      hover: "rgba(181, 137, 0, 0.1)",
-      focus: "#b58900",
-      caret: "#3b3a32",
-      accent: "#b58900",
-      buttonFg: "#fff8df",
-      heading: "#9b6d00",
-      link: "#0f6c8c",
-      quoteBorder: "#b58900",
-      rowAlt: "rgba(181, 137, 0, 0.07)",
-      syntaxPurple: "#6c54a3",
-      syntaxOrange: "#b85c00",
-      syntaxGreen: "#5f7f00",
-      syntaxBlue: "#227894",
-      danger: "#b42318",
-    },
-  };
-  return themes[themeName] || themes.default;
 }
