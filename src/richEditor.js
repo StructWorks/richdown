@@ -4,17 +4,8 @@ import {
   historyKeymap,
   indentWithTab,
 } from "@codemirror/commands";
-import { css } from "@codemirror/lang-css";
-import { html } from "@codemirror/lang-html";
-import { javascript } from "@codemirror/lang-javascript";
-import { json } from "@codemirror/lang-json";
 import { markdown } from "@codemirror/lang-markdown";
-import {
-  HighlightStyle,
-  LanguageDescription,
-  syntaxHighlighting,
-  syntaxTree,
-} from "@codemirror/language";
+import { syntaxHighlighting, syntaxTree } from "@codemirror/language";
 import {
   EditorState,
   RangeSetBuilder,
@@ -31,25 +22,38 @@ import {
   keymap,
   lineNumbers,
 } from "@codemirror/view";
-import { tags } from "@lezer/highlight";
 import { GFM } from "@lezer/markdown";
+import {
+  getMinimalTextChange,
+  mapPositionThroughTextChange,
+} from "./richEditorDocumentSync.js";
+import { createFallbackEditor } from "./richEditorFallback.js";
+import {
+  codeLanguages,
+  markdownHighlightStyle,
+} from "./richEditorLanguage.js";
+import { findLinkAtClick, isMarkdownMarker } from "./richEditorLinks.js";
 import { createOutlineNavigation } from "./richEditorOutline.js";
 import {
   createSearchExtensions,
   getSearchKeymap,
   installSearchShortcut,
 } from "./richEditorSearch.js";
+import { createSlashCommandController } from "./richEditorSlashCommands.js";
 import {
   applyPreviewWidth,
   applyTheme,
-  getMermaidSizeOptions,
-  getPreviewWidthOptions,
-  getThemeOptions,
   hasPreviewSettingChanged,
   normalizeMermaidPreviewSize,
-  normalizePreviewWidth,
   normalizeRichEditorSettings,
 } from "./richEditorSettings.js";
+import { createSettingsMenuController } from "./richEditorSettingsMenu.js";
+import { injectStyles } from "./richEditorStyles.js";
+import {
+  CheckboxWidget,
+  CodeCopyButtonWidget,
+  ListMarkerWidget,
+} from "./richEditorWidgets.js";
 
 const vscode = acquireVsCodeApi();
 const root = document.querySelector("#editor");
@@ -67,101 +71,24 @@ let applyingExternalUpdate = false;
 let mermaidLoadPromise = null;
 let imageRequestId = 0;
 const pendingImageRequests = new Map();
-let slashCommandMenu = null;
 let tableContextMenu = null;
 let previewDecorationRevision = 0;
-let lastSettingsMenuActionKey = "";
-let lastSettingsMenuActionTime = 0;
 let settings = normalizeRichEditorSettings(initialSettings);
 const outlineNavigation = createOutlineNavigation();
+const fallbackEditor = createFallbackEditor({
+  root,
+  postMessage: (message) => vscode.postMessage(message),
+});
+const slashCommands = createSlashCommandController();
+const settingsMenu = createSettingsMenuController({
+  getSettings: () => settings,
+  postMessage: (message) => vscode.postMessage(message),
+  refreshDecorations: refreshRichDecorations,
+});
 
 applyTheme(settings.richTheme);
 applyPreviewWidth(settings.previewWidth);
 injectStyles();
-
-const codeLanguages = [
-  LanguageDescription.of({
-    name: "JSON",
-    alias: ["json", "jsonc"],
-    extensions: ["json", "jsonc"],
-    support: json(),
-  }),
-  LanguageDescription.of({
-    name: "JavaScript",
-    alias: ["js", "javascript", "mjs", "cjs", "jsx"],
-    extensions: ["js", "mjs", "cjs", "jsx"],
-    support: javascript({ jsx: true }),
-  }),
-  LanguageDescription.of({
-    name: "TypeScript",
-    alias: ["ts", "typescript", "tsx"],
-    extensions: ["ts", "tsx"],
-    support: javascript({ typescript: true, jsx: true }),
-  }),
-  LanguageDescription.of({
-    name: "CSS",
-    alias: ["css"],
-    extensions: ["css"],
-    support: css(),
-  }),
-  LanguageDescription.of({
-    name: "HTML",
-    alias: ["html", "xml", "svg"],
-    extensions: ["html", "htm", "xml", "svg"],
-    support: html(),
-  }),
-];
-
-const markdownHighlightStyle = HighlightStyle.define([
-  { tag: tags.heading, color: "var(--rip-heading)", fontWeight: "780" },
-  {
-    tag: [tags.link, tags.url],
-    color: "var(--rip-link)",
-    textDecoration: "underline",
-  },
-  { tag: tags.emphasis, fontStyle: "italic" },
-  { tag: tags.strong, fontWeight: "700" },
-  { tag: tags.strikethrough, textDecoration: "line-through" },
-  {
-    tag: [
-      tags.keyword,
-      tags.operatorKeyword,
-      tags.controlKeyword,
-      tags.definitionKeyword,
-    ],
-    color: "var(--rip-syntax-purple)",
-  },
-  {
-    tag: [tags.atom, tags.bool, tags.null, tags.labelName],
-    color: "var(--rip-syntax-orange)",
-  },
-  {
-    tag: [tags.number, tags.integer, tags.float, tags.literal],
-    color: "var(--rip-syntax-green)",
-  },
-  {
-    tag: [tags.string, tags.character, tags.attributeValue],
-    color: "var(--rip-syntax-orange)",
-  },
-  {
-    tag: [tags.variableName, tags.propertyName, tags.attributeName],
-    color: "var(--rip-syntax-blue)",
-  },
-  {
-    tag: [tags.typeName, tags.className, tags.namespace, tags.tagName],
-    color: "var(--rip-syntax-purple)",
-  },
-  {
-    tag: [tags.comment, tags.docComment],
-    color: "var(--rip-muted)",
-    fontStyle: "italic",
-  },
-  {
-    tag: [tags.punctuation, tags.bracket, tags.separator],
-    color: "var(--rip-muted)",
-  },
-  { tag: tags.invalid, color: "var(--rip-danger)" },
-]);
 
 function reportRichdownError(context, error) {
   const message = error instanceof Error ? error.message : String(error);
@@ -501,125 +428,11 @@ const codeBlockCopyButtons = ViewPlugin.fromClass(
   },
 );
 
-const slashCommands = [
-  {
-    label: "Heading 1",
-    description: "Large section heading",
-    insert: "# ",
-    cursor: 2,
-  },
-  {
-    label: "Heading 2",
-    description: "Medium section heading",
-    insert: "## ",
-    cursor: 3,
-  },
-  {
-    label: "Heading 3",
-    description: "Small section heading",
-    insert: "### ",
-    cursor: 4,
-  },
-  {
-    label: "Bullet list",
-    description: "Unordered list item",
-    insert: "- ",
-    cursor: 2,
-  },
-  {
-    label: "Numbered list",
-    description: "Ordered list item",
-    insert: "1. ",
-    cursor: 3,
-  },
-  {
-    label: "Task list",
-    description: "Unchecked task item",
-    insert: "- [ ] ",
-    cursor: 6,
-  },
-  {
-    label: "Quote",
-    description: "Block quote",
-    insert: "> ",
-    cursor: 2,
-  },
-  {
-    label: "Code block",
-    description: "Fenced code block",
-    insert: "```\n\n```",
-    cursor: 4,
-  },
-  {
-    label: "Mermaid",
-    description: "Diagram block",
-    insert: "```mermaid\n\n```",
-    cursor: 11,
-  },
-  {
-    label: "Table",
-    description: "Three-column table",
-    insert: "| Column | Column | Column |\n| --- | --- | --- |\n|  |  |  |",
-    cursor: 2,
-  },
-  {
-    label: "Details",
-    description: "Collapsible section",
-    insert: "<details>\n<summary>Details</summary>\n\n</details>",
-    cursor: 37,
-  },
-];
-
-const slashCommandKeymap = [
-  {
-    key: "/",
-    run(view) {
-      return triggerSlashCommandMenu(view);
-    },
-  },
-  {
-    key: "ArrowDown",
-    run() {
-      return moveSlashCommandMenu(1);
-    },
-    preventDefault: true,
-  },
-  {
-    key: "ArrowUp",
-    run() {
-      return moveSlashCommandMenu(-1);
-    },
-    preventDefault: true,
-  },
-  {
-    key: "Enter",
-    run() {
-      return acceptSlashCommandMenu();
-    },
-    preventDefault: true,
-  },
-  {
-    key: "Tab",
-    run() {
-      return acceptSlashCommandMenu();
-    },
-    preventDefault: true,
-  },
-  {
-    key: "Escape",
-    run() {
-      return closeSlashCommandMenu();
-    },
-    preventDefault: true,
-  },
-];
-
 let view;
-let fallbackTextarea = null;
 
 installSearchShortcut({
   getView: () => view,
-  closeSlashCommandMenu,
+  closeSlashCommandMenu: slashCommands.close,
   closeTableContextMenu,
 });
 
@@ -649,7 +462,7 @@ queueMicrotask(() => {
         taskCheckboxes,
         EditorView.domEventHandlers({
           blur(event, view) {
-            closeSlashCommandMenu();
+            slashCommands.close();
             exitDetailsEditMode(view, true);
             exitTableEditMode(view, true);
             exitMermaidEditMode(view, true);
@@ -689,14 +502,14 @@ queueMicrotask(() => {
         }),
         keymap.of([
           indentWithTab,
-          ...slashCommandKeymap,
+          ...slashCommands.keymap,
           ...getSearchKeymap(),
           ...defaultKeymap,
           ...historyKeymap,
         ]),
         EditorView.lineWrapping,
         EditorView.updateListener.of((update) => {
-          syncSlashCommandMenu(update);
+          slashCommands.sync(update);
           outlineNavigation.sync(update);
           if (!update.docChanged || applyingExternalUpdate) {
             return;
@@ -1538,70 +1351,14 @@ queueMicrotask(() => {
         ],
       }),
     });
-    renderSettingsButton();
+    settingsMenu.render();
     outlineNavigation.render(view);
   } catch (error) {
     reportRichdownError("editor-startup", error);
-    renderPlainTextFallback(initialDocument);
+    view = null;
+    fallbackEditor.render(initialDocument);
   }
 });
-
-function renderPlainTextFallback(text) {
-  view = null;
-  root.replaceChildren();
-
-  const container = document.createElement("div");
-  container.className = "richdown-fallback";
-
-  const banner = document.createElement("div");
-  banner.className = "richdown-fallback-banner";
-  banner.textContent =
-    "Rich preview could not start, so this file is open in plain Markdown mode.";
-
-  const textarea = document.createElement("textarea");
-  textarea.className = "richdown-fallback-editor";
-  textarea.value = text;
-  textarea.spellcheck = true;
-  textarea.addEventListener("input", () => {
-    if (applyingExternalUpdate) {
-      return;
-    }
-    vscode.postMessage({
-      type: "edit",
-      text: textarea.value,
-    });
-  });
-
-  container.appendChild(banner);
-  container.appendChild(textarea);
-  root.appendChild(container);
-  fallbackTextarea = textarea;
-  textarea.focus({ preventScroll: true });
-}
-
-function applyFallbackDocumentUpdate(nextText) {
-  if (typeof nextText !== "string" || !fallbackTextarea) {
-    return;
-  }
-  if (nextText === fallbackTextarea.value) {
-    return;
-  }
-
-  const selectionStart = fallbackTextarea.selectionStart;
-  const selectionEnd = fallbackTextarea.selectionEnd;
-  const scrollTop = fallbackTextarea.scrollTop;
-  const scrollLeft = fallbackTextarea.scrollLeft;
-  applyingExternalUpdate = true;
-  try {
-    fallbackTextarea.value = nextText;
-    fallbackTextarea.selectionStart = Math.min(selectionStart, nextText.length);
-    fallbackTextarea.selectionEnd = Math.min(selectionEnd, nextText.length);
-    fallbackTextarea.scrollTop = scrollTop;
-    fallbackTextarea.scrollLeft = scrollLeft;
-  } finally {
-    applyingExternalUpdate = false;
-  }
-}
 
 window.addEventListener("message", (event) => {
   if (!event.data) return;
@@ -1624,7 +1381,7 @@ window.addEventListener("message", (event) => {
   if (event.data.type === "theme") {
     settings.richTheme = event.data.theme || "default";
     applyTheme(settings.richTheme);
-    updateSettingsMenu();
+    settingsMenu.update();
     return;
   }
 
@@ -1636,7 +1393,7 @@ window.addEventListener("message", (event) => {
     });
     applyTheme(settings.richTheme);
     applyPreviewWidth(settings.previewWidth);
-    updateSettingsMenu();
+    settingsMenu.update();
     if (hasPreviewSettingChanged(previousSettings, settings)) {
       refreshRichDecorations();
     }
@@ -1647,7 +1404,7 @@ window.addEventListener("message", (event) => {
 
   const nextText = event.data.text;
   if (!view) {
-    applyFallbackDocumentUpdate(nextText);
+    fallbackEditor.applyUpdate(nextText);
     return;
   }
   applyExternalDocumentUpdate(view, nextText);
@@ -1697,56 +1454,6 @@ function applyExternalDocumentUpdate(editorView, nextText) {
   });
 }
 
-function getMinimalTextChange(currentText, nextText) {
-  let prefixLength = 0;
-  const maxPrefixLength = Math.min(currentText.length, nextText.length);
-  while (
-    prefixLength < maxPrefixLength &&
-    currentText.charCodeAt(prefixLength) === nextText.charCodeAt(prefixLength)
-  ) {
-    prefixLength += 1;
-  }
-
-  let suffixLength = 0;
-  const maxSuffixLength = Math.min(
-    currentText.length - prefixLength,
-    nextText.length - prefixLength,
-  );
-  while (
-    suffixLength < maxSuffixLength &&
-    currentText.charCodeAt(currentText.length - suffixLength - 1) ===
-      nextText.charCodeAt(nextText.length - suffixLength - 1)
-  ) {
-    suffixLength += 1;
-  }
-
-  return {
-    from: prefixLength,
-    to: currentText.length - suffixLength,
-    insert: nextText.slice(prefixLength, nextText.length - suffixLength),
-  };
-}
-
-function mapPositionThroughTextChange(position, change, oldLength, newLength) {
-  const clampedPosition = Math.max(0, Math.min(position, oldLength));
-  if (change.from === 0 && change.to === oldLength) {
-    return Math.min(clampedPosition, newLength);
-  }
-  if (clampedPosition <= change.from) {
-    return clampedPosition;
-  }
-  if (clampedPosition >= change.to) {
-    return Math.max(
-      0,
-      Math.min(
-        clampedPosition + change.insert.length - (change.to - change.from),
-        newLength,
-      ),
-    );
-  }
-  return Math.min(change.from + change.insert.length, newLength);
-}
-
 window.addEventListener("click", (event) => {
   if (!event.target.closest(".cm-table-context-menu")) {
     closeTableContextMenu();
@@ -1760,7 +1467,7 @@ window.addEventListener("click", (event) => {
 });
 
 window.addEventListener("blur", () => {
-  closeSlashCommandMenu();
+  slashCommands.close();
   closeTableContextMenu();
   exitDetailsEditMode(view, true);
   exitTableEditMode(view, true);
@@ -1770,26 +1477,7 @@ window.addEventListener("blur", () => {
 window.addEventListener(
   "keydown",
   (event) => {
-    if (!slashCommandMenu) {
-      if (event.key === "Escape" && closeTableContextMenu()) {
-        event.preventDefault();
-        event.stopPropagation();
-      }
-      return;
-    }
-
-    let handled = false;
-    if (event.key === "ArrowDown") {
-      handled = moveSlashCommandMenu(1);
-    } else if (event.key === "ArrowUp") {
-      handled = moveSlashCommandMenu(-1);
-    } else if (event.key === "Enter" || event.key === "Tab") {
-      handled = acceptSlashCommandMenu();
-    } else if (event.key === "Escape") {
-      handled = closeSlashCommandMenu();
-    }
-
-    if (handled) {
+    if (event.key === "Escape" && closeTableContextMenu()) {
       event.preventDefault();
       event.stopPropagation();
     }
@@ -1808,60 +1496,6 @@ function refreshRichDecorations() {
     ],
   });
   requestEditorMeasure(view);
-}
-
-function triggerSlashCommandMenu(view) {
-  const selection = view.state.selection.main;
-  if (!selection.empty) {
-    return false;
-  }
-
-  const line = view.state.doc.lineAt(selection.from);
-  if (line.text.trim()) {
-    return false;
-  }
-
-  closeSlashCommandMenu();
-  const from = selection.from;
-  view.dispatch({
-    changes: { from, insert: "/" },
-    selection: { anchor: from + 1 },
-  });
-  slashCommandMenu = new SlashCommandMenu(view, from, from + 1);
-  view.focus();
-  return true;
-}
-
-function syncSlashCommandMenu(update) {
-  if (!slashCommandMenu) {
-    return;
-  }
-  slashCommandMenu.sync(update);
-}
-
-function moveSlashCommandMenu(delta) {
-  if (!slashCommandMenu) {
-    return false;
-  }
-  slashCommandMenu.move(delta);
-  return true;
-}
-
-function acceptSlashCommandMenu() {
-  if (!slashCommandMenu) {
-    return false;
-  }
-  slashCommandMenu.accept();
-  return true;
-}
-
-function closeSlashCommandMenu() {
-  if (!slashCommandMenu) {
-    return false;
-  }
-  slashCommandMenu.destroy();
-  slashCommandMenu = null;
-  return true;
 }
 
 function exitDetailsEditMode(view, force = false) {
@@ -2018,7 +1652,9 @@ function buildCodeBlockCopyButtons(view) {
           from: codeBlock.buttonPosition,
           decoration: Decoration.widget({
             side: 1,
-            widget: new CodeCopyButtonWidget(codeBlock.code),
+            widget: new CodeCopyButtonWidget(codeBlock.code, (message) =>
+              vscode.postMessage(message),
+            ),
           }),
         });
       },
@@ -2235,472 +1871,6 @@ function getActiveDetailsEdit(state) {
 
 function rangeIntersectsRanges(from, to, ranges) {
   return ranges.some((range) => from < range.to && to > range.from);
-}
-
-function injectStyles() {
-  if (document.querySelector("#richdown-global-styles")) {
-    return;
-  }
-
-  const style = document.createElement("style");
-  style.id = "richdown-global-styles";
-  style.textContent = `
-    .cm-settings-root {
-      position: fixed;
-      right: 18px;
-      bottom: 18px;
-      z-index: 10000;
-      display: grid;
-      justify-items: end;
-      gap: 8px;
-      font-family: var(--vscode-font-family);
-      pointer-events: none;
-    }
-    .richdown-fallback {
-      height: 100%;
-      display: grid;
-      grid-template-rows: auto 1fr;
-      color: var(--rip-fg);
-      background: var(--rip-bg);
-      font-family: var(--vscode-font-family);
-    }
-    .richdown-fallback-banner {
-      border-bottom: 1px solid var(--rip-border);
-      padding: 8px 12px;
-      color: var(--rip-muted);
-      background: var(--rip-panel);
-      font-size: 12px;
-    }
-    .richdown-fallback-editor {
-      width: 100%;
-      height: 100%;
-      min-height: 0;
-      resize: none;
-      border: 0;
-      outline: 0;
-      padding: 24px clamp(18px, 5vw, 64px) 72px;
-      color: var(--rip-fg);
-      background: var(--rip-bg);
-      caret-color: var(--rip-caret);
-      font: 15px/1.72 var(--vscode-editor-font-family, var(--vscode-font-family));
-      white-space: pre-wrap;
-    }
-    .cm-settings-root * {
-      box-sizing: border-box;
-    }
-    .richdown-outline-root {
-      position: fixed;
-      right: 18px;
-      bottom: 64px;
-      z-index: 9999;
-      display: grid;
-      justify-items: end;
-      gap: 8px;
-      font-family: var(--vscode-font-family);
-      pointer-events: none;
-    }
-    .richdown-outline-root * {
-      box-sizing: border-box;
-    }
-    .richdown-outline-button {
-      width: 36px;
-      height: 36px;
-      display: grid;
-      place-items: center;
-      border: 1px solid var(--rip-border);
-      border-radius: 999px;
-      color: var(--rip-fg);
-      background: var(--rip-panel);
-      box-shadow: 0 8px 22px rgba(0, 0, 0, 0.22);
-      cursor: pointer;
-      font-size: 16px;
-      line-height: 1;
-      pointer-events: auto;
-    }
-    .richdown-outline-button:hover,
-    .richdown-outline-root.is-open .richdown-outline-button {
-      border-color: var(--rip-focus);
-      background: var(--rip-hover);
-    }
-    .richdown-outline-panel {
-      width: 238px;
-      max-height: min(520px, calc(100vh - 112px));
-      overflow-y: auto;
-      border: 1px solid var(--rip-border);
-      border-radius: 8px;
-      padding: 10px;
-      color: var(--rip-fg);
-      background: var(--rip-panel);
-      box-shadow: 0 14px 36px rgba(0, 0, 0, 0.3);
-      pointer-events: auto;
-    }
-    .richdown-outline-panel[hidden] {
-      display: none;
-    }
-    .richdown-outline-title {
-      margin: 0 0 6px;
-      padding: 0 2px 4px;
-      color: var(--rip-heading);
-      font-size: 11px;
-      font-weight: 700;
-      text-transform: uppercase;
-      border-bottom: 1px solid color-mix(in srgb, var(--rip-border) 72%, transparent);
-    }
-    .richdown-outline-list {
-      display: grid;
-      gap: 2px;
-    }
-    .richdown-outline-item {
-      width: 100%;
-      min-width: 0;
-      display: grid;
-      grid-template-columns: auto 1fr;
-      align-items: center;
-      gap: 6px;
-      border: 0;
-      border-radius: 6px;
-      padding: 6px 7px;
-      color: var(--rip-fg);
-      background: transparent;
-      cursor: pointer;
-      font: 12px var(--vscode-font-family);
-      text-align: left;
-    }
-    .richdown-outline-item:hover,
-    .richdown-outline-item.is-active {
-      background: var(--rip-hover);
-    }
-    .richdown-outline-item.is-active {
-      color: var(--rip-heading);
-      font-weight: 700;
-    }
-    .richdown-outline-level {
-      width: 1.4em;
-      color: var(--rip-muted);
-      font-size: 10px;
-      text-align: right;
-      font-variant-numeric: tabular-nums;
-    }
-    .richdown-outline-text {
-      min-width: 0;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-    .richdown-outline-empty {
-      padding: 8px 7px 2px;
-      color: var(--rip-muted);
-      font-size: 12px;
-    }
-    @media (min-width: 1440px) {
-      html[data-preview-width="default"] body .cm-editor .cm-content {
-        max-width: 900px;
-        margin-left: max(32px, calc((100vw - 1220px) / 2));
-        margin-right: 320px;
-      }
-      html[data-preview-width="wide"] body .cm-editor .cm-content {
-        max-width: none;
-        margin-left: 32px;
-        margin-right: 320px;
-      }
-      .richdown-outline-root {
-        top: 32px;
-        right: 24px;
-        bottom: auto;
-        width: 260px;
-        max-height: calc(100vh - 64px);
-        justify-items: stretch;
-        pointer-events: auto;
-      }
-      .richdown-outline-button {
-        display: none;
-      }
-      .richdown-outline-panel {
-        width: 100%;
-        max-height: calc(100vh - 64px);
-        border: 0;
-        border-left: 1px solid var(--vscode-panel-border, rgba(127, 127, 127, 0.28));
-        border-radius: 0;
-        padding: 2px 0 2px 14px;
-        background: transparent;
-        box-shadow: none;
-      }
-      .richdown-outline-panel[hidden] {
-        display: block;
-      }
-      .richdown-outline-title {
-        margin-bottom: 8px;
-        border-bottom: 0;
-      }
-      .richdown-outline-item {
-        padding-top: 5px;
-        padding-bottom: 5px;
-      }
-    }
-    .cm-settings-button {
-      width: 36px;
-      height: 36px;
-      display: grid;
-      place-items: center;
-      border: 1px solid var(--rip-border);
-      border-radius: 999px;
-      color: var(--rip-fg);
-      background: var(--rip-panel);
-      box-shadow: 0 8px 22px rgba(0, 0, 0, 0.22);
-      cursor: pointer;
-      font-size: 16px;
-      line-height: 1;
-      pointer-events: auto;
-    }
-    .cm-settings-button:hover {
-      border-color: var(--rip-focus);
-      background: var(--rip-hover);
-    }
-    .cm-settings-menu {
-      width: 238px;
-      max-height: min(520px, calc(100vh - 72px));
-      overflow-y: auto;
-      border: 1px solid var(--rip-border);
-      border-radius: 8px;
-      padding: 10px;
-      color: var(--rip-fg);
-      background: var(--rip-panel);
-      box-shadow: 0 14px 36px rgba(0, 0, 0, 0.3);
-      pointer-events: auto;
-    }
-    .cm-settings-menu[hidden] {
-      display: none;
-    }
-    .cm-settings-section {
-      display: grid;
-      gap: 4px;
-      padding-top: 10px;
-      border-top: 1px solid color-mix(in srgb, var(--rip-border) 72%, transparent);
-    }
-    .cm-settings-section:first-child {
-      padding-top: 0;
-      border-top: 0;
-    }
-    .cm-settings-menu-title {
-      margin: 0;
-      padding: 0 2px 3px;
-      color: var(--rip-heading);
-      font-size: 11px;
-      font-weight: 700;
-      text-transform: uppercase;
-    }
-    .cm-settings-subtitle {
-      margin: 5px 0 0;
-      padding: 0 2px 1px;
-      color: var(--rip-muted);
-      font-size: 11px;
-      font-weight: 650;
-    }
-    .cm-settings-menu-item {
-      width: 100%;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-      border: 0;
-      border-radius: 6px;
-      padding: 7px 8px;
-      color: var(--rip-fg);
-      background: transparent;
-      cursor: pointer;
-      font: 13px var(--vscode-font-family);
-      text-align: left;
-    }
-    .cm-settings-menu-title + .cm-settings-menu-item {
-      margin-top: 2px;
-    }
-    .cm-settings-menu-item:hover,
-    .cm-settings-menu-item.is-active {
-      background: var(--rip-hover);
-    }
-    .cm-settings-menu-item.is-active {
-      color: var(--rip-heading);
-      font-weight: 700;
-    }
-    .cm-slash-menu {
-      position: fixed;
-      z-index: 10001;
-      width: 260px;
-      max-height: min(320px, calc(100vh - 24px));
-      overflow-y: auto;
-      display: grid;
-      gap: 2px;
-      border: 1px solid var(--rip-border);
-      border-radius: 8px;
-      padding: 6px;
-      color: var(--rip-fg);
-      background: var(--rip-panel);
-      box-shadow: 0 14px 36px rgba(0, 0, 0, 0.3);
-      font-family: var(--vscode-font-family);
-    }
-    .cm-slash-menu-item {
-      width: 100%;
-      display: grid;
-      gap: 2px;
-      border: 0;
-      border-radius: 6px;
-      padding: 8px 9px;
-      color: var(--rip-fg);
-      background: transparent;
-      text-align: left;
-      cursor: pointer;
-      font: 13px var(--vscode-font-family);
-    }
-    .cm-slash-menu-item:hover,
-    .cm-slash-menu-item.is-active {
-      background: var(--rip-hover);
-    }
-    .cm-slash-menu-label {
-      color: var(--rip-heading);
-      font-weight: 700;
-    }
-    .cm-slash-menu-description {
-      color: var(--rip-muted);
-      font-size: 12px;
-    }
-    .cm-table-context-menu {
-      position: fixed;
-      z-index: 10003;
-      min-width: 184px;
-      display: grid;
-      gap: 2px;
-      border: 1px solid var(--rip-border);
-      border-radius: 8px;
-      padding: 6px;
-      color: var(--rip-fg);
-      background: var(--rip-panel);
-      box-shadow: 0 14px 36px rgba(0, 0, 0, 0.3);
-      font-family: var(--vscode-font-family);
-    }
-    .cm-table-context-menu-item {
-      width: 100%;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      border: 0;
-      border-radius: 6px;
-      padding: 7px 9px;
-      color: var(--rip-fg);
-      background: transparent;
-      text-align: left;
-      cursor: pointer;
-      font: 13px var(--vscode-font-family);
-    }
-    .cm-table-context-menu-item:hover {
-      background: var(--rip-hover);
-    }
-    .cm-table-context-menu-item:disabled {
-      opacity: 0.45;
-      cursor: default;
-    }
-    .cm-table-context-menu-item:disabled:hover {
-      background: transparent;
-    }
-    .cm-table-context-menu-divider {
-      height: 1px;
-      margin: 4px 2px;
-      background: color-mix(in srgb, var(--rip-border) 72%, transparent);
-    }
-    .cm-mermaid-modal-backdrop {
-      position: fixed;
-      inset: 0;
-      z-index: 10002;
-      display: grid;
-      padding: 24px;
-      background: rgba(0, 0, 0, 0.56);
-      pointer-events: auto;
-    }
-    .cm-mermaid-modal {
-      min-width: 0;
-      min-height: 0;
-      display: grid;
-      grid-template-rows: auto 1fr;
-      border: 1px solid var(--rip-border);
-      border-radius: 10px;
-      overflow: hidden;
-      color: var(--rip-fg);
-      background: var(--rip-panel);
-      box-shadow: 0 24px 70px rgba(0, 0, 0, 0.42);
-    }
-    .cm-mermaid-modal-toolbar {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 10px;
-      border-bottom: 1px solid var(--rip-border);
-      padding: 8px 10px;
-      background: color-mix(in srgb, var(--rip-panel) 88%, var(--rip-bg));
-      font-family: var(--vscode-font-family);
-    }
-    .cm-mermaid-modal-title {
-      min-width: 0;
-      color: var(--rip-heading);
-      font-size: 13px;
-      font-weight: 700;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-    .cm-mermaid-modal-controls {
-      display: inline-flex;
-      flex-wrap: wrap;
-      justify-content: flex-end;
-      gap: 4px;
-    }
-    .cm-mermaid-modal-button {
-      min-width: 28px;
-      height: 28px;
-      display: inline-grid;
-      place-items: center;
-      border: 1px solid var(--rip-border);
-      border-radius: 6px;
-      padding: 0 8px;
-      color: var(--rip-fg);
-      background: var(--rip-input-bg);
-      font: 12px var(--vscode-font-family);
-      cursor: pointer;
-    }
-    .cm-mermaid-modal-button:hover {
-      border-color: var(--rip-focus);
-      background: var(--rip-hover);
-    }
-    .cm-mermaid-modal-canvas {
-      min-width: 0;
-      min-height: 0;
-      position: relative;
-      overflow: hidden;
-      background:
-        linear-gradient(color-mix(in srgb, var(--rip-border) 24%, transparent) 1px, transparent 1px),
-        linear-gradient(90deg, color-mix(in srgb, var(--rip-border) 24%, transparent) 1px, transparent 1px),
-        var(--rip-bg);
-      background-size: 24px 24px;
-      cursor: grab;
-      touch-action: none;
-    }
-    .cm-mermaid-modal-canvas.is-dragging {
-      cursor: grabbing;
-    }
-    .cm-mermaid-modal-stage {
-      position: absolute;
-      left: 0;
-      top: 0;
-      transform-origin: 0 0;
-      will-change: transform;
-    }
-    .cm-mermaid-modal-stage svg {
-      display: block;
-      max-width: none;
-      max-height: none;
-      width: 100%;
-      height: 100%;
-    }
-  `;
-  document.head.appendChild(style);
 }
 
 function getTableLineRole(doc, line) {
@@ -4666,223 +3836,6 @@ function isRangeInsideRanges(from, to, ranges) {
   return ranges.some((range) => from >= range.from && to <= range.to);
 }
 
-class ListMarkerWidget extends WidgetType {
-  constructor(listMarker) {
-    super();
-    this.marker = listMarker.marker;
-    this.ordered = listMarker.ordered;
-    this.level = listMarker.level;
-  }
-
-  eq(other) {
-    return (
-      other.marker === this.marker &&
-      other.ordered === this.ordered &&
-      other.level === this.level
-    );
-  }
-
-  toDOM() {
-    const marker = document.createElement("span");
-    marker.className = `cm-list-marker ${
-      this.ordered ? "is-ordered" : "is-unordered"
-    }`;
-    marker.textContent = this.ordered
-      ? this.marker
-      : getUnorderedListSymbol(this.level);
-    return marker;
-  }
-
-  ignoreEvent() {
-    return false;
-  }
-}
-
-function getUnorderedListSymbol(level) {
-  return ["•", "◦", "▪", "‣"][level % 4];
-}
-
-class SlashCommandMenu {
-  constructor(view, from, to) {
-    this.view = view;
-    this.from = from;
-    this.to = to;
-    this.activeIndex = 0;
-    this.dom = document.createElement("div");
-    this.dom.className = "cm-slash-menu";
-    this.dom.setAttribute("role", "listbox");
-    this.render();
-    document.body.appendChild(this.dom);
-    this.position();
-  }
-
-  render() {
-    this.dom.textContent = "";
-    slashCommands.forEach((command, index) => {
-      const item = document.createElement("button");
-      item.type = "button";
-      item.className = `cm-slash-menu-item${
-        index === this.activeIndex ? " is-active" : ""
-      }`;
-      item.setAttribute("role", "option");
-      item.setAttribute("aria-selected", String(index === this.activeIndex));
-
-      const label = document.createElement("span");
-      label.className = "cm-slash-menu-label";
-      label.textContent = command.label;
-
-      const description = document.createElement("span");
-      description.className = "cm-slash-menu-description";
-      description.textContent = command.description;
-
-      item.appendChild(label);
-      item.appendChild(description);
-      item.addEventListener("mousedown", (event) => event.preventDefault());
-      item.addEventListener("mouseenter", () => {
-        this.activeIndex = index;
-        this.render();
-        this.scrollActiveItemIntoView();
-      });
-      item.addEventListener("click", (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        this.accept();
-      });
-      this.dom.appendChild(item);
-    });
-  }
-
-  sync(update) {
-    if (update.docChanged) {
-      this.from = update.changes.mapPos(this.from);
-      this.to = update.changes.mapPos(this.to);
-    }
-
-    const selection = update.state.selection.main;
-    const slashStillPresent =
-      this.from >= 0 &&
-      this.to <= update.state.doc.length &&
-      update.state.doc.sliceString(this.from, this.to) === "/";
-    if (!selection.empty || selection.from !== this.to || !slashStillPresent) {
-      closeSlashCommandMenu();
-      return;
-    }
-    this.position();
-  }
-
-  move(delta) {
-    this.activeIndex =
-      (this.activeIndex + delta + slashCommands.length) % slashCommands.length;
-    this.render();
-    this.scrollActiveItemIntoView();
-    this.position();
-  }
-
-  accept() {
-    const command = slashCommands[this.activeIndex];
-    const anchor = this.from + command.cursor;
-    const view = this.view;
-    const from = this.from;
-    const to = this.to;
-    closeSlashCommandMenu();
-    view.dispatch({
-      changes: { from, to, insert: command.insert },
-      selection: { anchor },
-      scrollIntoView: true,
-    });
-    view.focus();
-  }
-
-  position() {
-    const coords =
-      this.view.coordsAtPos(this.to) || this.view.coordsAtPos(this.from);
-    if (!coords) {
-      return;
-    }
-    const menuWidth = 260;
-    const menuHeight = Math.min(
-      this.dom.offsetHeight || 320,
-      window.innerHeight - 24,
-    );
-    const left = Math.min(
-      Math.max(8, coords.left),
-      window.innerWidth - menuWidth - 8,
-    );
-    const spaceBelow = window.innerHeight - coords.bottom - 8;
-    const top =
-      spaceBelow >= menuHeight
-        ? coords.bottom + 6
-        : coords.top - menuHeight - 6;
-    this.dom.style.left = `${left}px`;
-    this.dom.style.top = `${Math.max(
-      8,
-      Math.min(top, window.innerHeight - menuHeight - 8),
-    )}px`;
-  }
-
-  scrollActiveItemIntoView() {
-    const activeItem = this.dom.querySelector(".cm-slash-menu-item.is-active");
-    if (!activeItem) {
-      return;
-    }
-    activeItem.scrollIntoView({ block: "nearest" });
-  }
-
-  destroy() {
-    this.dom.remove();
-  }
-}
-
-class CodeCopyButtonWidget extends WidgetType {
-  constructor(code) {
-    super();
-    this.code = code;
-  }
-
-  eq(other) {
-    return other.code === this.code;
-  }
-
-  toDOM() {
-    const wrapper = document.createElement("span");
-    wrapper.className = "cm-code-copy-widget";
-
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "cm-code-copy-button";
-    button.textContent = "Copy";
-    button.title = "Copy code";
-    button.addEventListener("mousedown", (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-    });
-    button.addEventListener("click", async (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      await copyTextToClipboard(this.code);
-      button.textContent = "Copied";
-      window.setTimeout(() => {
-        button.textContent = "Copy";
-      }, 900);
-    });
-
-    wrapper.appendChild(button);
-    return wrapper;
-  }
-
-  ignoreEvent() {
-    return false;
-  }
-}
-
-async function copyTextToClipboard(text) {
-  try {
-    await navigator.clipboard.writeText(text);
-  } catch (error) {
-    vscode.postMessage({ type: "copyText", text });
-  }
-}
-
 class ImagePreviewWidget extends WidgetType {
   constructor(src, alt, from) {
     super();
@@ -5026,355 +3979,5 @@ function buildTaskCheckboxes(view) {
 function isLineFocused(state, line) {
   return state.selection.ranges.some(
     (range) => range.from <= line.to && range.to >= line.from,
-  );
-}
-
-class CheckboxWidget extends WidgetType {
-  constructor(checked, from) {
-    super();
-    this.checked = checked;
-    this.from = from;
-  }
-
-  eq(other) {
-    return other.checked === this.checked && other.from === this.from;
-  }
-
-  toDOM(view) {
-    const checkbox = document.createElement("button");
-    checkbox.type = "button";
-    checkbox.className = `cm-task-checkbox${this.checked ? " is-checked" : ""}`;
-    checkbox.setAttribute(
-      "aria-label",
-      this.checked ? "Mark task incomplete" : "Mark task complete",
-    );
-    checkbox.addEventListener("mousedown", (event) => event.preventDefault());
-    checkbox.addEventListener("click", (event) => {
-      event.preventDefault();
-      view.dispatch({
-        changes: {
-          from: this.from + 1,
-          to: this.from + 2,
-          insert: this.checked ? " " : "x",
-        },
-      });
-    });
-    return checkbox;
-  }
-}
-
-function renderSettingsButton() {
-  if (document.querySelector(".cm-settings-root")) {
-    return;
-  }
-
-  const container = document.createElement("div");
-  container.className = "cm-settings-root";
-
-  const button = document.createElement("button");
-  button.type = "button";
-  button.className = "cm-settings-button";
-  button.title = "Rich Editor settings";
-  button.setAttribute("aria-label", "Rich Editor settings");
-  button.textContent = "⚙";
-
-  const menu = document.createElement("div");
-  menu.className = "cm-settings-menu";
-  menu.hidden = true;
-
-  container.addEventListener("click", (event) => event.stopPropagation());
-  button.addEventListener("pointerdown", (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    menu.hidden = !menu.hidden;
-  });
-  button.addEventListener("click", (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-  });
-
-  menu.addEventListener("pointerdown", (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-  });
-  menu.addEventListener("mousedown", (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-  });
-  menu.addEventListener("click", (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-  });
-
-  container.appendChild(menu);
-  container.appendChild(button);
-  document.body.appendChild(container);
-  updateSettingsMenu();
-}
-
-function bindSettingsMenuActions(menu) {
-  for (const item of menu.querySelectorAll(".cm-settings-menu-item")) {
-    const handle = (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      runSettingsMenuAction(item, menu);
-    };
-    item.addEventListener("pointerdown", handle, true);
-    item.addEventListener("mousedown", handle, true);
-    item.addEventListener("click", handle, true);
-  }
-}
-
-function runSettingsMenuAction(item, menu) {
-  const actionKey = getSettingsMenuActionKey(item);
-  const now = Date.now();
-  if (
-    actionKey &&
-    actionKey === lastSettingsMenuActionKey &&
-    now - lastSettingsMenuActionTime < 350
-  ) {
-    return;
-  }
-  lastSettingsMenuActionKey = actionKey;
-  lastSettingsMenuActionTime = now;
-
-  if (item.dataset.theme !== undefined) {
-    const theme = item.dataset.theme;
-    settings.richTheme = theme;
-    applyTheme(theme);
-    updateSettingsMenu();
-    vscode.postMessage({ type: "setTheme", theme });
-    menu.hidden = true;
-    return;
-  }
-
-  if (item.dataset.toggleEmptyHint !== undefined) {
-    settings.showEmptyLineHint = !settings.showEmptyLineHint;
-    updateSettingsMenu();
-    vscode.postMessage({
-      type: "setShowEmptyLineHint",
-      value: settings.showEmptyLineHint,
-    });
-    return;
-  }
-
-  if (item.dataset.toggleTablePreview !== undefined) {
-    settings.richTablePreview = !settings.richTablePreview;
-    updateSettingsMenu();
-    refreshRichDecorations();
-    vscode.postMessage({
-      type: "setRichTablePreview",
-      value: settings.richTablePreview,
-    });
-    return;
-  }
-
-  if (item.dataset.previewWidth !== undefined) {
-    const previewWidth = normalizePreviewWidth(item.dataset.previewWidth);
-    settings.previewWidth = previewWidth;
-    applyPreviewWidth(previewWidth);
-    updateSettingsMenu();
-    vscode.postMessage({
-      type: "setPreviewWidth",
-      value: previewWidth,
-    });
-    return;
-  }
-
-  if (item.dataset.toggleMermaidPreview !== undefined) {
-    settings.mermaidPreview = !settings.mermaidPreview;
-    updateSettingsMenu();
-    refreshRichDecorations();
-    vscode.postMessage({
-      type: "setMermaidPreview",
-      value: settings.mermaidPreview,
-    });
-    return;
-  }
-
-  if (item.dataset.mermaidSize !== undefined) {
-    const previewSize = normalizeMermaidPreviewSize(item.dataset.mermaidSize);
-    settings.mermaidPreviewSize = previewSize;
-    updateSettingsMenu();
-    refreshRichDecorations();
-    vscode.postMessage({
-      type: "setMermaidPreviewSize",
-      value: previewSize,
-    });
-  }
-}
-
-function getSettingsMenuActionKey(item) {
-  if (item.dataset.theme !== undefined) return `theme:${item.dataset.theme}`;
-  if (item.dataset.toggleEmptyHint !== undefined) return "empty-hint";
-  if (item.dataset.toggleTablePreview !== undefined) return "table-preview";
-  if (item.dataset.previewWidth !== undefined) {
-    return `preview-width:${item.dataset.previewWidth}`;
-  }
-  if (item.dataset.toggleMermaidPreview !== undefined) {
-    return "mermaid-preview";
-  }
-  if (item.dataset.mermaidSize !== undefined) {
-    return `mermaid-size:${item.dataset.mermaidSize}`;
-  }
-  return "";
-}
-
-function updateSettingsMenu() {
-  const menu = document.querySelector(".cm-settings-menu");
-  if (!menu) return;
-  const currentTheme = document.documentElement.dataset.richTheme || "default";
-  const currentMermaidSize = normalizeMermaidPreviewSize(
-    settings.mermaidPreviewSize,
-  );
-  const currentPreviewWidth = normalizePreviewWidth(settings.previewWidth);
-  menu.innerHTML = `
-    <div class="cm-settings-section">
-      <div class="cm-settings-menu-title">Appearance</div>
-      <div class="cm-settings-subtitle">Theme</div>
-      ${getThemeOptions()
-        .map(
-          (option) =>
-            `<button type="button" class="cm-settings-menu-item${option.value === currentTheme ? " is-active" : ""}" data-theme="${option.value}"><span>${option.label}</span><span>${option.value === currentTheme ? "✓" : ""}</span></button>`,
-        )
-        .join("")}
-      <div class="cm-settings-subtitle">Width</div>
-      ${getPreviewWidthOptions()
-        .map(
-          (option) =>
-            `<button type="button" class="cm-settings-menu-item${option.value === currentPreviewWidth ? " is-active" : ""}" data-preview-width="${option.value}"><span>${option.label}</span><span>${option.value === currentPreviewWidth ? "✓" : ""}</span></button>`,
-        )
-        .join("")}
-    </div>
-    <div class="cm-settings-section">
-      <div class="cm-settings-menu-title">Editor</div>
-      <button type="button" class="cm-settings-menu-item" data-toggle-empty-hint="true"><span>Empty line hint</span><span>${settings.showEmptyLineHint ? "On" : "Off"}</span></button>
-    </div>
-    <div class="cm-settings-section">
-      <div class="cm-settings-menu-title">Preview</div>
-      <button type="button" class="cm-settings-menu-item" data-toggle-table-preview="true"><span>Rich tables</span><span>${settings.richTablePreview ? "On" : "Off"}</span></button>
-    </div>
-    <div class="cm-settings-section">
-      <div class="cm-settings-menu-title">Mermaid</div>
-      <button type="button" class="cm-settings-menu-item" data-toggle-mermaid-preview="true"><span>Diagrams</span><span>${settings.mermaidPreview ? "On" : "Off"}</span></button>
-      <div class="cm-settings-subtitle">Size</div>
-      ${getMermaidSizeOptions()
-        .map(
-          (option) =>
-            `<button type="button" class="cm-settings-menu-item${option.value === currentMermaidSize ? " is-active" : ""}" data-mermaid-size="${option.value}"><span>${option.label}</span><span>${option.value === currentMermaidSize ? "✓" : ""}</span></button>`,
-        )
-        .join("")}
-    </div>
-  `;
-  bindSettingsMenuActions(menu);
-}
-
-function isMarkdownMarker(nodeName) {
-  return [
-    "HeaderMark",
-    "QuoteMark",
-    "EmphasisMark",
-    "CodeMark",
-    "LinkMark",
-    "URL",
-    "TaskMarker",
-    "StrikethroughMark",
-    "CodeInfo",
-    "TableDelimiter",
-  ].includes(nodeName);
-}
-
-function findLinkAtClick(view, event) {
-  if (event.target.closest(".cm-image-preview")) {
-    return null;
-  }
-
-  const position =
-    view.posAtCoords(
-      {
-        x: event.clientX,
-        y: event.clientY,
-      },
-      true,
-    ) ??
-    view.posAtCoords({
-      x: event.clientX,
-      y: event.clientY,
-    });
-  if (position === null) {
-    return null;
-  }
-
-  const line = view.state.doc.lineAt(position);
-  const lineFocused = isLineFocused(view.state, line);
-  const offset = position - line.from;
-
-  for (const link of collectLineLinks(line.text)) {
-    const hitFrom = lineFocused ? link.sourceFrom : link.visibleFrom;
-    const hitTo = lineFocused ? link.sourceTo : link.visibleTo;
-    if (offset < hitFrom || offset > hitTo) {
-      continue;
-    }
-    if (!isClickInsideTextRange(view, line.from + hitFrom, line.from + hitTo, event)) {
-      continue;
-    }
-    return {
-      href: link.href,
-      position,
-    };
-  }
-
-  return null;
-}
-
-function collectLineLinks(text) {
-  const links = [];
-
-  for (const match of text.matchAll(/(!?)\[([^\]]+)\]\(([^)\s]+)\)/g)) {
-    if (match[1]) {
-      continue;
-    }
-    const sourceFrom = match.index;
-    const labelFrom = sourceFrom + 1;
-    const labelTo = labelFrom + match[2].length;
-    links.push({
-      href: match[3],
-      sourceFrom,
-      sourceTo: sourceFrom + match[0].length,
-      visibleFrom: labelFrom,
-      visibleTo: labelTo,
-    });
-  }
-
-  for (const match of text.matchAll(/https?:\/\/[^\s)]+/g)) {
-    links.push({
-      href: match[0],
-      sourceFrom: match.index,
-      sourceTo: match.index + match[0].length,
-      visibleFrom: match.index,
-      visibleTo: match.index + match[0].length,
-    });
-  }
-
-  return links;
-}
-
-function isClickInsideTextRange(view, from, to, event) {
-  const start = view.coordsAtPos(from);
-  const end = view.coordsAtPos(to);
-  if (!start || !end) {
-    return false;
-  }
-
-  const left = Math.min(start.left, end.left) - 2;
-  const right = Math.max(start.left, end.left) + 2;
-  const top = Math.min(start.top, end.top) - 3;
-  const bottom = Math.max(start.bottom, end.bottom) + 3;
-
-  return (
-    event.clientX >= left &&
-    event.clientX <= right &&
-    event.clientY >= top &&
-    event.clientY <= bottom
   );
 }
