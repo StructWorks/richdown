@@ -4,9 +4,11 @@ import {
   getMermaidSizeOptions,
   getPreviewWidthOptions,
   getThemeOptions,
+} from "./themeController.js";
+import {
   normalizeMermaidPreviewSize,
   normalizePreviewWidth,
-} from "./richEditorSettings.js";
+} from "../../domain/settingsModel.js";
 
 export function createSettingsMenuController({
   getSettings,

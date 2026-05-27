@@ -25220,7 +25220,7 @@
     }
   });
 
-  // src/richEditorDocumentSync.js
+  // src/rich-editor/domain/textChange.js
   function getMinimalTextChange(currentText, nextText) {
     let prefixLength = 0;
     const maxPrefixLength = Math.min(currentText.length, nextText.length);
@@ -25261,7 +25261,53 @@
     return Math.min(change.from + change.insert.length, newLength);
   }
 
-  // src/richEditorFallback.js
+  // src/rich-editor/domain/settingsModel.js
+  var mermaidPreviewSizes = ["source", "readable", "large"];
+  var previewWidths = ["default", "wide"];
+  function normalizeRichEditorSettings(nextSettings = {}) {
+    return {
+      richTheme: nextSettings.richTheme || "default",
+      showEmptyLineHint: nextSettings.showEmptyLineHint !== false,
+      richTablePreview: nextSettings.richTablePreview !== false,
+      mermaidPreview: nextSettings.mermaidPreview !== false,
+      mermaidPreviewSize: normalizeMermaidPreviewSize(
+        nextSettings.mermaidPreviewSize
+      ),
+      previewWidth: normalizePreviewWidth(nextSettings.previewWidth)
+    };
+  }
+  function normalizeMermaidPreviewSize(value) {
+    return mermaidPreviewSizes.includes(value) ? value : "readable";
+  }
+  function normalizePreviewWidth(value) {
+    return previewWidths.includes(value) ? value : "default";
+  }
+  function hasPreviewSettingChanged(previousSettings, nextSettings) {
+    return previousSettings.richTablePreview !== nextSettings.richTablePreview || previousSettings.mermaidPreview !== nextSettings.mermaidPreview || previousSettings.mermaidPreviewSize !== nextSettings.mermaidPreviewSize;
+  }
+
+  // src/rich-editor/application/settingsUseCases.js
+  function applySettingsPatch(currentSettings, settingsPatch = {}) {
+    const nextSettings = normalizeRichEditorSettings({
+      ...currentSettings,
+      ...settingsPatch
+    });
+    return {
+      settings: nextSettings,
+      previewChanged: hasPreviewSettingChanged(currentSettings, nextSettings)
+    };
+  }
+
+  // src/rich-editor/adapters/vscodeWebviewPort.js
+  function createVsCodeWebviewPort(vscode2) {
+    return {
+      postMessage(message) {
+        vscode2.postMessage(message);
+      }
+    };
+  }
+
+  // src/rich-editor/presentation/fallback/fallbackEditor.js
   function createFallbackEditor({ root: root2, postMessage }) {
     let textarea = null;
     let applyingExternalUpdate2 = false;
@@ -25370,7 +25416,7 @@
     return new LanguageSupport(jsonLanguage);
   }
 
-  // src/richEditorLanguage.js
+  // src/rich-editor/presentation/codemirror/language.js
   var codeLanguages = [
     LanguageDescription.of({
       name: "JSON",
@@ -25454,7 +25500,7 @@
     { tag: tags.invalid, color: "var(--rip-danger)" }
   ]);
 
-  // src/richEditorLinks.js
+  // src/rich-editor/presentation/codemirror/links.js
   function isMarkdownMarker(nodeName) {
     return [
       "HeaderMark",
@@ -25550,7 +25596,7 @@
     return event.clientX >= left && event.clientX <= right && event.clientY >= top2 && event.clientY <= bottom;
   }
 
-  // src/richEditorOutline.js
+  // src/rich-editor/presentation/outline/outlineNavigation.js
   function createOutlineNavigation() {
     let outlineRoot = null;
     let outlineButton = null;
@@ -26826,7 +26872,7 @@
     baseTheme3
   ];
 
-  // src/richEditorSearch.js
+  // src/rich-editor/presentation/search/searchExtensions.js
   function createSearchExtensions() {
     return [
       search({ top: true }),
@@ -26864,7 +26910,7 @@
     return (event.metaKey || event.ctrlKey) && !event.altKey && !event.shiftKey && event.key.toLowerCase() === "f";
   }
 
-  // src/richEditorSlashCommands.js
+  // src/rich-editor/presentation/codemirror/slashCommands.js
   var slashCommands = [
     {
       label: "Heading 1",
@@ -27128,30 +27174,7 @@
     }
   };
 
-  // src/richEditorSettings.js
-  var mermaidPreviewSizes = ["source", "readable", "large"];
-  var previewWidths = ["default", "wide"];
-  function normalizeRichEditorSettings(nextSettings = {}) {
-    return {
-      richTheme: nextSettings.richTheme || "default",
-      showEmptyLineHint: nextSettings.showEmptyLineHint !== false,
-      richTablePreview: nextSettings.richTablePreview !== false,
-      mermaidPreview: nextSettings.mermaidPreview !== false,
-      mermaidPreviewSize: normalizeMermaidPreviewSize(
-        nextSettings.mermaidPreviewSize
-      ),
-      previewWidth: normalizePreviewWidth(nextSettings.previewWidth)
-    };
-  }
-  function normalizeMermaidPreviewSize(value) {
-    return mermaidPreviewSizes.includes(value) ? value : "readable";
-  }
-  function normalizePreviewWidth(value) {
-    return previewWidths.includes(value) ? value : "default";
-  }
-  function hasPreviewSettingChanged(previousSettings, nextSettings) {
-    return previousSettings.richTablePreview !== nextSettings.richTablePreview || previousSettings.mermaidPreview !== nextSettings.mermaidPreview || previousSettings.mermaidPreviewSize !== nextSettings.mermaidPreviewSize;
-  }
+  // src/rich-editor/presentation/settings/themeController.js
   function applyTheme(themeName) {
     const theme2 = getTheme(themeName);
     const rootStyle = document.documentElement.style;
@@ -27362,7 +27385,7 @@
     return themes[themeName] || themes.default;
   }
 
-  // src/richEditorSettingsMenu.js
+  // src/rich-editor/presentation/settings/settingsMenu.js
   function createSettingsMenuController({
     getSettings,
     postMessage,
@@ -27551,7 +27574,7 @@
     return "";
   }
 
-  // src/richEditorStyles.js
+  // src/rich-editor/presentation/styles/globalStyles.js
   function injectStyles() {
     if (document.querySelector("#richdown-global-styles")) {
       return;
@@ -28017,7 +28040,7 @@
     document.head.appendChild(style);
   }
 
-  // src/richEditorWidgets.js
+  // src/rich-editor/presentation/codemirror/widgets.js
   var ListMarkerWidget = class extends WidgetType {
     constructor(listMarker) {
       super();
@@ -28119,6 +28142,7 @@
 
   // src/richEditor.js
   var vscode = acquireVsCodeApi();
+  var vscodePort = createVsCodeWebviewPort(vscode);
   var root = document.querySelector("#editor");
   var initialDocument = JSON.parse(
     document.querySelector("#initial-document").textContent
@@ -28139,12 +28163,12 @@
   var outlineNavigation = createOutlineNavigation();
   var fallbackEditor = createFallbackEditor({
     root,
-    postMessage: (message) => vscode.postMessage(message)
+    postMessage: (message) => vscodePort.postMessage(message)
   });
   var slashCommands2 = createSlashCommandController();
   var settingsMenu = createSettingsMenuController({
     getSettings: () => settings,
-    postMessage: (message) => vscode.postMessage(message),
+    postMessage: (message) => vscodePort.postMessage(message),
     refreshDecorations: refreshRichDecorations
   });
   applyTheme(settings.richTheme);
@@ -28154,7 +28178,7 @@
     const message = error instanceof Error ? error.message : String(error);
     const stack = error instanceof Error ? error.stack : "";
     console.error(`[Richdown] ${context}`, error);
-    vscode.postMessage({
+    vscodePort.postMessage({
       type: "webviewError",
       context,
       message,
@@ -28507,7 +28531,7 @@
                   return false;
                 }
                 event.preventDefault();
-                vscode.postMessage({ type: "openLink", href: linkTarget.href });
+                vscodePort.postMessage({ type: "openLink", href: linkTarget.href });
                 return true;
               }
             }),
@@ -28525,7 +28549,7 @@
               if (!update.docChanged || applyingExternalUpdate) {
                 return;
               }
-              vscode.postMessage({
+              vscodePort.postMessage({
                 type: "edit",
                 text: update.state.doc.toString()
               });
@@ -29358,15 +29382,12 @@
       return;
     }
     if (event.data.type === "settings") {
-      const previousSettings = settings;
-      settings = normalizeRichEditorSettings({
-        ...settings,
-        ...event.data.settings
-      });
+      const result = applySettingsPatch(settings, event.data.settings);
+      settings = result.settings;
       applyTheme(settings.richTheme);
       applyPreviewWidth(settings.previewWidth);
       settingsMenu.update();
-      if (hasPreviewSettingChanged(previousSettings, settings)) {
+      if (result.previewChanged) {
         refreshRichDecorations();
       }
       return;
@@ -29597,7 +29618,7 @@
               side: 1,
               widget: new CodeCopyButtonWidget(
                 codeBlock.code,
-                (message) => vscode.postMessage(message)
+                (message) => vscodePort.postMessage(message)
               )
             })
           });
@@ -31328,7 +31349,7 @@ ${rowText}`;
         link.addEventListener("click", (event) => {
           event.preventDefault();
           event.stopPropagation();
-          vscode.postMessage({ type: "openLink", href });
+          vscodePort.postMessage({ type: "openLink", href });
         });
         parent.appendChild(link);
       }
@@ -31367,7 +31388,7 @@ ${rowText}`;
     image.addEventListener("click", (event) => {
       event.preventDefault();
       event.stopPropagation();
-      vscode.postMessage({ type: "openLink", href: src });
+      vscodePort.postMessage({ type: "openLink", href: src });
     });
     wrapper.appendChild(image);
     wrapper.appendChild(error);
@@ -31428,7 +31449,7 @@ ${rowText}`;
       image.addEventListener("click", (event) => {
         event.preventDefault();
         event.stopPropagation();
-        vscode.postMessage({ type: "openLink", href: this.src });
+        vscodePort.postMessage({ type: "openLink", href: this.src });
       });
       wrapper.addEventListener("mousedown", (event) => {
         event.preventDefault();
@@ -31464,7 +31485,7 @@ ${rowText}`;
       return Promise.resolve(src);
     }
     const requestId = String(imageRequestId += 1);
-    vscode.postMessage({ type: "resolveImage", requestId, src });
+    vscodePort.postMessage({ type: "resolveImage", requestId, src });
     return new Promise((resolve, reject) => {
       const timeout = window.setTimeout(() => {
         pendingImageRequests.delete(requestId);

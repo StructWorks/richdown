@@ -26,36 +26,43 @@ import { GFM } from "@lezer/markdown";
 import {
   getMinimalTextChange,
   mapPositionThroughTextChange,
-} from "./richEditorDocumentSync.js";
-import { createFallbackEditor } from "./richEditorFallback.js";
+} from "./rich-editor/domain/textChange.js";
+import { applySettingsPatch } from "./rich-editor/application/settingsUseCases.js";
+import {
+  normalizeMermaidPreviewSize,
+  normalizeRichEditorSettings,
+} from "./rich-editor/domain/settingsModel.js";
+import { createVsCodeWebviewPort } from "./rich-editor/adapters/vscodeWebviewPort.js";
+import { createFallbackEditor } from "./rich-editor/presentation/fallback/fallbackEditor.js";
 import {
   codeLanguages,
   markdownHighlightStyle,
-} from "./richEditorLanguage.js";
-import { findLinkAtClick, isMarkdownMarker } from "./richEditorLinks.js";
-import { createOutlineNavigation } from "./richEditorOutline.js";
+} from "./rich-editor/presentation/codemirror/language.js";
+import {
+  findLinkAtClick,
+  isMarkdownMarker,
+} from "./rich-editor/presentation/codemirror/links.js";
+import { createOutlineNavigation } from "./rich-editor/presentation/outline/outlineNavigation.js";
 import {
   createSearchExtensions,
   getSearchKeymap,
   installSearchShortcut,
-} from "./richEditorSearch.js";
-import { createSlashCommandController } from "./richEditorSlashCommands.js";
+} from "./rich-editor/presentation/search/searchExtensions.js";
+import { createSlashCommandController } from "./rich-editor/presentation/codemirror/slashCommands.js";
 import {
   applyPreviewWidth,
   applyTheme,
-  hasPreviewSettingChanged,
-  normalizeMermaidPreviewSize,
-  normalizeRichEditorSettings,
-} from "./richEditorSettings.js";
-import { createSettingsMenuController } from "./richEditorSettingsMenu.js";
-import { injectStyles } from "./richEditorStyles.js";
+} from "./rich-editor/presentation/settings/themeController.js";
+import { createSettingsMenuController } from "./rich-editor/presentation/settings/settingsMenu.js";
+import { injectStyles } from "./rich-editor/presentation/styles/globalStyles.js";
 import {
   CheckboxWidget,
   CodeCopyButtonWidget,
   ListMarkerWidget,
-} from "./richEditorWidgets.js";
+} from "./rich-editor/presentation/codemirror/widgets.js";
 
 const vscode = acquireVsCodeApi();
+const vscodePort = createVsCodeWebviewPort(vscode);
 const root = document.querySelector("#editor");
 const initialDocument = JSON.parse(
   document.querySelector("#initial-document").textContent,
@@ -77,12 +84,12 @@ let settings = normalizeRichEditorSettings(initialSettings);
 const outlineNavigation = createOutlineNavigation();
 const fallbackEditor = createFallbackEditor({
   root,
-  postMessage: (message) => vscode.postMessage(message),
+  postMessage: (message) => vscodePort.postMessage(message),
 });
 const slashCommands = createSlashCommandController();
 const settingsMenu = createSettingsMenuController({
   getSettings: () => settings,
-  postMessage: (message) => vscode.postMessage(message),
+  postMessage: (message) => vscodePort.postMessage(message),
   refreshDecorations: refreshRichDecorations,
 });
 
@@ -94,7 +101,7 @@ function reportRichdownError(context, error) {
   const message = error instanceof Error ? error.message : String(error);
   const stack = error instanceof Error ? error.stack : "";
   console.error(`[Richdown] ${context}`, error);
-  vscode.postMessage({
+  vscodePort.postMessage({
     type: "webviewError",
     context,
     message,
@@ -496,7 +503,7 @@ queueMicrotask(() => {
             }
 
             event.preventDefault();
-            vscode.postMessage({ type: "openLink", href: linkTarget.href });
+            vscodePort.postMessage({ type: "openLink", href: linkTarget.href });
             return true;
           },
         }),
@@ -514,7 +521,7 @@ queueMicrotask(() => {
           if (!update.docChanged || applyingExternalUpdate) {
             return;
           }
-          vscode.postMessage({
+          vscodePort.postMessage({
             type: "edit",
             text: update.state.doc.toString(),
           });
@@ -1386,15 +1393,12 @@ window.addEventListener("message", (event) => {
   }
 
   if (event.data.type === "settings") {
-    const previousSettings = settings;
-    settings = normalizeRichEditorSettings({
-      ...settings,
-      ...event.data.settings,
-    });
+    const result = applySettingsPatch(settings, event.data.settings);
+    settings = result.settings;
     applyTheme(settings.richTheme);
     applyPreviewWidth(settings.previewWidth);
     settingsMenu.update();
-    if (hasPreviewSettingChanged(previousSettings, settings)) {
+    if (result.previewChanged) {
       refreshRichDecorations();
     }
     return;
@@ -1653,7 +1657,7 @@ function buildCodeBlockCopyButtons(view) {
           decoration: Decoration.widget({
             side: 1,
             widget: new CodeCopyButtonWidget(codeBlock.code, (message) =>
-              vscode.postMessage(message),
+              vscodePort.postMessage(message),
             ),
           }),
         });
@@ -3759,7 +3763,7 @@ function appendInlineMarkdown(parent, text, options = {}) {
       link.addEventListener("click", (event) => {
         event.preventDefault();
         event.stopPropagation();
-        vscode.postMessage({ type: "openLink", href });
+        vscodePort.postMessage({ type: "openLink", href });
       });
       parent.appendChild(link);
     }
@@ -3807,7 +3811,7 @@ function createInlineMarkdownImage(src, alt, onImageReady) {
   image.addEventListener("click", (event) => {
     event.preventDefault();
     event.stopPropagation();
-    vscode.postMessage({ type: "openLink", href: src });
+    vscodePort.postMessage({ type: "openLink", href: src });
   });
 
   wrapper.appendChild(image);
@@ -3887,7 +3891,7 @@ class ImagePreviewWidget extends WidgetType {
     image.addEventListener("click", (event) => {
       event.preventDefault();
       event.stopPropagation();
-      vscode.postMessage({ type: "openLink", href: this.src });
+      vscodePort.postMessage({ type: "openLink", href: this.src });
     });
 
     wrapper.addEventListener("mousedown", (event) => {
@@ -3929,7 +3933,7 @@ function resolveImageSource(src) {
   }
 
   const requestId = String((imageRequestId += 1));
-  vscode.postMessage({ type: "resolveImage", requestId, src });
+  vscodePort.postMessage({ type: "resolveImage", requestId, src });
 
   return new Promise((resolve, reject) => {
     const timeout = window.setTimeout(() => {
