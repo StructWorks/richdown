@@ -4285,184 +4285,7 @@
     };
   }
 
-  // src/richDiff.js
-  core_default.registerLanguage("css", css);
-  core_default.registerLanguage("html", xml);
-  core_default.registerLanguage("javascript", javascript);
-  core_default.registerLanguage("js", javascript);
-  core_default.registerLanguage("json", json);
-  core_default.registerLanguage("jsonc", json);
-  core_default.registerLanguage("ts", typescript);
-  core_default.registerLanguage("tsx", typescript);
-  core_default.registerLanguage("typescript", typescript);
-  core_default.registerLanguage("xml", xml);
-  var vscode = acquireVsCodeApi();
-  var root = document.querySelector("#diff");
-  var initialDiff = JSON.parse(
-    document.querySelector("#initial-diff").textContent
-  );
-  var initialSettings = JSON.parse(
-    document.querySelector("#initial-settings").textContent
-  );
-  var richThemeValues = [
-    "default",
-    "midnight",
-    "graphite",
-    "forest",
-    "ivory",
-    "paper",
-    "solar"
-  ];
-  var diffData = {
-    leftText: initialDiff.leftText || "",
-    rightText: initialDiff.rightText || "",
-    leftLabel: initialDiff.leftLabel || "Base",
-    rightLabel: initialDiff.rightLabel || "Working Tree",
-    fileName: initialDiff.fileName || "Markdown",
-    filePath: initialDiff.filePath || ""
-  };
-  var settings = normalizeSettings(initialSettings);
-  var imageRequestId = 0;
-  var copyPayloadId = 0;
-  var copyPayloads = /* @__PURE__ */ new Map();
-  var pendingImageRequests = /* @__PURE__ */ new Map();
-  injectStyles();
-  applyTheme(settings.richTheme);
-  renderDiff();
-  window.addEventListener("message", (event) => {
-    if (!event.data) return;
-    if (event.data.type === "resolvedImage") {
-      const pending = pendingImageRequests.get(event.data.requestId);
-      if (!pending) return;
-      window.clearTimeout(pending.timeout);
-      pendingImageRequests.delete(event.data.requestId);
-      if (event.data.uri) {
-        pending.element.innerHTML = `<img alt="${escapeAttribute(pending.alt)}" src="${escapeAttribute(event.data.uri)}">`;
-      } else {
-        pending.element.innerHTML = `<span class="rdiff-image-error">${escapeHtml(pending.alt || "Image could not be loaded")}</span>`;
-      }
-      return;
-    }
-    if (event.data.type === "settings") {
-      settings = normalizeSettings({
-        ...settings,
-        ...event.data.settings
-      });
-      applyTheme(settings.richTheme);
-      renderDiff();
-      return;
-    }
-    if (event.data.type === "updateRight" && typeof event.data.text === "string") {
-      diffData = {
-        ...diffData,
-        rightText: event.data.text
-      };
-      renderDiff();
-    }
-  });
-  root.addEventListener("click", (event) => {
-    const copyButton = event.target.closest("[data-copy-id]");
-    if (copyButton) {
-      const text = copyPayloads.get(copyButton.dataset.copyId);
-      if (typeof text === "string") {
-        vscode.postMessage({ type: "copyText", text });
-        copyButton.textContent = "Copied";
-        window.setTimeout(() => {
-          copyButton.textContent = "Copy";
-        }, 900);
-      }
-      return;
-    }
-    const link = event.target.closest("a[data-href]");
-    if (link) {
-      event.preventDefault();
-      vscode.postMessage({ type: "openLink", href: link.dataset.href });
-    }
-  });
-  function normalizeSettings(nextSettings = {}) {
-    return {
-      richTheme: richThemeValues.includes(nextSettings.richTheme) ? nextSettings.richTheme : "default"
-    };
-  }
-  function renderDiff() {
-    copyPayloadId = 0;
-    copyPayloads = /* @__PURE__ */ new Map();
-    pendingImageRequests.forEach((pending) => window.clearTimeout(pending.timeout));
-    pendingImageRequests.clear();
-    const leftLines = splitLines(diffData.leftText);
-    const rightLines = splitLines(diffData.rightText);
-    const rows = buildDiffRows(leftLines, rightLines);
-    const stats = summarizeRows(rows);
-    const leftMeta = analyzeMarkdownLines(leftLines);
-    const rightMeta = analyzeMarkdownLines(rightLines);
-    root.innerHTML = `
-    <div class="rdiff-shell">
-      <header class="rdiff-header">
-        <div class="rdiff-title">
-          <div class="rdiff-file">${escapeHtml(diffData.fileName)}</div>
-          <div class="rdiff-path">${escapeHtml(diffData.filePath)}</div>
-        </div>
-        <div class="rdiff-stats" aria-label="Diff summary">
-          <span class="rdiff-stat rdiff-stat-add">+${stats.added}</span>
-          <span class="rdiff-stat rdiff-stat-delete">-${stats.deleted}</span>
-          <span class="rdiff-stat">${stats.changed} changed lines</span>
-        </div>
-      </header>
-      <div class="rdiff-column-header" aria-hidden="true">
-        <div>${escapeHtml(diffData.leftLabel)}</div>
-        <div>${escapeHtml(diffData.rightLabel)}</div>
-      </div>
-      <main class="rdiff-body">
-        ${rows.length ? rows.map((row) => renderDiffRow(row, leftMeta, rightMeta)).join("") : renderEmptyDiff()}
-      </main>
-    </div>
-  `;
-    resolveImages();
-  }
-  function renderEmptyDiff() {
-    return `
-    <div class="rdiff-empty">
-      <div class="rdiff-empty-title">No changes</div>
-      <div class="rdiff-empty-copy">The Markdown content matches the selected base.</div>
-    </div>
-  `;
-  }
-  function renderDiffRow(row, leftMeta, rightMeta) {
-    const rowClass = `rdiff-row is-${row.type}`;
-    return `
-    <div class="${rowClass}">
-      ${renderSide(row.left, leftMeta, "left", row.type)}
-      ${renderSide(row.right, rightMeta, "right", row.type)}
-    </div>
-  `;
-  }
-  function renderSide(line, metaByLine, side, rowType) {
-    const sideType = getSideType(side, rowType);
-    const lineNumber = line ? String(line.number) : "";
-    const marker = getSideMarker(side, rowType);
-    const meta = line ? metaByLine.get(line.number) : null;
-    const content = line ? renderMarkdownLine(line.text, meta) : "";
-    return `
-    <section class="rdiff-side rdiff-${side} is-${sideType}">
-      <div class="rdiff-line-number">${lineNumber}</div>
-      <div class="rdiff-marker">${marker}</div>
-      <div class="rdiff-content">${content}</div>
-    </section>
-  `;
-  }
-  function getSideType(side, rowType) {
-    if (rowType === "equal") return "equal";
-    if (rowType === "delete") return side === "left" ? "delete" : "empty";
-    if (rowType === "insert") return side === "right" ? "insert" : "empty";
-    return side === "left" ? "delete" : "insert";
-  }
-  function getSideMarker(side, rowType) {
-    if (rowType === "delete" && side === "left") return "-";
-    if (rowType === "insert" && side === "right") return "+";
-    if (rowType === "replace" && side === "left") return "-";
-    if (rowType === "replace" && side === "right") return "+";
-    return "";
-  }
+  // src/rich-diff/domain/diffRows.js
   function splitLines(text) {
     if (!text) return [];
     const normalized = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
@@ -4638,246 +4461,241 @@
       { added: 0, deleted: 0, changed: 0 }
     );
   }
-  function analyzeMarkdownLines(lines) {
-    const meta = /* @__PURE__ */ new Map();
-    collectCodeBlockMeta(lines, meta);
-    collectTableMeta(lines, meta);
-    return meta;
+
+  // src/rich-diff/presentation/htmlEscape.js
+  function escapeHtml(value) {
+    return String(value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
   }
-  function collectCodeBlockMeta(lines, meta) {
-    let block = null;
-    for (let index = 0; index < lines.length; index += 1) {
-      const text = lines[index];
-      const fence = text.match(/^\s{0,3}(`{3,}|~{3,})(.*)$/);
-      if (!block && fence) {
-        const language = normalizeLanguage(
-          fence[2].trim().split(/\s+/)[0] || ""
-        );
-        block = {
-          marker: fence[1][0],
-          length: fence[1].length,
-          start: index + 1,
-          language,
-          code: []
-        };
-        meta.set(index + 1, {
-          kind: "codeFence",
-          role: "open",
-          language,
-          code: ""
-        });
-        continue;
-      }
-      if (block) {
-        const closing = fence && fence[1][0] === block.marker && fence[1].length >= block.length && !fence[2].trim();
-        if (closing) {
-          const code = block.code.join("\n");
-          meta.set(block.start, {
-            ...meta.get(block.start),
-            code
-          });
+  function escapeAttribute(value) {
+    return escapeHtml(value).replace(/`/g, "&#96;");
+  }
+
+  // src/rich-diff/presentation/markdownRenderer.js
+  function createMarkdownRenderer({ hljs, registerCopyPayload: registerCopyPayload2 }) {
+    function analyzeMarkdownLines2(lines) {
+      const meta = /* @__PURE__ */ new Map();
+      collectCodeBlockMeta(lines, meta);
+      collectTableMeta(lines, meta);
+      return meta;
+    }
+    function collectCodeBlockMeta(lines, meta) {
+      let block = null;
+      for (let index = 0; index < lines.length; index += 1) {
+        const text = lines[index];
+        const fence = text.match(/^\s{0,3}(`{3,}|~{3,})(.*)$/);
+        if (!block && fence) {
+          const language = normalizeLanguage(
+            fence[2].trim().split(/\s+/)[0] || ""
+          );
+          block = {
+            marker: fence[1][0],
+            length: fence[1].length,
+            start: index + 1,
+            language,
+            code: []
+          };
           meta.set(index + 1, {
             kind: "codeFence",
-            role: "close",
-            language: block.language,
-            code
+            role: "open",
+            language,
+            code: ""
           });
-          block = null;
           continue;
         }
-        block.code.push(text);
-        meta.set(index + 1, {
-          kind: "code",
-          language: block.language
+        if (block) {
+          const closing = fence && fence[1][0] === block.marker && fence[1].length >= block.length && !fence[2].trim();
+          if (closing) {
+            const code = block.code.join("\n");
+            meta.set(block.start, {
+              ...meta.get(block.start),
+              code
+            });
+            meta.set(index + 1, {
+              kind: "codeFence",
+              role: "close",
+              language: block.language,
+              code
+            });
+            block = null;
+            continue;
+          }
+          block.code.push(text);
+          meta.set(index + 1, {
+            kind: "code",
+            language: block.language
+          });
+        }
+      }
+      if (block) {
+        const code = block.code.join("\n");
+        meta.set(block.start, {
+          ...meta.get(block.start),
+          code
         });
       }
     }
-    if (block) {
-      const code = block.code.join("\n");
-      meta.set(block.start, {
-        ...meta.get(block.start),
-        code
-      });
-    }
-  }
-  function collectTableMeta(lines, meta) {
-    let index = 0;
-    while (index < lines.length - 1) {
-      if (!isTableContentLine(lines[index]) || !isTableDelimiterLine(lines[index + 1])) {
-        index += 1;
-        continue;
-      }
-      meta.set(index + 1, { kind: "table", role: "header" });
-      meta.set(index + 2, { kind: "table", role: "delimiter" });
-      index += 2;
-      while (index < lines.length && isTableContentLine(lines[index])) {
-        meta.set(index + 1, { kind: "table", role: "body" });
-        index += 1;
+    function collectTableMeta(lines, meta) {
+      let index = 0;
+      while (index < lines.length - 1) {
+        if (!isTableContentLine(lines[index]) || !isTableDelimiterLine(lines[index + 1])) {
+          index += 1;
+          continue;
+        }
+        meta.set(index + 1, { kind: "table", role: "header" });
+        meta.set(index + 2, { kind: "table", role: "delimiter" });
+        index += 2;
+        while (index < lines.length && isTableContentLine(lines[index])) {
+          meta.set(index + 1, { kind: "table", role: "body" });
+          index += 1;
+        }
       }
     }
-  }
-  function normalizeLanguage(language) {
-    const lower = language.toLowerCase();
-    if (lower === "jsx" || lower === "mjs" || lower === "cjs") return "javascript";
-    if (lower === "json5") return "json";
-    if (lower === "svg") return "xml";
-    return lower;
-  }
-  function renderMarkdownLine(text, meta) {
-    if (!text.trim()) {
-      return '<span class="rdiff-blank-line" aria-hidden="true">&nbsp;</span>';
+    function normalizeLanguage(language) {
+      const lower = language.toLowerCase();
+      if (lower === "jsx" || lower === "mjs" || lower === "cjs") return "javascript";
+      if (lower === "json5") return "json";
+      if (lower === "svg") return "xml";
+      return lower;
     }
-    if (meta?.kind === "codeFence") {
-      return renderCodeFence(text, meta);
+    function renderMarkdownLine2(text, meta) {
+      if (!text.trim()) {
+        return '<span class="rdiff-blank-line" aria-hidden="true">&nbsp;</span>';
+      }
+      if (meta?.kind === "codeFence") {
+        return renderCodeFence(text, meta);
+      }
+      if (meta?.kind === "code") {
+        return renderCodeLine(text, meta.language);
+      }
+      if (meta?.kind === "table") {
+        return renderTableLine(text, meta.role);
+      }
+      if (isThematicBreakLine(text)) {
+        return '<hr class="rdiff-hr">';
+      }
+      const heading = text.match(/^\s{0,3}(#{1,6})\s+(.*)$/);
+      if (heading) {
+        return `<div class="rdiff-heading rdiff-heading-${heading[1].length}">${renderInlineMarkdown(heading[2].trim())}</div>`;
+      }
+      const quote = text.match(/^\s{0,3}>\s?(.*)$/);
+      if (quote) {
+        return `<blockquote class="rdiff-quote">${renderInlineMarkdown(quote[1])}</blockquote>`;
+      }
+      const task = text.match(/^(\s*)[-+*]\s+\[([ xX])\]\s+(.*)$/);
+      if (task) {
+        const depth = Math.min(Math.floor(countIndentColumns(task[1]) / 2), 4);
+        const checked = task[2].toLowerCase() === "x";
+        return `<div class="rdiff-list rdiff-list-depth-${depth}"><span class="rdiff-task ${checked ? "is-checked" : ""}"></span><span>${renderInlineMarkdown(task[3])}</span></div>`;
+      }
+      const listMarker = parseListMarker(text);
+      if (listMarker) {
+        const content = text.slice(listMarker.markerTo);
+        const markerClass = listMarker.ordered ? "is-ordered" : "is-unordered";
+        return `<div class="rdiff-list rdiff-list-depth-${Math.min(listMarker.level, 4)}"><span class="rdiff-list-marker ${markerClass}">${escapeHtml(listMarker.marker)}</span><span>${renderInlineMarkdown(content)}</span></div>`;
+      }
+      return renderInlineMarkdown(text);
     }
-    if (meta?.kind === "code") {
-      return renderCodeLine(text, meta.language);
+    function renderCodeFence(text, meta) {
+      const copyId = registerCopyPayload2(meta.code || "");
+      const label = meta.role === "open" && meta.language ? meta.language : "";
+      return `
+      <div class="rdiff-code-fence">
+        <span>${escapeHtml(text.trim())}</span>
+        ${label ? `<span class="rdiff-code-lang">${escapeHtml(label)}</span>` : ""}
+        ${meta.role === "open" && meta.code ? `<button type="button" class="rdiff-copy" data-copy-id="${copyId}">Copy</button>` : ""}
+      </div>
+    `;
     }
-    if (meta?.kind === "table") {
-      return renderTableLine(text, meta.role);
+    function renderCodeLine(text, language) {
+      return `<pre class="rdiff-code-line"><code>${highlightCode(text, language)}</code></pre>`;
     }
-    if (isThematicBreakLine(text)) {
-      return '<hr class="rdiff-hr">';
-    }
-    const heading = text.match(/^\s{0,3}(#{1,6})\s+(.*)$/);
-    if (heading) {
-      return `<div class="rdiff-heading rdiff-heading-${heading[1].length}">${renderInlineMarkdown(heading[2].trim())}</div>`;
-    }
-    const quote = text.match(/^\s{0,3}>\s?(.*)$/);
-    if (quote) {
-      return `<blockquote class="rdiff-quote">${renderInlineMarkdown(quote[1])}</blockquote>`;
-    }
-    const task = text.match(/^(\s*)[-+*]\s+\[([ xX])\]\s+(.*)$/);
-    if (task) {
-      const depth = Math.min(Math.floor(countIndentColumns(task[1]) / 2), 4);
-      const checked = task[2].toLowerCase() === "x";
-      return `<div class="rdiff-list rdiff-list-depth-${depth}"><span class="rdiff-task ${checked ? "is-checked" : ""}"></span><span>${renderInlineMarkdown(task[3])}</span></div>`;
-    }
-    const listMarker = parseListMarker(text);
-    if (listMarker) {
-      const content = text.slice(listMarker.markerTo);
-      const markerClass = listMarker.ordered ? "is-ordered" : "is-unordered";
-      return `<div class="rdiff-list rdiff-list-depth-${Math.min(listMarker.level, 4)}"><span class="rdiff-list-marker ${markerClass}">${escapeHtml(listMarker.marker)}</span><span>${renderInlineMarkdown(content)}</span></div>`;
-    }
-    return renderInlineMarkdown(text);
-  }
-  function renderCodeFence(text, meta) {
-    const copyId = registerCopyPayload(meta.code || "");
-    const label = meta.role === "open" && meta.language ? meta.language : "";
-    return `
-    <div class="rdiff-code-fence">
-      <span>${escapeHtml(text.trim())}</span>
-      ${label ? `<span class="rdiff-code-lang">${escapeHtml(label)}</span>` : ""}
-      ${meta.role === "open" && meta.code ? `<button type="button" class="rdiff-copy" data-copy-id="${copyId}">Copy</button>` : ""}
-    </div>
-  `;
-  }
-  function renderCodeLine(text, language) {
-    return `<pre class="rdiff-code-line"><code>${highlightCode(text, language)}</code></pre>`;
-  }
-  function highlightCode(text, language) {
-    if (!language) {
+    function highlightCode(text, language) {
+      if (!language) {
+        return escapeHtml(text);
+      }
+      try {
+        if (hljs.getLanguage(language)) {
+          return hljs.highlight(text, { language, ignoreIllegals: true }).value;
+        }
+      } catch (error) {
+      }
       return escapeHtml(text);
     }
-    try {
-      if (core_default.getLanguage(language)) {
-        return core_default.highlight(text, { language, ignoreIllegals: true }).value;
+    function renderTableLine(text, role) {
+      if (role === "delimiter") {
+        return '<div class="rdiff-table-rule"></div>';
       }
-    } catch (error) {
+      const cells = splitTableCells(text);
+      const tag = role === "header" ? "th" : "td";
+      return `
+      <table class="rdiff-table rdiff-table-${role}">
+        <tbody>
+          <tr>${cells.map((cell) => `<${tag}>${renderInlineMarkdown(cell.trim())}</${tag}>`).join("")}</tr>
+        </tbody>
+      </table>
+    `;
     }
-    return escapeHtml(text);
-  }
-  function renderTableLine(text, role) {
-    if (role === "delimiter") {
-      return '<div class="rdiff-table-rule"></div>';
+    function renderInlineMarkdown(text) {
+      let value = escapeHtml(text);
+      value = value.replace(
+        /!\[([^\]]*)\]\(([^)]+)\)/g,
+        (_, alt, src) => `<span class="rdiff-image" data-image-src="${escapeAttribute(src)}" data-image-alt="${escapeAttribute(alt)}"><span class="rdiff-image-loading">${escapeHtml(alt || "Loading image")}</span></span>`
+      );
+      value = value.replace(
+        /\[([^\]]+)\]\(([^)]+)\)/g,
+        (_, label, href) => `<a href="#" data-href="${escapeAttribute(href)}">${label}</a>`
+      );
+      value = value.replace(/`([^`]+)`/g, "<code>$1</code>");
+      value = value.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+      value = value.replace(/__([^_]+)__/g, "<strong>$1</strong>");
+      value = value.replace(/\*([^*]+)\*/g, "<em>$1</em>");
+      value = value.replace(/_([^_]+)_/g, "<em>$1</em>");
+      value = value.replace(/~~([^~]+)~~/g, "<del>$1</del>");
+      return value;
     }
-    const cells = splitTableCells(text);
-    const tag = role === "header" ? "th" : "td";
-    return `
-    <table class="rdiff-table rdiff-table-${role}">
-      <tbody>
-        <tr>${cells.map((cell) => `<${tag}>${renderInlineMarkdown(cell.trim())}</${tag}>`).join("")}</tr>
-      </tbody>
-    </table>
-  `;
-  }
-  function renderInlineMarkdown(text) {
-    let value = escapeHtml(text);
-    value = value.replace(
-      /!\[([^\]]*)\]\(([^)]+)\)/g,
-      (_, alt, src) => `<span class="rdiff-image" data-image-src="${escapeAttribute(src)}" data-image-alt="${escapeAttribute(alt)}"><span class="rdiff-image-loading">${escapeHtml(alt || "Loading image")}</span></span>`
-    );
-    value = value.replace(
-      /\[([^\]]+)\]\(([^)]+)\)/g,
-      (_, label, href) => `<a href="#" data-href="${escapeAttribute(href)}">${label}</a>`
-    );
-    value = value.replace(/`([^`]+)`/g, "<code>$1</code>");
-    value = value.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
-    value = value.replace(/__([^_]+)__/g, "<strong>$1</strong>");
-    value = value.replace(/\*([^*]+)\*/g, "<em>$1</em>");
-    value = value.replace(/_([^_]+)_/g, "<em>$1</em>");
-    value = value.replace(/~~([^~]+)~~/g, "<del>$1</del>");
-    return value;
-  }
-  function registerCopyPayload(text) {
-    copyPayloadId += 1;
-    const id = String(copyPayloadId);
-    copyPayloads.set(id, text);
-    return id;
-  }
-  function resolveImages() {
-    root.querySelectorAll("[data-image-src]").forEach((element) => {
-      const src = element.dataset.imageSrc;
-      if (!src) return;
-      const requestId = imageRequestId += 1;
-      const timeout = window.setTimeout(() => {
-        pendingImageRequests.delete(requestId);
-        element.innerHTML = '<span class="rdiff-image-error">Image could not be loaded</span>';
-      }, 4e3);
-      pendingImageRequests.set(requestId, {
-        element,
-        alt: element.dataset.imageAlt || "",
-        timeout
-      });
-      vscode.postMessage({ type: "resolveImage", requestId, src });
-    });
-  }
-  function isThematicBreakLine(text) {
-    return /^\s{0,3}(?:(?:-\s*){3,}|(?:\*\s*){3,}|(?:_\s*){3,})$/.test(text);
-  }
-  function parseListMarker(text) {
-    const match = text.match(/^(\s*)((?:[-+*])|(?:\d+[.)]))(\s+)/);
-    if (!match) return null;
-    const indentColumns = countIndentColumns(match[1]);
+    function isThematicBreakLine(text) {
+      return /^\s{0,3}(?:(?:-\s*){3,}|(?:\*\s*){3,}|(?:_\s*){3,})$/.test(text);
+    }
+    function parseListMarker(text) {
+      const match = text.match(/^(\s*)((?:[-+*])|(?:\d+[.)]))(\s+)/);
+      if (!match) return null;
+      const indentColumns = countIndentColumns(match[1]);
+      return {
+        marker: match[2],
+        ordered: /^\d/.test(match[2]),
+        level: Math.max(0, Math.floor(indentColumns / 2)),
+        markerTo: match[1].length + match[2].length + match[3].length
+      };
+    }
+    function countIndentColumns(text) {
+      let columns = 0;
+      for (const character of text) {
+        columns += character === "	" ? 4 - columns % 4 : 1;
+      }
+      return columns;
+    }
+    function isTableContentLine(text) {
+      if (!text.includes("|") || isTableDelimiterLine(text)) {
+        return false;
+      }
+      return splitTableCells(text).length >= 2;
+    }
+    function isTableDelimiterLine(text) {
+      if (!text.includes("|")) {
+        return false;
+      }
+      return /^\s*\|?\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)+\|?\s*$/.test(text);
+    }
+    function splitTableCells(text) {
+      return text.trim().replace(/^\|/, "").replace(/\|$/, "").split("|");
+    }
     return {
-      marker: match[2],
-      ordered: /^\d/.test(match[2]),
-      level: Math.max(0, Math.floor(indentColumns / 2)),
-      markerTo: match[1].length + match[2].length + match[3].length
+      analyzeMarkdownLines: analyzeMarkdownLines2,
+      renderMarkdownLine: renderMarkdownLine2
     };
   }
-  function countIndentColumns(text) {
-    let columns = 0;
-    for (const character of text) {
-      columns += character === "	" ? 4 - columns % 4 : 1;
-    }
-    return columns;
-  }
-  function isTableContentLine(text) {
-    if (!text.includes("|") || isTableDelimiterLine(text)) {
-      return false;
-    }
-    return splitTableCells(text).length >= 2;
-  }
-  function isTableDelimiterLine(text) {
-    if (!text.includes("|")) {
-      return false;
-    }
-    return /^\s*\|?\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)+\|?\s*$/.test(text);
-  }
-  function splitTableCells(text) {
-    return text.trim().replace(/^\|/, "").replace(/\|$/, "").split("|");
-  }
+
+  // src/rich-diff/presentation/styles.js
   function injectStyles() {
     const style = document.createElement("style");
     style.textContent = `
@@ -5283,6 +5101,22 @@
   `;
     document.head.appendChild(style);
   }
+
+  // src/rich-diff/presentation/theme.js
+  var richThemeValues = [
+    "default",
+    "midnight",
+    "graphite",
+    "forest",
+    "ivory",
+    "paper",
+    "solar"
+  ];
+  function normalizeSettings(nextSettings = {}) {
+    return {
+      richTheme: richThemeValues.includes(nextSettings.richTheme) ? nextSettings.richTheme : "default"
+    };
+  }
   function applyTheme(themeName) {
     const theme = getTheme(themeName);
     const rootStyle = document.documentElement.style;
@@ -5446,10 +5280,196 @@
     };
     return themes[themeName] || themes.default;
   }
-  function escapeHtml(value) {
-    return String(value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+
+  // src/richDiff.js
+  core_default.registerLanguage("css", css);
+  core_default.registerLanguage("html", xml);
+  core_default.registerLanguage("javascript", javascript);
+  core_default.registerLanguage("js", javascript);
+  core_default.registerLanguage("json", json);
+  core_default.registerLanguage("jsonc", json);
+  core_default.registerLanguage("ts", typescript);
+  core_default.registerLanguage("tsx", typescript);
+  core_default.registerLanguage("typescript", typescript);
+  core_default.registerLanguage("xml", xml);
+  var vscode = acquireVsCodeApi();
+  var root = document.querySelector("#diff");
+  var initialDiff = JSON.parse(
+    document.querySelector("#initial-diff").textContent
+  );
+  var initialSettings = JSON.parse(
+    document.querySelector("#initial-settings").textContent
+  );
+  var diffData = {
+    leftText: initialDiff.leftText || "",
+    rightText: initialDiff.rightText || "",
+    leftLabel: initialDiff.leftLabel || "Base",
+    rightLabel: initialDiff.rightLabel || "Working Tree",
+    fileName: initialDiff.fileName || "Markdown",
+    filePath: initialDiff.filePath || ""
+  };
+  var settings = normalizeSettings(initialSettings);
+  var imageRequestId = 0;
+  var copyPayloadId = 0;
+  var copyPayloads = /* @__PURE__ */ new Map();
+  var pendingImageRequests = /* @__PURE__ */ new Map();
+  var { analyzeMarkdownLines, renderMarkdownLine } = createMarkdownRenderer({
+    hljs: core_default,
+    registerCopyPayload
+  });
+  injectStyles();
+  applyTheme(settings.richTheme);
+  renderDiff();
+  window.addEventListener("message", (event) => {
+    if (!event.data) return;
+    if (event.data.type === "resolvedImage") {
+      const pending = pendingImageRequests.get(event.data.requestId);
+      if (!pending) return;
+      window.clearTimeout(pending.timeout);
+      pendingImageRequests.delete(event.data.requestId);
+      if (event.data.uri) {
+        pending.element.innerHTML = `<img alt="${escapeAttribute(pending.alt)}" src="${escapeAttribute(event.data.uri)}">`;
+      } else {
+        pending.element.innerHTML = `<span class="rdiff-image-error">${escapeHtml(pending.alt || "Image could not be loaded")}</span>`;
+      }
+      return;
+    }
+    if (event.data.type === "settings") {
+      settings = normalizeSettings({
+        ...settings,
+        ...event.data.settings
+      });
+      applyTheme(settings.richTheme);
+      renderDiff();
+      return;
+    }
+    if (event.data.type === "updateRight" && typeof event.data.text === "string") {
+      diffData = {
+        ...diffData,
+        rightText: event.data.text
+      };
+      renderDiff();
+    }
+  });
+  root.addEventListener("click", (event) => {
+    const copyButton = event.target.closest("[data-copy-id]");
+    if (copyButton) {
+      const text = copyPayloads.get(copyButton.dataset.copyId);
+      if (typeof text === "string") {
+        vscode.postMessage({ type: "copyText", text });
+        copyButton.textContent = "Copied";
+        window.setTimeout(() => {
+          copyButton.textContent = "Copy";
+        }, 900);
+      }
+      return;
+    }
+    const link = event.target.closest("a[data-href]");
+    if (link) {
+      event.preventDefault();
+      vscode.postMessage({ type: "openLink", href: link.dataset.href });
+    }
+  });
+  function renderDiff() {
+    copyPayloadId = 0;
+    copyPayloads = /* @__PURE__ */ new Map();
+    pendingImageRequests.forEach((pending) => window.clearTimeout(pending.timeout));
+    pendingImageRequests.clear();
+    const leftLines = splitLines(diffData.leftText);
+    const rightLines = splitLines(diffData.rightText);
+    const rows = buildDiffRows(leftLines, rightLines);
+    const stats = summarizeRows(rows);
+    const leftMeta = analyzeMarkdownLines(leftLines);
+    const rightMeta = analyzeMarkdownLines(rightLines);
+    root.innerHTML = `
+    <div class="rdiff-shell">
+      <header class="rdiff-header">
+        <div class="rdiff-title">
+          <div class="rdiff-file">${escapeHtml(diffData.fileName)}</div>
+          <div class="rdiff-path">${escapeHtml(diffData.filePath)}</div>
+        </div>
+        <div class="rdiff-stats" aria-label="Diff summary">
+          <span class="rdiff-stat rdiff-stat-add">+${stats.added}</span>
+          <span class="rdiff-stat rdiff-stat-delete">-${stats.deleted}</span>
+          <span class="rdiff-stat">${stats.changed} changed lines</span>
+        </div>
+      </header>
+      <div class="rdiff-column-header" aria-hidden="true">
+        <div>${escapeHtml(diffData.leftLabel)}</div>
+        <div>${escapeHtml(diffData.rightLabel)}</div>
+      </div>
+      <main class="rdiff-body">
+        ${rows.length ? rows.map((row) => renderDiffRow(row, leftMeta, rightMeta)).join("") : renderEmptyDiff()}
+      </main>
+    </div>
+  `;
+    resolveImages();
   }
-  function escapeAttribute(value) {
-    return escapeHtml(value).replace(/`/g, "&#96;");
+  function renderEmptyDiff() {
+    return `
+    <div class="rdiff-empty">
+      <div class="rdiff-empty-title">No changes</div>
+      <div class="rdiff-empty-copy">The Markdown content matches the selected base.</div>
+    </div>
+  `;
+  }
+  function renderDiffRow(row, leftMeta, rightMeta) {
+    const rowClass = `rdiff-row is-${row.type}`;
+    return `
+    <div class="${rowClass}">
+      ${renderSide(row.left, leftMeta, "left", row.type)}
+      ${renderSide(row.right, rightMeta, "right", row.type)}
+    </div>
+  `;
+  }
+  function renderSide(line, metaByLine, side, rowType) {
+    const sideType = getSideType(side, rowType);
+    const lineNumber = line ? String(line.number) : "";
+    const marker = getSideMarker(side, rowType);
+    const meta = line ? metaByLine.get(line.number) : null;
+    const content = line ? renderMarkdownLine(line.text, meta) : "";
+    return `
+    <section class="rdiff-side rdiff-${side} is-${sideType}">
+      <div class="rdiff-line-number">${lineNumber}</div>
+      <div class="rdiff-marker">${marker}</div>
+      <div class="rdiff-content">${content}</div>
+    </section>
+  `;
+  }
+  function getSideType(side, rowType) {
+    if (rowType === "equal") return "equal";
+    if (rowType === "delete") return side === "left" ? "delete" : "empty";
+    if (rowType === "insert") return side === "right" ? "insert" : "empty";
+    return side === "left" ? "delete" : "insert";
+  }
+  function getSideMarker(side, rowType) {
+    if (rowType === "delete" && side === "left") return "-";
+    if (rowType === "insert" && side === "right") return "+";
+    if (rowType === "replace" && side === "left") return "-";
+    if (rowType === "replace" && side === "right") return "+";
+    return "";
+  }
+  function registerCopyPayload(text) {
+    copyPayloadId += 1;
+    const id = String(copyPayloadId);
+    copyPayloads.set(id, text);
+    return id;
+  }
+  function resolveImages() {
+    root.querySelectorAll("[data-image-src]").forEach((element) => {
+      const src = element.dataset.imageSrc;
+      if (!src) return;
+      const requestId = imageRequestId += 1;
+      const timeout = window.setTimeout(() => {
+        pendingImageRequests.delete(requestId);
+        element.innerHTML = '<span class="rdiff-image-error">Image could not be loaded</span>';
+      }, 4e3);
+      pendingImageRequests.set(requestId, {
+        element,
+        alt: element.dataset.imageAlt || "",
+        timeout
+      });
+      vscode.postMessage({ type: "resolveImage", requestId, src });
+    });
   }
 })();
