@@ -5,6 +5,77 @@
 // tables, then renderMarkdownLine can output richer HTML for each row.
 import { escapeAttribute, escapeHtml } from "./htmlEscape.js";
 
+const LANGUAGE_ALIASES = new Map([
+  ["bf", "brainfuck"],
+  ["c++", "cpp"],
+  ["c#", "csharp"],
+  ["cc", "cpp"],
+  ["cl", "lisp"],
+  ["clj", "clojure"],
+  ["cljc", "clojure"],
+  ["cljs", "clojure"],
+  ["commonlisp", "lisp"],
+  ["cr", "crystal"],
+  ["cs", "csharp"],
+  ["cxx", "cpp"],
+  ["dartlang", "dart"],
+  ["ex", "elixir"],
+  ["exs", "elixir"],
+  ["erl", "erlang"],
+  ["f#", "fsharp"],
+  ["f90", "fortran"],
+  ["f95", "fortran"],
+  ["fish", "bash"],
+  ["flutter", "dart"],
+  ["fs", "fsharp"],
+  ["fsi", "fsharp"],
+  ["fsx", "fsharp"],
+  ["gql", "graphql"],
+  ["golang", "go"],
+  ["h", "cpp"],
+  ["hh", "cpp"],
+  ["hs", "haskell"],
+  ["hpp", "cpp"],
+  ["hxx", "cpp"],
+  ["jl", "julia"],
+  ["kt", "kotlin"],
+  ["kts", "kotlin"],
+  ["make", "makefile"],
+  ["md", "markdown"],
+  ["ml", "ocaml"],
+  ["mli", "ocaml"],
+  ["mysql", "sql"],
+  ["objc", "objectivec"],
+  ["objective-c", "objectivec"],
+  ["octave", "matlab"],
+  ["postgres", "sql"],
+  ["postgresql", "sql"],
+  ["proto", "protobuf"],
+  ["ps1", "powershell"],
+  ["pwsh", "powershell"],
+  ["py", "python"],
+  ["rb", "ruby"],
+  ["rs", "rust"],
+  ["rscript", "r"],
+  ["sass", "scss"],
+  ["scm", "scheme"],
+  ["sh", "bash"],
+  ["shell", "bash"],
+  ["sqlite", "sql"],
+  ["sv", "verilog"],
+  ["systemverilog", "verilog"],
+  ["terminal", "bash"],
+  ["tex", "latex"],
+  ["ttl", "turtle"],
+  ["vb", "vbnet"],
+  ["vhd", "vhdl"],
+  ["visualbasic", "vbnet"],
+  ["wat", "wasm"],
+  ["wast", "wasm"],
+  ["yml", "yaml"],
+  ["zsh", "bash"],
+]);
+
 export function createMarkdownRenderer({ hljs, registerCopyPayload }) {
   function analyzeMarkdownLines(lines) {
     const meta = new Map();
@@ -101,11 +172,11 @@ export function createMarkdownRenderer({ hljs, registerCopyPayload }) {
   }
   
   function normalizeLanguage(language) {
-    const lower = language.toLowerCase();
+    const lower = language.toLowerCase().replace(/^language-/, "");
     if (lower === "jsx" || lower === "mjs" || lower === "cjs") return "javascript";
     if (lower === "json5") return "json";
-    if (lower === "svg") return "xml";
-    return lower;
+    if (lower === "tsx") return "typescript";
+    return LANGUAGE_ALIASES.get(lower) || lower;
   }
   
   function renderMarkdownLine(text, meta) {
