@@ -38,7 +38,6 @@ const LANGUAGE_ALIASES = new Map([
   ["hpp", "cpp"],
   ["hxx", "cpp"],
   ["jl", "julia"],
-  ["kotlon", "kotlin"],
   ["kt", "kotlin"],
   ["kts", "kotlin"],
   ["make", "makefile"],

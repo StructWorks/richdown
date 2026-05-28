@@ -121,7 +121,7 @@ registerCodeLanguage("java", javaLanguage);
 registerCodeLanguage("javascript", javascriptLanguage, ["cjs", "js", "jsx", "mjs"]);
 registerCodeLanguage("json", jsonLanguage, ["json5", "jsonc"]);
 registerCodeLanguage("julia", juliaLanguage, ["jl"]);
-registerCodeLanguage("kotlin", kotlinLanguage, ["kotlon", "kt", "kts"]);
+registerCodeLanguage("kotlin", kotlinLanguage, ["kt", "kts"]);
 registerCodeLanguage("latex", latexLanguage, ["tex"]);
 registerCodeLanguage("less", lessLanguage);
 registerCodeLanguage("lisp", lispLanguage, ["cl", "commonlisp"]);
@@ -155,6 +155,7 @@ registerCodeLanguage("verilog", verilogLanguage, ["sv", "systemverilog"]);
 registerCodeLanguage("vhdl", vhdlLanguage, ["vhd"]);
 registerCodeLanguage("wasm", wasmLanguage, ["wat", "wast"]);
 registerCodeLanguage("xml", xmlLanguage, ["html", "svg"]);
+registerCodeLanguage("yaml", yamlLanguage, ["yml"]);
 
 const vscode = acquireVsCodeApi();
 const root = document.querySelector("#diff");

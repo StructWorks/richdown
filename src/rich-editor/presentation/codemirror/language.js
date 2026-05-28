@@ -211,7 +211,7 @@ export const codeLanguages = [
     swift,
   ),
   legacyCodeLanguage(
-    { name: "Kotlin", alias: ["kotlin", "kotlon", "kt", "kts"], extensions: ["kt", "kts"] },
+    { name: "Kotlin", alias: ["kotlin", "kt", "kts"], extensions: ["kt", "kts"] },
     kotlin,
   ),
   legacyCodeLanguage(
