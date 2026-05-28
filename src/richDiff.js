@@ -75,6 +75,7 @@ import {
   summarizeRows,
 } from "./rich-diff/domain/diffRows.js";
 import { escapeAttribute, escapeHtml } from "./rich-diff/presentation/htmlEscape.js";
+import { tomlLanguage } from "./rich-diff/presentation/highlight/tomlLanguage.js";
 import { createMarkdownRenderer } from "./rich-diff/presentation/markdownRenderer.js";
 import { injectStyles } from "./rich-diff/presentation/styles.js";
 import { applyTheme, normalizeSettings } from "./rich-diff/presentation/theme.js";
@@ -151,7 +152,7 @@ registerCodeLanguage("sql", sqlLanguage, ["mysql", "postgres", "postgresql", "sq
 registerCodeLanguage("stylus", stylusLanguage, ["styl"]);
 registerCodeLanguage("swift", swiftLanguage);
 registerCodeLanguage("thrift", thriftLanguage);
-registerCodeLanguage("toml", iniLanguage);
+registerCodeLanguage("toml", tomlLanguage);
 registerCodeLanguage("typescript", typescriptLanguage, ["ts", "tsx"]);
 registerCodeLanguage("vbnet", vbnetLanguage, ["vb", "visualbasic"]);
 registerCodeLanguage("verilog", verilogLanguage, ["sv", "systemverilog"]);
