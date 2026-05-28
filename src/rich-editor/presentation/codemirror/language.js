@@ -53,7 +53,6 @@ import { puppet } from "@codemirror/legacy-modes/mode/puppet";
 import { r as rLanguage } from "@codemirror/legacy-modes/mode/r";
 import { ruby } from "@codemirror/legacy-modes/mode/ruby";
 import { sas } from "@codemirror/legacy-modes/mode/sas";
-import { sass } from "@codemirror/legacy-modes/mode/sass";
 import { scheme } from "@codemirror/legacy-modes/mode/scheme";
 import { shell } from "@codemirror/legacy-modes/mode/shell";
 import { smalltalk } from "@codemirror/legacy-modes/mode/smalltalk";
@@ -311,16 +310,12 @@ export const codeLanguages = [
     octave,
   ),
   legacyCodeLanguage(
-    { name: "SCSS", alias: ["scss"], extensions: ["scss"] },
+    { name: "SCSS", alias: ["scss", "sass"], extensions: ["scss", "sass"] },
     sCSS,
   ),
   legacyCodeLanguage(
     { name: "Less", alias: ["less"], extensions: ["less"] },
     less,
-  ),
-  legacyCodeLanguage(
-    { name: "Sass", alias: ["sass"], extensions: ["sass"] },
-    sass,
   ),
   legacyCodeLanguage(
     { name: "Stylus", alias: ["styl", "stylus"], extensions: ["styl"] },

@@ -32,7 +32,7 @@ const LANGUAGE_ALIASES = new Map([
   ["fsx", "fsharp"],
   ["gql", "graphql"],
   ["golang", "go"],
-  ["h", "c"],
+  ["h", "cpp"],
   ["hh", "cpp"],
   ["hs", "haskell"],
   ["hpp", "cpp"],

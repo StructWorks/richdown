@@ -17375,9 +17375,9 @@
       })) };
     } else if (option != 1 && comments.some((c2) => c2)) {
       let changes = [];
-      for (let i = 0, comment4; i < comments.length; i++)
-        if (comment4 = comments[i]) {
-          let token = tokens2[i], { open, close } = comment4;
+      for (let i = 0, comment3; i < comments.length; i++)
+        if (comment3 = comments[i]) {
+          let token = tokens2[i], { open, close } = comment3;
           changes.push({ from: open.pos - token.open.length, to: open.pos + open.margin }, { from: close.pos - close.margin, to: close.pos + token.close.length });
         }
       return { changes };
@@ -17398,12 +17398,12 @@
         }
         if (line.from > prevLine && (from3 == to || to > line.from)) {
           prevLine = line.from;
-          let indent5 = /^\s*/.exec(line.text)[0].length;
-          let empty2 = indent5 == line.length;
-          let comment4 = line.text.slice(indent5, indent5 + token.length) == token ? indent5 : -1;
-          if (indent5 < line.text.length && indent5 < minIndent)
-            minIndent = indent5;
-          lines.push({ line, comment: comment4, token, indent: indent5, empty: empty2, single: false });
+          let indent4 = /^\s*/.exec(line.text)[0].length;
+          let empty2 = indent4 == line.length;
+          let comment3 = line.text.slice(indent4, indent4 + token.length) == token ? indent4 : -1;
+          if (indent4 < line.text.length && indent4 < minIndent)
+            minIndent = indent4;
+          lines.push({ line, comment: comment3, token, indent: indent4, empty: empty2, single: false });
         }
         pos = line.to + 1;
       }
@@ -17417,16 +17417,16 @@
     }
     if (option != 2 && lines.some((l) => l.comment < 0 && (!l.empty || l.single))) {
       let changes = [];
-      for (let { line, token, indent: indent5, empty: empty2, single } of lines)
+      for (let { line, token, indent: indent4, empty: empty2, single } of lines)
         if (single || !empty2)
-          changes.push({ from: line.from + indent5, insert: token + " " });
+          changes.push({ from: line.from + indent4, insert: token + " " });
       let changeSet = state.changes(changes);
       return { changes: changeSet, selection: state.selection.map(changeSet, 1) };
     } else if (option != 1 && lines.some((l) => l.comment >= 0)) {
       let changes = [];
-      for (let { line, comment: comment4, token } of lines)
-        if (comment4 >= 0) {
-          let from3 = line.from + comment4, to = from3 + token.length;
+      for (let { line, comment: comment3, token } of lines)
+        if (comment3 >= 0) {
+          let from3 = line.from + comment3, to = from3 + token.length;
           if (line.text[to - line.from] == " ")
             to++;
           changes.push({ from: from3, to });
@@ -18199,16 +18199,16 @@
         if (atEof)
           from3 = to = (to <= line.to ? line : state.doc.lineAt(to)).to;
         let cx = new IndentContext(state, { simulateBreak: from3, simulateDoubleBreak: !!explode });
-        let indent5 = getIndentation(cx, from3);
-        if (indent5 == null)
-          indent5 = countColumn(/^\s*/.exec(state.doc.lineAt(from3).text)[0], state.tabSize);
+        let indent4 = getIndentation(cx, from3);
+        if (indent4 == null)
+          indent4 = countColumn(/^\s*/.exec(state.doc.lineAt(from3).text)[0], state.tabSize);
         while (to < line.to && /\s/.test(line.text[to - line.from]))
           to++;
         if (explode)
           ({ from: from3, to } = explode);
         else if (from3 > line.from && from3 < line.from + 100 && !/\S/.test(line.text.slice(0, from3)))
           from3 = line.from;
-        let insert2 = ["", indentString(state, indent5)];
+        let insert2 = ["", indentString(state, indent4)];
         if (explode)
           insert2.push(indentString(state, cx.lineIndent(line.from, -1)));
         return {
@@ -18248,15 +18248,15 @@
       return found == null ? -1 : found;
     } });
     let changes = changeBySelectedLine(state, (line, changes2, range) => {
-      let indent5 = getIndentation(context, line.from);
-      if (indent5 == null)
+      let indent4 = getIndentation(context, line.from);
+      if (indent4 == null)
         return;
       if (!/\S/.test(line.text))
-        indent5 = 0;
+        indent4 = 0;
       let cur = /^\s*/.exec(line.text)[0];
-      let norm = indentString(state, indent5);
+      let norm = indentString(state, indent4);
       if (cur != norm || range.from < line.from + cur.length) {
-        updated[line.from] = indent5;
+        updated[line.from] = indent4;
         changes2.push({ from: line.from, to: line.from + cur.length, insert: norm });
       }
     });
@@ -18628,11 +18628,11 @@
       let lineObj = state.doc.lineAt(pos), baseIndent = /^\s*/.exec(lineObj.text)[0];
       for (let line of this.lines) {
         if (text2.length) {
-          let indent5 = baseIndent, tabs = /^\t*/.exec(line)[0].length;
+          let indent4 = baseIndent, tabs = /^\t*/.exec(line)[0].length;
           for (let i = 0; i < tabs; i++)
-            indent5 += state.facet(indentUnit);
-          lineStart.push(pos + indent5.length - tabs);
-          line = indent5 + line.slice(tabs);
+            indent4 += state.facet(indentUnit);
+          lineStart.push(pos + indent4.length - tabs);
+          line = indent4 + line.slice(tabs);
         }
         text2.push(line);
         pos += line.length + 1;
@@ -18969,9 +18969,9 @@
     /**
     Move the line's base position forward to the given _column_.
     */
-    moveBaseColumn(indent5) {
-      this.baseIndent = indent5;
-      this.basePos = this.findColumn(indent5);
+    moveBaseColumn(indent4) {
+      this.baseIndent = indent4;
+      this.basePos = this.findColumn(indent4);
     }
     /**
     Store a composite-block-level marker. Should be called from
@@ -18985,18 +18985,18 @@
     Find the column position at `to`, optionally starting at a given
     position and column.
     */
-    countIndent(to, from3 = 0, indent5 = 0) {
+    countIndent(to, from3 = 0, indent4 = 0) {
       for (let i = from3; i < to; i++)
-        indent5 += this.text.charCodeAt(i) == 9 ? 4 - indent5 % 4 : 1;
-      return indent5;
+        indent4 += this.text.charCodeAt(i) == 9 ? 4 - indent4 % 4 : 1;
+      return indent4;
     }
     /**
     Find the position corresponding to the given column.
     */
     findColumn(goal) {
       let i = 0;
-      for (let indent5 = 0; i < this.text.length && indent5 < goal; i++)
-        indent5 += this.text.charCodeAt(i) == 9 ? 4 - indent5 % 4 : 1;
+      for (let indent4 = 0; i < this.text.length && indent4 < goal; i++)
+        indent4 += this.text.charCodeAt(i) == 9 ? 4 - indent4 % 4 : 1;
       return i;
     }
     /**
@@ -20096,9 +20096,9 @@
           elt(Type.LinkMark, start2 + url[0].length, start2 + 1 + url[0].length)
         ]));
       }
-      let comment4 = /^!--[^>](?:-[^-]|[^-])*?-->/i.exec(after);
-      if (comment4)
-        return cx.append(elt(Type.Comment, start2, start2 + 1 + comment4[0].length));
+      let comment3 = /^!--[^>](?:-[^-]|[^-])*?-->/i.exec(after);
+      if (comment3)
+        return cx.append(elt(Type.Comment, start2, start2 + 1 + comment3[0].length));
       let procInst = /^\?[^]*?\?>/.exec(after);
       if (procInst)
         return cx.append(elt(Type.ProcessingInstruction, start2, start2 + 1 + procInst[0].length));
@@ -26967,11 +26967,11 @@
   var cx_Long = 8;
   var cx_Raw = 16;
   var cx_Format = 32;
-  function Context2(parent, indent5, flags) {
+  function Context2(parent, indent4, flags) {
     this.parent = parent;
-    this.indent = indent5;
+    this.indent = indent4;
     this.flags = flags;
-    this.hash = (parent ? parent.hash + parent.hash << 8 : 0) + indent5 + (indent5 << 4) + flags + (flags << 6);
+    this.hash = (parent ? parent.hash + parent.hash << 8 : 0) + indent4 + (indent4 << 4) + flags + (flags << 6);
   }
   var topIndent2 = new Context2(null, 0, 0);
   function countIndent(space6) {
@@ -27908,11 +27908,11 @@
     return false;
   }
   var Space2 = " 	\r\n";
-  function keywords4(keywords26, types5, builtin2) {
+  function keywords4(keywords24, types5, builtin2) {
     let result = /* @__PURE__ */ Object.create(null);
     result["true"] = result["false"] = Bool2;
     result["null"] = result["unknown"] = Null;
-    for (let kw of keywords26.split(" "))
+    for (let kw of keywords24.split(" "))
       if (kw)
         result[kw] = Keyword;
     for (let tp of types5.split(" "))
@@ -28078,8 +28078,8 @@
       } else if (next2 == 58 || next2 == 44) {
         input.acceptToken(Punctuation2);
       } else if (isAlpha2(next2)) {
-        let word2 = readWord(input, String.fromCharCode(next2));
-        input.acceptToken(input.next == 46 || input.peek(-word2.length - 1) == 46 ? Identifier4 : (_a2 = d3.words[word2.toLowerCase()]) !== null && _a2 !== void 0 ? _a2 : Identifier4);
+        let word = readWord(input, String.fromCharCode(next2));
+        input.acceptToken(input.next == 46 || input.peek(-word.length - 1) == 46 ? Identifier4 : (_a2 = d3.words[word.toLowerCase()]) !== null && _a2 !== void 0 ? _a2 : Identifier4);
       }
     });
   }
@@ -28317,8 +28317,8 @@
   function completionType(tokenType) {
     return tokenType == Type2 ? "type" : tokenType == Keyword ? "keyword" : "variable";
   }
-  function completeKeywords(keywords26, upperCase, build) {
-    let completions = Object.keys(keywords26).map((keyword2) => build(upperCase ? keyword2.toUpperCase() : keyword2, completionType(keywords26[keyword2])));
+  function completeKeywords(keywords24, upperCase, build) {
+    let completions = Object.keys(keywords24).map((keyword2) => build(upperCase ? keyword2.toUpperCase() : keyword2, completionType(keywords24[keyword2])));
     return ifNotIn(["QuotedIdentifier", "String", "LineComment", "BlockComment", "."], completeFromList(completions));
   }
   var parser12 = /* @__PURE__ */ parser$1.configure({
@@ -28564,8 +28564,8 @@
       if (term == BlockLiteralContent && context.type == type_Lit)
         return context.parent;
       if (term == BlockLiteralHeader) {
-        let indent5 = /[1-9]/.exec(input.read(input.pos, stack.pos));
-        if (indent5) return new Context3(context, context.depth + +indent5[0], type_Lit);
+        let indent4 = /[1-9]/.exec(input.read(input.pos, stack.pos));
+        if (indent4) return new Context3(context, context.depth + +indent4[0], type_Lit);
       }
       return context;
     },
@@ -28747,7 +28747,7 @@
     let tag2 = charTag(ch2);
     return tag2 != "u" && !(inFlow && tag2 == "f");
   }
-  function readPlain(input, scan, inFlow, indent5) {
+  function readPlain(input, scan, inFlow, indent4) {
     if (charTag(input.next) == "s" || (input.next == 63 || input.next == 58 || input.next == 45) && isSafe(input.peek(1), inFlow)) {
       input.advance();
     } else {
@@ -28755,7 +28755,7 @@
     }
     let start2 = input.pos;
     for (; ; ) {
-      let next2 = input.next, off = 0, lineIndent = indent5 + 1;
+      let next2 = input.next, off = 0, lineIndent = indent4 + 1;
       while (isSpace2(next2)) {
         if (isBreakSpace(next2)) {
           if (scan) return false;
@@ -28766,7 +28766,7 @@
         next2 = input.peek(++off);
       }
       let safe = next2 >= 0 && (next2 == 58 ? isSafe(input.peek(off + 1), inFlow) : next2 == 35 ? input.peek(off - 1) != 32 : isSafe(next2, inFlow));
-      if (!safe || !inFlow && lineIndent <= indent5 || lineIndent == 0 && !inFlow && (three(input, 45, off) || three(input, 46, off)))
+      if (!safe || !inFlow && lineIndent <= indent4 || lineIndent == 0 && !inFlow && (three(input, 45, off) || three(input, 46, off)))
         break;
       if (scan && charTag(next2) == "f") return false;
       for (let i = off; i >= 0; i--) input.advance();
@@ -28790,14 +28790,14 @@
     }
   });
   var blockLiteral = new ExternalTokenizer((input, stack) => {
-    let indent5 = stack.context.type == type_Lit ? stack.context.depth : -1, upto = input.pos;
+    let indent4 = stack.context.type == type_Lit ? stack.context.depth : -1, upto = input.pos;
     scan: for (; ; ) {
       let depth = 0, next2 = input.next;
       while (next2 == 32) next2 = input.peek(++depth);
       if (!depth && (three(input, 45, depth) || three(input, 46, depth))) break;
       if (!isBreakSpace(next2)) {
-        if (indent5 < 0) indent5 = Math.max(stack.context.depth + 1, depth);
-        if (depth < indent5) break;
+        if (indent4 < 0) indent4 = Math.max(stack.context.depth + 1, depth);
+        if (depth < indent4) break;
       }
       for (; ; ) {
         if (input.next < 0) break scan;
@@ -28974,10 +28974,10 @@
     this.prev = prev;
   }
   function pushContext(state, col, type4, info) {
-    var indent5 = state.indented;
+    var indent4 = state.indented;
     if (state.context && state.context.type == "statement" && type4 != "statement")
-      indent5 = state.context.indented;
-    return state.context = new Context4(indent5, col, type4, info, null, state.context);
+      indent4 = state.context.indented;
+    return state.context = new Context4(indent4, col, type4, info, null, state.context);
   }
   function popContext(state) {
     var t2 = state.context.type;
@@ -28998,9 +28998,9 @@
     }
   }
   function clike(parserConfig2) {
-    var statementIndentUnit2 = parserConfig2.statementIndentUnit, dontAlignCalls = parserConfig2.dontAlignCalls, keywords26 = parserConfig2.keywords || {}, types5 = parserConfig2.types || {}, builtin2 = parserConfig2.builtin || {}, blockKeywords5 = parserConfig2.blockKeywords || {}, defKeywords = parserConfig2.defKeywords || {}, atoms7 = parserConfig2.atoms || {}, hooks3 = parserConfig2.hooks || {}, multiLineStrings3 = parserConfig2.multiLineStrings, indentStatements = parserConfig2.indentStatements !== false, indentSwitch = parserConfig2.indentSwitch !== false, namespaceSeparator = parserConfig2.namespaceSeparator, isPunctuationChar = parserConfig2.isPunctuationChar || /[\[\]{}\(\),;\:\.]/, numberStart = parserConfig2.numberStart || /[\d\.]/, number2 = parserConfig2.number || /^(?:0x[a-f\d]+|0b[01]+|(?:\d+\.?\d*|\.\d+)(?:e[-+]?\d+)?)(u|ll?|l|f)?/i, isOperatorChar4 = parserConfig2.isOperatorChar || /[+\-*&%=<>!?|\/]/, isIdentifierChar = parserConfig2.isIdentifierChar || /[\w\$_\xa1-\uffff]/, isReservedIdentifier = parserConfig2.isReservedIdentifier || false;
+    var statementIndentUnit2 = parserConfig2.statementIndentUnit, dontAlignCalls = parserConfig2.dontAlignCalls, keywords24 = parserConfig2.keywords || {}, types5 = parserConfig2.types || {}, builtin2 = parserConfig2.builtin || {}, blockKeywords5 = parserConfig2.blockKeywords || {}, defKeywords = parserConfig2.defKeywords || {}, atoms7 = parserConfig2.atoms || {}, hooks3 = parserConfig2.hooks || {}, multiLineStrings3 = parserConfig2.multiLineStrings, indentStatements = parserConfig2.indentStatements !== false, indentSwitch = parserConfig2.indentSwitch !== false, namespaceSeparator = parserConfig2.namespaceSeparator, isPunctuationChar = parserConfig2.isPunctuationChar || /[\[\]{}\(\),;\:\.]/, numberStart = parserConfig2.numberStart || /[\d\.]/, number2 = parserConfig2.number || /^(?:0x[a-f\d]+|0b[01]+|(?:\d+\.?\d*|\.\d+)(?:e[-+]?\d+)?)(u|ll?|l|f)?/i, isOperatorChar4 = parserConfig2.isOperatorChar || /[+\-*&%=<>!?|\/]/, isIdentifierChar = parserConfig2.isIdentifierChar || /[\w\$_\xa1-\uffff]/, isReservedIdentifier = parserConfig2.isReservedIdentifier || false;
     var curPunc8, isDefKeyword;
-    function tokenBase20(stream, state) {
+    function tokenBase19(stream, state) {
       var ch2 = stream.next();
       if (hooks3[ch2]) {
         var result = hooks3[ch2](stream, state);
@@ -29038,7 +29038,7 @@
       if (namespaceSeparator) while (stream.match(namespaceSeparator))
         stream.eatWhile(isIdentifierChar);
       var cur = stream.current();
-      if (contains2(keywords26, cur)) {
+      if (contains2(keywords24, cur)) {
         if (contains2(blockKeywords5, cur)) curPunc8 = "newstatement";
         if (contains2(defKeywords, cur)) isDefKeyword = true;
         return "keyword";
@@ -29104,7 +29104,7 @@
           return null;
         }
         curPunc8 = isDefKeyword = null;
-        var style2 = (state.tokenize || tokenBase20)(stream, state);
+        var style2 = (state.tokenize || tokenBase19)(stream, state);
         if (style2 == "comment" || style2 == "meta") return style2;
         if (ctx.align == null) ctx.align = true;
         if (curPunc8 == ";" || curPunc8 == ":" || curPunc8 == "," && stream.match(/^\s*(?:\/\/.*)?$/, false))
@@ -29133,7 +29133,7 @@
         return style2;
       },
       indent: function(state, textAfter, context) {
-        if (state.tokenize != tokenBase20 && state.tokenize != null || state.typeAtEndOfLine && isTopScope(state.context))
+        if (state.tokenize != tokenBase19 && state.tokenize != null || state.typeAtEndOfLine && isTopScope(state.context))
           return null;
         var ctx = state.context, firstChar = textAfter && textAfter.charAt(0);
         var closing3 = firstChar == ctx.type;
@@ -29161,7 +29161,7 @@
       languageData: {
         indentOnInput: indentSwitch ? /^\s*(?:case .*?:|default:|\{\}?|\})$/ : /^\s*[{}]$/,
         commentTokens: { line: "//", block: { open: "/*", close: "*/" } },
-        autocomplete: Object.keys(keywords26).concat(Object.keys(types5)).concat(Object.keys(builtin2)).concat(Object.keys(atoms7)),
+        autocomplete: Object.keys(keywords24).concat(Object.keys(types5)).concat(Object.keys(builtin2)).concat(Object.keys(atoms7)),
         ...parserConfig2.languageData
       }
     };
@@ -29171,11 +29171,11 @@
     for (var i = 0; i < words10.length; ++i) obj[words10[i]] = true;
     return obj;
   }
-  function contains2(words10, word2) {
+  function contains2(words10, word) {
     if (typeof words10 === "function") {
-      return words10(word2);
+      return words10(word);
     } else {
-      return words10.propertyIsEnumerable(word2);
+      return words10.propertyIsEnumerable(word);
     }
   }
   var cKeywords = "auto if break case register continue return default do sizeof static else struct switch extern typedef union for goto while enum const volatile inline restrict asm fortran";
@@ -29243,8 +29243,8 @@
     stream.next();
     return false;
   }
-  function cppLooksLikeConstructor(word2) {
-    var lastTwo = /(\w+)::~?(\w+)$/.exec(word2);
+  function cppLooksLikeConstructor(word) {
+    var lastTwo = /(\w+)::~?(\w+)$/.exec(word);
     return lastTwo && lastTwo[1] == lastTwo[2];
   }
   function tokenAtString(stream, state) {
@@ -29611,8 +29611,8 @@
   var ceylon = clike({
     name: "ceylon",
     keywords: words("abstracts alias assembly assert assign break case catch class continue dynamic else exists extends finally for function given if import in interface is let module new nonempty object of out outer package return satisfies super switch then this throw try value void while"),
-    types: function(word2) {
-      var first = word2.charAt(0);
+    types: function(word) {
+      var first = word.charAt(0);
       return first === first.toUpperCase() && first !== first.toLowerCase();
     },
     blockKeywords: words("case catch class dynamic else finally for function if interface module new object switch try while"),
@@ -30807,13 +30807,13 @@
   function mkCSS(parserConfig2) {
     parserConfig2 = { ...defaults2, ...parserConfig2 };
     var inline = parserConfig2.inline;
-    var tokenHooks = parserConfig2.tokenHooks, documentTypes3 = parserConfig2.documentTypes || {}, mediaTypes3 = parserConfig2.mediaTypes || {}, mediaFeatures3 = parserConfig2.mediaFeatures || {}, mediaValueKeywords2 = parserConfig2.mediaValueKeywords || {}, propertyKeywords4 = parserConfig2.propertyKeywords || {}, nonStandardPropertyKeywords3 = parserConfig2.nonStandardPropertyKeywords || {}, fontProperties4 = parserConfig2.fontProperties || {}, counterDescriptors2 = parserConfig2.counterDescriptors || {}, colorKeywords4 = parserConfig2.colorKeywords || {}, valueKeywords4 = parserConfig2.valueKeywords || {}, allowNested = parserConfig2.allowNested, lineComment = parserConfig2.lineComment, supportsAtComponent = parserConfig2.supportsAtComponent === true, highlightNonStandardPropertyKeywords = parserConfig2.highlightNonStandardPropertyKeywords !== false;
+    var tokenHooks = parserConfig2.tokenHooks, documentTypes3 = parserConfig2.documentTypes || {}, mediaTypes3 = parserConfig2.mediaTypes || {}, mediaFeatures3 = parserConfig2.mediaFeatures || {}, mediaValueKeywords2 = parserConfig2.mediaValueKeywords || {}, propertyKeywords3 = parserConfig2.propertyKeywords || {}, nonStandardPropertyKeywords3 = parserConfig2.nonStandardPropertyKeywords || {}, fontProperties3 = parserConfig2.fontProperties || {}, counterDescriptors2 = parserConfig2.counterDescriptors || {}, colorKeywords3 = parserConfig2.colorKeywords || {}, valueKeywords3 = parserConfig2.valueKeywords || {}, allowNested = parserConfig2.allowNested, lineComment = parserConfig2.lineComment, supportsAtComponent = parserConfig2.supportsAtComponent === true, highlightNonStandardPropertyKeywords = parserConfig2.highlightNonStandardPropertyKeywords !== false;
     var type4, override2;
     function ret2(style2, tp) {
       type4 = tp;
       return style2;
     }
-    function tokenBase20(stream, state) {
+    function tokenBase19(stream, state) {
       var ch2 = stream.next();
       if (tokenHooks[ch2]) {
         var result = tokenHooks[ch2](stream, state);
@@ -30888,13 +30888,13 @@
         state.tokenize = null;
       return ret2(null, "(");
     }
-    function Context11(type5, indent5, prev) {
+    function Context11(type5, indent4, prev) {
       this.type = type5;
-      this.indent = indent5;
+      this.indent = indent4;
       this.prev = prev;
     }
-    function pushContext9(state, stream, type5, indent5) {
-      state.context = new Context11(type5, stream.indentation() + (indent5 === false ? 0 : stream.indentUnit), state.context);
+    function pushContext9(state, stream, type5, indent4) {
+      state.context = new Context11(type5, stream.indentation() + (indent4 === false ? 0 : stream.indentUnit), state.context);
       return type5;
     }
     function popContext9(state) {
@@ -30911,10 +30911,10 @@
       return pass2(type5, stream, state);
     }
     function wordAsValue2(stream) {
-      var word2 = stream.current().toLowerCase();
-      if (valueKeywords4.hasOwnProperty(word2))
+      var word = stream.current().toLowerCase();
+      if (valueKeywords3.hasOwnProperty(word))
         override2 = "atom";
-      else if (colorKeywords4.hasOwnProperty(word2))
+      else if (colorKeywords3.hasOwnProperty(word))
         override2 = "keyword";
       else
         override2 = "variable";
@@ -30955,11 +30955,11 @@
     };
     states2.block = function(type5, stream, state) {
       if (type5 == "word") {
-        var word2 = stream.current().toLowerCase();
-        if (propertyKeywords4.hasOwnProperty(word2)) {
+        var word = stream.current().toLowerCase();
+        if (propertyKeywords3.hasOwnProperty(word)) {
           override2 = "property";
           return "maybeprop";
-        } else if (nonStandardPropertyKeywords3.hasOwnProperty(word2)) {
+        } else if (nonStandardPropertyKeywords3.hasOwnProperty(word)) {
           override2 = highlightNonStandardPropertyKeywords ? "string.special" : "property";
           return "maybeprop";
         } else if (allowNested) {
@@ -31034,22 +31034,22 @@
       if (type5 == "{") return popContext9(state) && pushContext9(state, stream, allowNested ? "block" : "top");
       if (type5 == "interpolation") return pushContext9(state, stream, "interpolation");
       if (type5 == "word") {
-        var word2 = stream.current().toLowerCase();
-        if (word2 == "only" || word2 == "not" || word2 == "and" || word2 == "or")
+        var word = stream.current().toLowerCase();
+        if (word == "only" || word == "not" || word == "and" || word == "or")
           override2 = "keyword";
-        else if (mediaTypes3.hasOwnProperty(word2))
+        else if (mediaTypes3.hasOwnProperty(word))
           override2 = "attribute";
-        else if (mediaFeatures3.hasOwnProperty(word2))
+        else if (mediaFeatures3.hasOwnProperty(word))
           override2 = "property";
-        else if (mediaValueKeywords2.hasOwnProperty(word2))
+        else if (mediaValueKeywords2.hasOwnProperty(word))
           override2 = "keyword";
-        else if (propertyKeywords4.hasOwnProperty(word2))
+        else if (propertyKeywords3.hasOwnProperty(word))
           override2 = "property";
-        else if (nonStandardPropertyKeywords3.hasOwnProperty(word2))
+        else if (nonStandardPropertyKeywords3.hasOwnProperty(word))
           override2 = highlightNonStandardPropertyKeywords ? "string.special" : "property";
-        else if (valueKeywords4.hasOwnProperty(word2))
+        else if (valueKeywords3.hasOwnProperty(word))
           override2 = "atom";
-        else if (colorKeywords4.hasOwnProperty(word2))
+        else if (colorKeywords3.hasOwnProperty(word))
           override2 = "keyword";
         else
           override2 = "error";
@@ -31085,7 +31085,7 @@
         return popContext9(state);
       }
       if (type5 == "word") {
-        if (state.stateArg == "@font-face" && !fontProperties4.hasOwnProperty(stream.current().toLowerCase()) || state.stateArg == "@counter-style" && !counterDescriptors2.hasOwnProperty(stream.current().toLowerCase()))
+        if (state.stateArg == "@font-face" && !fontProperties3.hasOwnProperty(stream.current().toLowerCase()) || state.stateArg == "@counter-style" && !counterDescriptors2.hasOwnProperty(stream.current().toLowerCase()))
           override2 = "error";
         else
           override2 = "property";
@@ -31127,7 +31127,7 @@
       },
       token: function(stream, state) {
         if (!state.tokenize && stream.eatSpace()) return null;
-        var style2 = (state.tokenize || tokenBase20)(stream, state);
+        var style2 = (state.tokenize || tokenBase19)(stream, state);
         if (style2 && typeof style2 == "object") {
           type4 = style2[1];
           style2 = style2[0];
@@ -31139,17 +31139,17 @@
       },
       indent: function(state, textAfter, iCx) {
         var cx = state.context, ch2 = textAfter && textAfter.charAt(0);
-        var indent5 = cx.indent;
+        var indent4 = cx.indent;
         if (cx.type == "prop" && (ch2 == "}" || ch2 == ")")) cx = cx.prev;
         if (cx.prev) {
           if (ch2 == "}" && (cx.type == "block" || cx.type == "top" || cx.type == "interpolation" || cx.type == "restricted_atBlock")) {
             cx = cx.prev;
-            indent5 = cx.indent;
+            indent4 = cx.indent;
           } else if (ch2 == ")" && (cx.type == "parens" || cx.type == "atBlock_parens") || ch2 == "{" && (cx.type == "at" || cx.type == "atBlock")) {
-            indent5 = Math.max(0, cx.indent - iCx.unit);
+            indent4 = Math.max(0, cx.indent - iCx.unit);
           }
         }
-        return indent5;
+        return indent4;
       },
       languageData: {
         indentOnInput: /^\s*\}$/,
@@ -32453,13 +32453,6 @@
   ];
   var valueKeywords = keySet(valueKeywords_);
   var allWords = documentTypes_.concat(mediaTypes_).concat(mediaFeatures_).concat(mediaValueKeywords_).concat(propertyKeywords_).concat(nonStandardPropertyKeywords_).concat(colorKeywords_).concat(valueKeywords_);
-  var keywords5 = {
-    properties: propertyKeywords_,
-    colors: colorKeywords_,
-    fonts: fontProperties_,
-    values: valueKeywords_,
-    all: allWords
-  };
   var defaults2 = {
     documentTypes,
     mediaTypes,
@@ -32604,7 +32597,7 @@
   var anotherOperators = /^(?:\.(?:\.{2})?|->|[?:])/;
   var idents = /^[a-z_\u009F-\uFFFF][a-zA-Z0-9_\u009F-\uFFFF]*/;
   var types2 = /^[A-Z_\u009F-\uFFFF][a-zA-Z0-9_\u009F-\uFFFF]*/;
-  var keywords6 = wordRegExp([
+  var keywords5 = wordRegExp([
     "abstract",
     "alias",
     "as",
@@ -32713,7 +32706,7 @@
         return "atom";
       } else if (state.lastToken == ".") {
         return "property";
-      } else if (keywords6.test(matched)) {
+      } else if (keywords5.test(matched)) {
         if (indentKeywords.test(matched)) {
           if (!(matched == "fun" && state.blocks.indexOf("lib") >= 0) && !(matched == "def" && state.lastToken == "abstract")) {
             state.blocks.push(matched);
@@ -33007,7 +33000,7 @@
     }
   };
   var statementIndentUnit = parserConfig.statementIndentUnit;
-  var keywords7 = parserConfig.keywords;
+  var keywords6 = parserConfig.keywords;
   var builtin = parserConfig.builtin;
   var blockKeywords = parserConfig.blockKeywords;
   var atoms2 = parserConfig.atoms;
@@ -33053,7 +33046,7 @@
     }
     stream.eatWhile(/[\w\$_\xa1-\uffff]/);
     var cur = stream.current();
-    if (keywords7.propertyIsEnumerable(cur)) {
+    if (keywords6.propertyIsEnumerable(cur)) {
       if (blockKeywords.propertyIsEnumerable(cur)) curPunc = "newstatement";
       return "keyword";
     }
@@ -33109,10 +33102,10 @@
     this.prev = prev;
   }
   function pushContext2(state, col, type4) {
-    var indent5 = state.indented;
+    var indent4 = state.indented;
     if (state.context && state.context.type == "statement")
-      indent5 = state.context.indented;
-    return state.context = new Context5(indent5, col, type4, null, state.context);
+      indent4 = state.context.indented;
+    return state.context = new Context5(indent4, col, type4, null, state.context);
   }
   function popContext2(state) {
     var t2 = state.context.type;
@@ -33693,8 +33686,8 @@
       var type4 = state.f(stream, function(s) {
         state.f = s;
       });
-      var word2 = stream.current();
-      return wellKnownWords.hasOwnProperty(word2) ? "keyword" : type4;
+      var word = stream.current();
+      return wellKnownWords.hasOwnProperty(word) ? "keyword" : type4;
     },
     languageData: {
       commentTokens: { line: "--" }
@@ -34382,7 +34375,7 @@
     }
     return keys;
   }
-  var keywords8 = words3([
+  var keywords7 = words3([
     "abstract",
     "accept",
     "allocatable",
@@ -34804,11 +34797,11 @@
       return "operator";
     }
     stream.eatWhile(/[\w\$_]/);
-    var word2 = stream.current().toLowerCase();
-    if (keywords8.hasOwnProperty(word2)) {
+    var word = stream.current().toLowerCase();
+    if (keywords7.hasOwnProperty(word)) {
       return "keyword";
     }
-    if (builtins.hasOwnProperty(word2) || dataTypes.hasOwnProperty(word2)) {
+    if (builtins.hasOwnProperty(word) || dataTypes.hasOwnProperty(word)) {
       return "builtin";
     }
     return "variable";
@@ -34846,7 +34839,7 @@
     for (var i = 0; i < words10.length; ++i) obj[words10[i]] = true;
     return obj;
   }
-  var keywords9 = words4(
+  var keywords8 = words4(
     "abstract as assert boolean break byte case catch char class const continue def default do double else enum extends final finally float for goto if implements import in instanceof int interface long native new package private protected public return short static strictfp super switch synchronized threadsafe throw throws trait transient try void volatile while"
   );
   var blockKeywords2 = words4("catch class def do else enum finally for if interface switch trait try while");
@@ -34905,7 +34898,7 @@
     if (atoms3.propertyIsEnumerable(cur)) {
       return "atom";
     }
-    if (keywords9.propertyIsEnumerable(cur)) {
+    if (keywords8.propertyIsEnumerable(cur)) {
       if (blockKeywords2.propertyIsEnumerable(cur)) curPunc2 = "newstatement";
       else if (standaloneKeywords.propertyIsEnumerable(cur)) curPunc2 = "standalone";
       return "keyword";
@@ -35724,7 +35717,7 @@
   var builtinsList = ["true", "false", "nothing", "NaN", "Inf"];
   var openers = wordRegexp(openersList);
   var closers = wordRegexp(closersList);
-  var keywords10 = wordRegexp(keywordsList);
+  var keywords9 = wordRegexp(keywordsList);
   var builtins2 = wordRegexp(builtinsList);
   var macro = /^@[_A-Za-z\u00A1-\uFFFF][\w\u00A1-\uFFFF]*!*/;
   var symbol2 = /^:[_A-Za-z\u00A1-\uFFFF][\w\u00A1-\uFFFF]*!*/;
@@ -35864,7 +35857,7 @@
     if (stream.match(delimiters)) {
       return null;
     }
-    if (stream.match(keywords10)) {
+    if (stream.match(keywords9)) {
       return "keyword";
     }
     if (stream.match(builtins2)) {
@@ -36150,7 +36143,7 @@
     "table.remove",
     "table.sort"
   ]);
-  var keywords11 = wordRE([
+  var keywords10 = wordRE([
     "and",
     "break",
     "elseif",
@@ -36238,14 +36231,14 @@
     token: function(stream, state) {
       if (stream.eatSpace()) return null;
       var style2 = state.cur(stream, state);
-      var word2 = stream.current();
+      var word = stream.current();
       if (style2 == "variable") {
-        if (keywords11.test(word2)) style2 = "keyword";
-        else if (builtins3.test(word2)) style2 = "builtin";
+        if (keywords10.test(word)) style2 = "keyword";
+        else if (builtins3.test(word)) style2 = "builtin";
       }
       if (style2 != "comment" && style2 != "string") {
-        if (indentTokens.test(word2)) ++state.indentDepth;
-        else if (dedentTokens.test(word2)) --state.indentDepth;
+        if (indentTokens.test(word)) ++state.indentDepth;
+        else if (dedentTokens.test(word)) --state.indentDepth;
       }
       return style2;
     },
@@ -36293,7 +36286,7 @@
     for (var k in words10) {
       hintWords2.push(k);
     }
-    function tokenBase20(stream, state) {
+    function tokenBase19(stream, state) {
       var ch2 = stream.next();
       if (ch2 === '"') {
         state.tokenize = tokenString11;
@@ -36365,7 +36358,7 @@
         escaped = !escaped && next2 === "\\";
       }
       if (end && !escaped) {
-        state.tokenize = tokenBase20;
+        state.tokenize = tokenBase19;
       }
       return "string";
     }
@@ -36378,7 +36371,7 @@
         prev = next2;
       }
       if (state.commentLevel <= 0) {
-        state.tokenize = tokenBase20;
+        state.tokenize = tokenBase19;
       }
       return "comment";
     }
@@ -36389,13 +36382,13 @@
         prev = next2;
       }
       if (!state.longString) {
-        state.tokenize = tokenBase20;
+        state.tokenize = tokenBase19;
       }
       return "string";
     }
     return {
       startState: function() {
-        return { tokenize: tokenBase20, commentLevel: 0, longString: false };
+        return { tokenize: tokenBase19, commentLevel: 0, longString: false };
       },
       token: function(stream, state) {
         if (stream.eatSpace()) return null;
@@ -36600,7 +36593,7 @@
     for (var i = 0; i < words10.length; ++i) obj[words10[i]] = true;
     return obj;
   }
-  var keywords12 = words5(
+  var keywords11 = words5(
     /* ngxDirectiveControl */
     "break return rewrite set accept_mutex accept_mutex_delay access_log add_after_body add_before_body add_header addition_types aio alias allow ancient_browser ancient_browser_value auth_basic auth_basic_user_file auth_http auth_http_header auth_http_timeout autoindex autoindex_exact_size autoindex_localtime charset charset_types client_body_buffer_size client_body_in_file_only client_body_in_single_buffer client_body_temp_path client_body_timeout client_header_buffer_size client_header_timeout client_max_body_size connection_pool_size create_full_put_path daemon dav_access dav_methods debug_connection debug_points default_type degradation degrade deny devpoll_changes devpoll_events directio directio_alignment empty_gif env epoll_events error_log eventport_events expires fastcgi_bind fastcgi_buffer_size fastcgi_buffers fastcgi_busy_buffers_size fastcgi_cache fastcgi_cache_key fastcgi_cache_methods fastcgi_cache_min_uses fastcgi_cache_path fastcgi_cache_use_stale fastcgi_cache_valid fastcgi_catch_stderr fastcgi_connect_timeout fastcgi_hide_header fastcgi_ignore_client_abort fastcgi_ignore_headers fastcgi_index fastcgi_intercept_errors fastcgi_max_temp_file_size fastcgi_next_upstream fastcgi_param fastcgi_pass_header fastcgi_pass_request_body fastcgi_pass_request_headers fastcgi_read_timeout fastcgi_send_lowat fastcgi_send_timeout fastcgi_split_path_info fastcgi_store fastcgi_store_access fastcgi_temp_file_write_size fastcgi_temp_path fastcgi_upstream_fail_timeout fastcgi_upstream_max_fails flv geoip_city geoip_country google_perftools_profiles gzip gzip_buffers gzip_comp_level gzip_disable gzip_hash gzip_http_version gzip_min_length gzip_no_buffer gzip_proxied gzip_static gzip_types gzip_vary gzip_window if_modified_since ignore_invalid_headers image_filter image_filter_buffer image_filter_jpeg_quality image_filter_transparency imap_auth imap_capabilities imap_client_buffer index ip_hash keepalive_requests keepalive_timeout kqueue_changes kqueue_events large_client_header_buffers limit_conn limit_conn_log_level limit_rate limit_rate_after limit_req limit_req_log_level limit_req_zone limit_zone lingering_time lingering_timeout lock_file log_format log_not_found log_subrequest map_hash_bucket_size map_hash_max_size master_process memcached_bind memcached_buffer_size memcached_connect_timeout memcached_next_upstream memcached_read_timeout memcached_send_timeout memcached_upstream_fail_timeout memcached_upstream_max_fails merge_slashes min_delete_depth modern_browser modern_browser_value msie_padding msie_refresh multi_accept open_file_cache open_file_cache_errors open_file_cache_events open_file_cache_min_uses open_file_cache_valid open_log_file_cache output_buffers override_charset perl perl_modules perl_require perl_set pid pop3_auth pop3_capabilities port_in_redirect postpone_gzipping postpone_output protocol proxy proxy_bind proxy_buffer proxy_buffer_size proxy_buffering proxy_buffers proxy_busy_buffers_size proxy_cache proxy_cache_key proxy_cache_methods proxy_cache_min_uses proxy_cache_path proxy_cache_use_stale proxy_cache_valid proxy_connect_timeout proxy_headers_hash_bucket_size proxy_headers_hash_max_size proxy_hide_header proxy_ignore_client_abort proxy_ignore_headers proxy_intercept_errors proxy_max_temp_file_size proxy_method proxy_next_upstream proxy_pass_error_message proxy_pass_header proxy_pass_request_body proxy_pass_request_headers proxy_read_timeout proxy_redirect proxy_send_lowat proxy_send_timeout proxy_set_body proxy_set_header proxy_ssl_session_reuse proxy_store proxy_store_access proxy_temp_file_write_size proxy_temp_path proxy_timeout proxy_upstream_fail_timeout proxy_upstream_max_fails random_index read_ahead real_ip_header recursive_error_pages request_pool_size reset_timedout_connection resolver resolver_timeout rewrite_log rtsig_overflow_events rtsig_overflow_test rtsig_overflow_threshold rtsig_signo satisfy secure_link_secret send_lowat send_timeout sendfile sendfile_max_chunk server_name_in_redirect server_names_hash_bucket_size server_names_hash_max_size server_tokens set_real_ip_from smtp_auth smtp_capabilities smtp_client_buffer smtp_greeting_delay so_keepalive source_charset ssi ssi_ignore_recycled_buffers ssi_min_file_chunk ssi_silent_errors ssi_types ssi_value_length ssl ssl_certificate ssl_certificate_key ssl_ciphers ssl_client_certificate ssl_crl ssl_dhparam ssl_engine ssl_prefer_server_ciphers ssl_protocols ssl_session_cache ssl_session_timeout ssl_verify_client ssl_verify_depth starttls stub_status sub_filter sub_filter_once sub_filter_types tcp_nodelay tcp_nopush thread_stack_size timeout timer_resolution types_hash_bucket_size types_hash_max_size underscores_in_headers uninitialized_variable_warn use user userid userid_domain userid_expires userid_mark userid_name userid_p3p userid_path userid_service valid_referers variables_hash_bucket_size variables_hash_max_size worker_connections worker_cpu_affinity worker_priority worker_processes worker_rlimit_core worker_rlimit_nofile worker_rlimit_sigpending worker_threads working_directory xclient xml_entities xslt_stylesheet xslt_typesdrew@li229-23"
   );
@@ -36620,7 +36613,7 @@
   function tokenBase6(stream, state) {
     stream.eatWhile(/[\w\$_]/);
     var cur = stream.current();
-    if (keywords12.propertyIsEnumerable(cur)) {
+    if (keywords11.propertyIsEnumerable(cur)) {
       return "keyword";
     } else if (keywords_block.propertyIsEnumerable(cur)) {
       return "controlKeyword";
@@ -36814,7 +36807,7 @@
     "flipud",
     "ismember"
   ]);
-  var keywords13 = wordRegexp2([
+  var keywords12 = wordRegexp2([
     "return",
     "case",
     "switch",
@@ -36897,7 +36890,7 @@
     if (m) {
       return m[1] ? "string" : "error";
     }
-    if (stream.match(keywords13)) {
+    if (stream.match(keywords12)) {
       return "keyword";
     }
     ;
@@ -38064,7 +38057,7 @@
   }
   var notCharacterOrDash = "(?=[^A-Za-z\\d\\-_]|$)";
   var varNames = /[\w\-:]/;
-  var keywords14 = buildRegexp([
+  var keywords13 = buildRegexp([
     /begin|break|catch|continue|data|default|do|dynamicparam/,
     /else|elseif|end|exit|filter|finally|for|foreach|from|function|if|in/,
     /param|process|return|switch|throw|trap|try|until|where|while/
@@ -38172,7 +38165,7 @@
   ], { prefix: "\\$", suffix: "" });
   var builtins5 = buildRegexp([symbolBuiltins, namedBuiltins, variableBuiltins], { suffix: notCharacterOrDash });
   var grammar = {
-    keyword: keywords14,
+    keyword: keywords13,
     number: numbers,
     operator: operators3,
     builtin: builtins5,
@@ -38469,7 +38462,7 @@
     "rpc",
     "returns"
   ];
-  var keywords15 = wordRegexp3(keywordArray);
+  var keywords14 = wordRegexp3(keywordArray);
   var identifiers5 = new RegExp("^[_A-Za-z\xA1-\uFFFF][_A-Za-z0-9\xA1-\uFFFF]*");
   function tokenBase9(stream) {
     if (stream.eatSpace()) return null;
@@ -38491,7 +38484,7 @@
     if (stream.match(/^'([^']|(''))*'/)) {
       return "string";
     }
-    if (stream.match(keywords15)) {
+    if (stream.match(keywords14)) {
       return "keyword";
     }
     if (stream.match(identifiers5)) {
@@ -38516,7 +38509,7 @@
     var jsonMode = parserConfig2.json || jsonldMode;
     var isTS = parserConfig2.typescript;
     var wordRE2 = parserConfig2.wordCharacters || /[\w$\xa1-\uffff]/;
-    var keywords26 = (function() {
+    var keywords24 = (function() {
       function kw(type5) {
         return { type: type5, style: "keyword" };
       }
@@ -38585,7 +38578,7 @@
       content2 = cont2;
       return style2;
     }
-    function tokenBase20(stream, state) {
+    function tokenBase19(stream, state) {
       var ch2 = stream.next();
       if (ch2 == '"' || ch2 == "'") {
         state.tokenize = tokenString11(ch2);
@@ -38642,30 +38635,30 @@
         return ret2("operator", "operator", stream.current());
       } else if (wordRE2.test(ch2)) {
         stream.eatWhile(wordRE2);
-        var word2 = stream.current();
+        var word = stream.current();
         if (state.lastType != ".") {
-          if (keywords26.propertyIsEnumerable(word2)) {
-            var kw = keywords26[word2];
-            return ret2(kw.type, kw.style, word2);
+          if (keywords24.propertyIsEnumerable(word)) {
+            var kw = keywords24[word];
+            return ret2(kw.type, kw.style, word);
           }
-          if (word2 == "async" && stream.match(/^(\s|\/\*([^*]|\*(?!\/))*?\*\/)*[\[\(\w]/, false))
-            return ret2("async", "keyword", word2);
+          if (word == "async" && stream.match(/^(\s|\/\*([^*]|\*(?!\/))*?\*\/)*[\[\(\w]/, false))
+            return ret2("async", "keyword", word);
         }
-        return ret2("variable", "variable", word2);
+        return ret2("variable", "variable", word);
       }
     }
     function tokenString11(quote2) {
       return function(stream, state) {
         var escaped = false, next2;
         if (jsonldMode && stream.peek() == "@" && stream.match(isJsonldKeyword)) {
-          state.tokenize = tokenBase20;
+          state.tokenize = tokenBase19;
           return ret2("jsonld-keyword", "meta");
         }
         while ((next2 = stream.next()) != null) {
           if (next2 == quote2 && !escaped) break;
           escaped = !escaped && next2 == "\\";
         }
-        if (!escaped) state.tokenize = tokenBase20;
+        if (!escaped) state.tokenize = tokenBase19;
         return ret2("string", "string");
       };
     }
@@ -38673,7 +38666,7 @@
       var maybeEnd = false, ch2;
       while (ch2 = stream.next()) {
         if (ch2 == "/" && maybeEnd) {
-          state.tokenize = tokenBase20;
+          state.tokenize = tokenBase19;
           break;
         }
         maybeEnd = ch2 == "*";
@@ -38684,7 +38677,7 @@
       var escaped = false, next2;
       while ((next2 = stream.next()) != null) {
         if (!escaped && (next2 == "`" || next2 == "$" && stream.eat("{"))) {
-          state.tokenize = tokenBase20;
+          state.tokenize = tokenBase19;
           break;
         }
         escaped = !escaped && next2 == "\\";
@@ -38852,11 +38845,11 @@
     popcontext.lex = true;
     function pushlex(type5, info) {
       var result = function() {
-        var state = cx.state, indent5 = state.indented;
-        if (state.lexical.type == "stat") indent5 = state.lexical.indented;
+        var state = cx.state, indent4 = state.indented;
+        if (state.lexical.type == "stat") indent4 = state.lexical.indented;
         else for (var outer = state.lexical; outer && outer.type == ")" && outer.align; outer = outer.prev)
-          indent5 = outer.indented;
-        state.lexical = new JSLexical(indent5, cx.stream.column(), type5, null, state.lexical, info);
+          indent4 = outer.indented;
+        state.lexical = new JSLexical(indent4, cx.stream.column(), type5, null, state.lexical, info);
       };
       result.lex = true;
       return result;
@@ -39432,13 +39425,13 @@
       return state.lastType == "operator" || state.lastType == "," || isOperatorChar4.test(textAfter.charAt(0)) || /[,.]/.test(textAfter.charAt(0));
     }
     function expressionAllowed(stream, state, backUp) {
-      return state.tokenize == tokenBase20 && /^(?:operator|sof|keyword [bcd]|case|new|export|default|spread|[\[{}\(,;:]|=>)$/.test(state.lastType) || state.lastType == "quasi" && /\{\s*$/.test(stream.string.slice(0, stream.pos - (backUp || 0)));
+      return state.tokenize == tokenBase19 && /^(?:operator|sof|keyword [bcd]|case|new|export|default|spread|[\[{}\(,;:]|=>)$/.test(state.lastType) || state.lastType == "quasi" && /\{\s*$/.test(stream.string.slice(0, stream.pos - (backUp || 0)));
     }
     return {
       name: parserConfig2.name,
       startState: function(indentUnit2) {
         var state = {
-          tokenize: tokenBase20,
+          tokenize: tokenBase19,
           lastType: "sof",
           cc: [],
           lexical: new JSLexical(-indentUnit2, 0, "block", false),
@@ -39465,7 +39458,7 @@
       },
       indent: function(state, textAfter, cx2) {
         if (state.tokenize == tokenComment7 || state.tokenize == tokenQuasi) return null;
-        if (state.tokenize != tokenBase20) return 0;
+        if (state.tokenize != tokenBase19) return 0;
         var firstChar = textAfter && textAfter.charAt(0), lexical = state.lexical, top2;
         if (!/^\s*else\b/.test(textAfter)) for (var i = state.cc.length - 1; i >= 0; --i) {
           var c2 = state.cc[i];
@@ -39936,7 +39929,7 @@
     return "string";
   }
   function tokenize2(stream, state) {
-    var word2 = stream.match(/[\w]+/, false);
+    var word = stream.match(/[\w]+/, false);
     var attribute2 = stream.match(/(\s+)?\w+\s+=>.*/, false);
     var resource = stream.match(/(\s+)?[\w:_]+(\s+)?{/, false);
     var special_resource = stream.match(/(\s+)?[@]{1,2}[\w:_]+(\s+)?{/, false);
@@ -39971,18 +39964,18 @@
       stream.match(/(\s+)?\w+/);
       return "tag";
     }
-    if (word2 && words6.hasOwnProperty(word2)) {
+    if (word && words6.hasOwnProperty(word)) {
       stream.backUp(1);
       stream.match(/[\w]+/);
       if (stream.match(/\s+\S+\s+{/, false)) {
         state.inDefinition = true;
       }
-      if (word2 == "include") {
+      if (word == "include") {
         state.inInclude = true;
       }
-      return words6[word2];
+      return words6[word];
     }
-    if (/(^|\s+)[A-Z][\w:_]+/.test(word2)) {
+    if (/(^|\s+)[A-Z][\w:_]+/.test(word)) {
       stream.backUp(1);
       stream.match(/(^|\s+)[A-Z][\w:_]+/);
       return "def";
@@ -40051,7 +40044,7 @@
   var commonBlockKeywords = ["if", "else", "repeat", "while", "function", "for"];
   var atoms4 = wordObj(commonAtoms);
   var builtins6 = wordObj(commonBuiltins);
-  var keywords16 = wordObj(commonKeywords);
+  var keywords15 = wordObj(commonKeywords);
   var blockkeywords = wordObj(commonBlockKeywords);
   var opChars = /[+\-*\/^<>=!&|~$:]/;
   var curPunc3;
@@ -40080,14 +40073,14 @@
       return "keyword";
     } else if (/[a-zA-Z\.]/.test(ch2)) {
       stream.eatWhile(/[\w\.]/);
-      var word2 = stream.current();
-      if (atoms4.propertyIsEnumerable(word2)) return "atom";
-      if (keywords16.propertyIsEnumerable(word2)) {
-        if (blockkeywords.propertyIsEnumerable(word2) && !stream.match(/\s*if(\s+|$)/, false))
+      var word = stream.current();
+      if (atoms4.propertyIsEnumerable(word)) return "atom";
+      if (keywords15.propertyIsEnumerable(word)) {
+        if (blockkeywords.propertyIsEnumerable(word) && !stream.match(/\s*if(\s+|$)/, false))
           curPunc3 = "block";
         return "keyword";
       }
-      if (builtins6.propertyIsEnumerable(word2)) return "builtin";
+      if (builtins6.propertyIsEnumerable(word)) return "builtin";
       return "variable";
     } else if (ch2 == "%") {
       if (stream.skipTo("%")) stream.next();
@@ -40277,7 +40270,7 @@
     "__LINE__",
     "__dir__"
   ];
-  var keywords17 = wordObj2(keywordList);
+  var keywords16 = wordObj2(keywordList);
   var indentWords = wordObj2([
     "def",
     "class",
@@ -40504,15 +40497,15 @@
       var style2 = state.tokenize[state.tokenize.length - 1](stream, state), kwtype;
       var thisTok = curPunc4;
       if (style2 == "variable") {
-        var word2 = stream.current();
-        style2 = state.lastTok == "." ? "property" : keywords17.propertyIsEnumerable(stream.current()) ? "keyword" : /^[A-Z]/.test(word2) ? "tag" : state.lastTok == "def" || state.lastTok == "class" || state.varList ? "def" : "variable";
+        var word = stream.current();
+        style2 = state.lastTok == "." ? "property" : keywords16.propertyIsEnumerable(stream.current()) ? "keyword" : /^[A-Z]/.test(word) ? "tag" : state.lastTok == "def" || state.lastTok == "class" || state.varList ? "def" : "variable";
         if (style2 == "keyword") {
-          thisTok = word2;
-          if (indentWords.propertyIsEnumerable(word2)) kwtype = "indent";
-          else if (dedentWords.propertyIsEnumerable(word2)) kwtype = "dedent";
-          else if ((word2 == "if" || word2 == "unless") && stream.column() == stream.indentation())
+          thisTok = word;
+          if (indentWords.propertyIsEnumerable(word)) kwtype = "indent";
+          else if (dedentWords.propertyIsEnumerable(word)) kwtype = "dedent";
+          else if ((word == "if" || word == "unless") && stream.column() == stream.indentation())
             kwtype = "indent";
-          else if (word2 == "do" && state.context.indented < state.indented)
+          else if (word == "do" && state.context.indented < state.indented)
             kwtype = "indent";
         }
       }
@@ -40638,12 +40631,12 @@
     } else if (isSingleOperatorChar.test(ch2)) {
       return "operator";
     }
-    var word2;
+    var word;
     if (stream.match(/[%&;\w]+/, false) != null) {
-      word2 = ch2 + stream.match(/[%&;\w]+/, true);
-      if (/&/.test(word2)) return "variable";
+      word = ch2 + stream.match(/[%&;\w]+/, true);
+      if (/&/.test(word)) return "variable";
     } else {
-      word2 = ch2;
+      word = ch2;
     }
     if (state.nextword) {
       stream.match(/[\w]+/);
@@ -40651,76 +40644,76 @@
       state.nextword = false;
       return "variableName.special";
     }
-    word2 = word2.toLowerCase();
+    word = word.toLowerCase();
     if (state.inDataStep) {
-      if (word2 === "run;" || stream.match(/run\s;/)) {
+      if (word === "run;" || stream.match(/run\s;/)) {
         state.inDataStep = false;
         return "builtin";
       }
-      if (word2 && stream.next() === ".") {
+      if (word && stream.next() === ".") {
         if (/\w/.test(stream.peek())) return "variableName.special";
         else return "variable";
       }
-      if (word2 && words7.hasOwnProperty(word2) && (words7[word2].state.indexOf("inDataStep") !== -1 || words7[word2].state.indexOf("ALL") !== -1)) {
+      if (word && words7.hasOwnProperty(word) && (words7[word].state.indexOf("inDataStep") !== -1 || words7[word].state.indexOf("ALL") !== -1)) {
         if (stream.start < stream.pos)
           stream.backUp(stream.pos - stream.start);
-        for (var i = 0; i < word2.length; ++i) stream.next();
-        return words7[word2].style;
+        for (var i = 0; i < word.length; ++i) stream.next();
+        return words7[word].style;
       }
     }
     if (state.inProc) {
-      if (word2 === "run;" || word2 === "quit;") {
+      if (word === "run;" || word === "quit;") {
         state.inProc = false;
         return "builtin";
       }
-      if (word2 && words7.hasOwnProperty(word2) && (words7[word2].state.indexOf("inProc") !== -1 || words7[word2].state.indexOf("ALL") !== -1)) {
+      if (word && words7.hasOwnProperty(word) && (words7[word].state.indexOf("inProc") !== -1 || words7[word].state.indexOf("ALL") !== -1)) {
         stream.match(/[\w]+/);
-        return words7[word2].style;
+        return words7[word].style;
       }
     }
     if (state.inMacro) {
-      if (word2 === "%mend") {
+      if (word === "%mend") {
         if (stream.peek() === ";") stream.next();
         state.inMacro = false;
         return "builtin";
       }
-      if (word2 && words7.hasOwnProperty(word2) && (words7[word2].state.indexOf("inMacro") !== -1 || words7[word2].state.indexOf("ALL") !== -1)) {
+      if (word && words7.hasOwnProperty(word) && (words7[word].state.indexOf("inMacro") !== -1 || words7[word].state.indexOf("ALL") !== -1)) {
         stream.match(/[\w]+/);
-        return words7[word2].style;
+        return words7[word].style;
       }
       return "atom";
     }
-    if (word2 && words7.hasOwnProperty(word2)) {
+    if (word && words7.hasOwnProperty(word)) {
       stream.backUp(1);
       stream.match(/[\w]+/);
-      if (word2 === "data" && /=/.test(stream.peek()) === false) {
+      if (word === "data" && /=/.test(stream.peek()) === false) {
         state.inDataStep = true;
         state.nextword = true;
         return "builtin";
       }
-      if (word2 === "proc") {
+      if (word === "proc") {
         state.inProc = true;
         state.nextword = true;
         return "builtin";
       }
-      if (word2 === "%macro") {
+      if (word === "%macro") {
         state.inMacro = true;
         state.nextword = true;
         return "builtin";
       }
-      if (/title[1-9]/.test(word2)) return "def";
-      if (word2 === "footnote") {
+      if (/title[1-9]/.test(word)) return "def";
+      if (word === "footnote") {
         stream.eat(/[1-9]/);
         return "def";
       }
-      if (state.inDataStep === true && words7[word2].state.indexOf("inDataStep") !== -1)
-        return words7[word2].style;
-      if (state.inProc === true && words7[word2].state.indexOf("inProc") !== -1)
-        return words7[word2].style;
-      if (state.inMacro === true && words7[word2].state.indexOf("inMacro") !== -1)
-        return words7[word2].style;
-      if (words7[word2].state.indexOf("ALL") !== -1)
-        return words7[word2].style;
+      if (state.inDataStep === true && words7[word].state.indexOf("inDataStep") !== -1)
+        return words7[word].style;
+      if (state.inProc === true && words7[word].state.indexOf("inProc") !== -1)
+        return words7[word].style;
+      if (state.inMacro === true && words7[word].state.indexOf("inMacro") !== -1)
+        return words7[word].style;
+      if (words7[word].state.indexOf("ALL") !== -1)
+        return words7[word].style;
       return null;
     }
     return null;
@@ -40746,378 +40739,6 @@
     }
   };
 
-  // node_modules/@codemirror/legacy-modes/mode/sass.js
-  var propertyKeywords2 = new Set(keywords5.properties);
-  var colorKeywords2 = new Set(keywords5.colors);
-  var valueKeywords2 = new Set(keywords5.values);
-  var fontProperties2 = new Set(keywords5.fonts);
-  function tokenRegexp(words10) {
-    return new RegExp("^" + words10.join("|"));
-  }
-  var keywords18 = ["true", "false", "null", "auto"];
-  var keywordsRegexp = new RegExp("^" + keywords18.join("|"));
-  var operators4 = [
-    "\\(",
-    "\\)",
-    "=",
-    ">",
-    "<",
-    "==",
-    ">=",
-    "<=",
-    "\\+",
-    "-",
-    "\\!=",
-    "/",
-    "\\*",
-    "%",
-    "and",
-    "or",
-    "not",
-    ";",
-    "\\{",
-    "\\}",
-    ":"
-  ];
-  var opRegexp = tokenRegexp(operators4);
-  var pseudoElementsRegexp = /^::?[a-zA-Z_][\w\-]*/;
-  var word;
-  function isEndLine(stream) {
-    return !stream.peek() || stream.match(/\s+$/, false);
-  }
-  function urlTokens(stream, state) {
-    let ch2 = stream.peek();
-    if (ch2 === ")") {
-      stream.next();
-      state.tokenizer = tokenBase12;
-      return "operator";
-    } else if (ch2 === "(") {
-      stream.next();
-      stream.eatSpace();
-      return "operator";
-    } else if (ch2 === "'" || ch2 === '"') {
-      state.tokenizer = buildStringTokenizer(stream.next());
-      return "string";
-    } else {
-      state.tokenizer = buildStringTokenizer(")", false);
-      return "string";
-    }
-  }
-  function comment3(indentation3, multiLine) {
-    return function(stream, state) {
-      if (stream.sol() && stream.indentation() <= indentation3) {
-        state.tokenizer = tokenBase12;
-        return tokenBase12(stream, state);
-      }
-      if (multiLine && stream.skipTo("*/")) {
-        stream.next();
-        stream.next();
-        state.tokenizer = tokenBase12;
-      } else {
-        stream.skipToEnd();
-      }
-      return "comment";
-    };
-  }
-  function buildStringTokenizer(quote2, greedy2) {
-    if (greedy2 == null) {
-      greedy2 = true;
-    }
-    function stringTokenizer2(stream, state) {
-      let nextChar = stream.next();
-      let peekChar = stream.peek();
-      let previousChar = stream.string.charAt(stream.pos - 2);
-      let endingString = nextChar !== "\\" && peekChar === quote2 || nextChar === quote2 && previousChar !== "\\";
-      if (endingString) {
-        if (nextChar !== quote2 && greedy2) {
-          stream.next();
-        }
-        if (isEndLine(stream)) {
-          state.cursorHalf = 0;
-        }
-        state.tokenizer = tokenBase12;
-        return "string";
-      } else if (nextChar === "#" && peekChar === "{") {
-        state.tokenizer = buildInterpolationTokenizer(stringTokenizer2);
-        stream.next();
-        return "operator";
-      } else {
-        return "string";
-      }
-    }
-    return stringTokenizer2;
-  }
-  function buildInterpolationTokenizer(currentTokenizer) {
-    return function(stream, state) {
-      if (stream.peek() === "}") {
-        stream.next();
-        state.tokenizer = currentTokenizer;
-        return "operator";
-      } else {
-        return tokenBase12(stream, state);
-      }
-    };
-  }
-  function indent3(state, stream) {
-    if (state.indentCount == 0) {
-      state.indentCount++;
-      let lastScopeOffset = state.scopes[0].offset;
-      let currentOffset = lastScopeOffset + stream.indentUnit;
-      state.scopes.unshift({ offset: currentOffset });
-    }
-  }
-  function dedent2(state) {
-    if (state.scopes.length == 1) return;
-    state.scopes.shift();
-  }
-  function tokenBase12(stream, state) {
-    let ch2 = stream.peek();
-    if (stream.match("/*")) {
-      state.tokenizer = comment3(stream.indentation(), true);
-      return state.tokenizer(stream, state);
-    }
-    if (stream.match("//")) {
-      state.tokenizer = comment3(stream.indentation(), false);
-      return state.tokenizer(stream, state);
-    }
-    if (stream.match("#{")) {
-      state.tokenizer = buildInterpolationTokenizer(tokenBase12);
-      return "operator";
-    }
-    if (ch2 === '"' || ch2 === "'") {
-      stream.next();
-      state.tokenizer = buildStringTokenizer(ch2);
-      return "string";
-    }
-    if (!state.cursorHalf) {
-      if (ch2 === "-") {
-        if (stream.match(/^-\w+-/)) {
-          return "meta";
-        }
-      }
-      if (ch2 === ".") {
-        stream.next();
-        if (stream.match(/^[\w-]+/)) {
-          indent3(state, stream);
-          return "qualifier";
-        } else if (stream.peek() === "#") {
-          indent3(state, stream);
-          return "tag";
-        }
-      }
-      if (ch2 === "#") {
-        stream.next();
-        if (stream.match(/^[\w-]+/)) {
-          indent3(state, stream);
-          return "builtin";
-        }
-        if (stream.peek() === "#") {
-          indent3(state, stream);
-          return "tag";
-        }
-      }
-      if (ch2 === "$") {
-        stream.next();
-        stream.eatWhile(/[\w-]/);
-        return "variable-2";
-      }
-      if (stream.match(/^-?[0-9\.]+/))
-        return "number";
-      if (stream.match(/^(px|em|in)\b/))
-        return "unit";
-      if (stream.match(keywordsRegexp))
-        return "keyword";
-      if (stream.match(/^url/) && stream.peek() === "(") {
-        state.tokenizer = urlTokens;
-        return "atom";
-      }
-      if (ch2 === "=") {
-        if (stream.match(/^=[\w-]+/)) {
-          indent3(state, stream);
-          return "meta";
-        }
-      }
-      if (ch2 === "+") {
-        if (stream.match(/^\+[\w-]+/)) {
-          return "meta";
-        }
-      }
-      if (ch2 === "@") {
-        if (stream.match("@extend")) {
-          if (!stream.match(/\s*[\w]/))
-            dedent2(state);
-        }
-      }
-      if (stream.match(/^@(else if|if|media|else|for|each|while|mixin|function)/)) {
-        indent3(state, stream);
-        return "def";
-      }
-      if (ch2 === "@") {
-        stream.next();
-        stream.eatWhile(/[\w-]/);
-        return "def";
-      }
-      if (stream.eatWhile(/[\w-]/)) {
-        if (stream.match(/ *: *[\w-\+\$#!\("']/, false)) {
-          word = stream.current().toLowerCase();
-          let prop = state.prevProp + "-" + word;
-          if (propertyKeywords2.has(prop)) {
-            return "property";
-          } else if (propertyKeywords2.has(word)) {
-            state.prevProp = word;
-            return "property";
-          } else if (fontProperties2.has(word)) {
-            return "property";
-          }
-          return "tag";
-        } else if (stream.match(/ *:/, false)) {
-          indent3(state, stream);
-          state.cursorHalf = 1;
-          state.prevProp = stream.current().toLowerCase();
-          return "property";
-        } else if (stream.match(/ *,/, false)) {
-          return "tag";
-        } else {
-          indent3(state, stream);
-          return "tag";
-        }
-      }
-      if (ch2 === ":") {
-        if (stream.match(pseudoElementsRegexp)) {
-          return "type";
-        }
-        stream.next();
-        state.cursorHalf = 1;
-        return "operator";
-      }
-    } else {
-      if (ch2 === "#") {
-        stream.next();
-        if (stream.match(/[0-9a-fA-F]{6}|[0-9a-fA-F]{3}/)) {
-          if (isEndLine(stream)) {
-            state.cursorHalf = 0;
-          }
-          return "number";
-        }
-      }
-      if (stream.match(/^-?[0-9\.]+/)) {
-        if (isEndLine(stream)) {
-          state.cursorHalf = 0;
-        }
-        return "number";
-      }
-      if (stream.match(/^(px|em|in)\b/)) {
-        if (isEndLine(stream)) {
-          state.cursorHalf = 0;
-        }
-        return "unit";
-      }
-      if (stream.match(keywordsRegexp)) {
-        if (isEndLine(stream)) {
-          state.cursorHalf = 0;
-        }
-        return "keyword";
-      }
-      if (stream.match(/^url/) && stream.peek() === "(") {
-        state.tokenizer = urlTokens;
-        if (isEndLine(stream)) {
-          state.cursorHalf = 0;
-        }
-        return "atom";
-      }
-      if (ch2 === "$") {
-        stream.next();
-        stream.eatWhile(/[\w-]/);
-        if (isEndLine(stream)) {
-          state.cursorHalf = 0;
-        }
-        return "variable-2";
-      }
-      if (ch2 === "!") {
-        stream.next();
-        state.cursorHalf = 0;
-        return stream.match(/^[\w]+/) ? "keyword" : "operator";
-      }
-      if (stream.match(opRegexp)) {
-        if (isEndLine(stream)) {
-          state.cursorHalf = 0;
-        }
-        return "operator";
-      }
-      if (stream.eatWhile(/[\w-]/)) {
-        if (isEndLine(stream)) {
-          state.cursorHalf = 0;
-        }
-        word = stream.current().toLowerCase();
-        if (valueKeywords2.has(word)) {
-          return "atom";
-        } else if (colorKeywords2.has(word)) {
-          return "keyword";
-        } else if (propertyKeywords2.has(word)) {
-          state.prevProp = stream.current().toLowerCase();
-          return "property";
-        } else {
-          return "tag";
-        }
-      }
-      if (isEndLine(stream)) {
-        state.cursorHalf = 0;
-        return null;
-      }
-    }
-    if (stream.match(opRegexp))
-      return "operator";
-    stream.next();
-    return null;
-  }
-  function tokenLexer(stream, state) {
-    if (stream.sol()) state.indentCount = 0;
-    let style2 = state.tokenizer(stream, state);
-    let current = stream.current();
-    if (current === "@return" || current === "}") {
-      dedent2(state);
-    }
-    if (style2 !== null) {
-      let startOfToken = stream.pos - current.length;
-      let withCurrentIndent = startOfToken + stream.indentUnit * state.indentCount;
-      let newScopes = [];
-      for (let i = 0; i < state.scopes.length; i++) {
-        let scope = state.scopes[i];
-        if (scope.offset <= withCurrentIndent)
-          newScopes.push(scope);
-      }
-      state.scopes = newScopes;
-    }
-    return style2;
-  }
-  var sass = {
-    name: "sass",
-    startState: function() {
-      return {
-        tokenizer: tokenBase12,
-        scopes: [{ offset: 0, type: "sass" }],
-        indentCount: 0,
-        cursorHalf: 0,
-        // cursor half tells us if cursor lies after (1)
-        // or before (0) colon (well... more or less)
-        definedVars: [],
-        definedMixins: []
-      };
-    },
-    token: function(stream, state) {
-      let style2 = tokenLexer(stream, state);
-      state.lastToken = { style: style2, content: stream.current() };
-      return style2;
-    },
-    indent: function(state) {
-      return state.scopes[0].offset;
-    },
-    languageData: {
-      commentTokens: { line: "//", block: { open: "/*", close: "*/" } },
-      autocomplete: keywords5.all
-    }
-  };
-
   // node_modules/@codemirror/legacy-modes/mode/scheme.js
   var BUILTIN = "builtin";
   var COMMENT = "comment";
@@ -41132,15 +40753,15 @@
     for (var i = 0; i < words10.length; ++i) obj[words10[i]] = true;
     return obj;
   }
-  var keywords19 = makeKeywords("\u03BB case-lambda call/cc class cond-expand define-class define-values exit-handler field import inherit init-field interface let*-values let-values let/ec mixin opt-lambda override protect provide public rename require require-for-syntax syntax syntax-case syntax-error unit/sig unless when with-syntax and begin call-with-current-continuation call-with-input-file call-with-output-file case cond define define-syntax define-macro defmacro delay do dynamic-wind else for-each if lambda let let* let-syntax letrec letrec-syntax map or syntax-rules abs acos angle append apply asin assoc assq assv atan boolean? caar cadr call-with-input-file call-with-output-file call-with-values car cdddar cddddr cdr ceiling char->integer char-alphabetic? char-ci<=? char-ci<? char-ci=? char-ci>=? char-ci>? char-downcase char-lower-case? char-numeric? char-ready? char-upcase char-upper-case? char-whitespace? char<=? char<? char=? char>=? char>? char? close-input-port close-output-port complex? cons cos current-input-port current-output-port denominator display eof-object? eq? equal? eqv? eval even? exact->inexact exact? exp expt #f floor force gcd imag-part inexact->exact inexact? input-port? integer->char integer? interaction-environment lcm length list list->string list->vector list-ref list-tail list? load log magnitude make-polar make-rectangular make-string make-vector max member memq memv min modulo negative? newline not null-environment null? number->string number? numerator odd? open-input-file open-output-file output-port? pair? peek-char port? positive? procedure? quasiquote quote quotient rational? rationalize read read-char real-part real? remainder reverse round scheme-report-environment set! set-car! set-cdr! sin sqrt string string->list string->number string->symbol string-append string-ci<=? string-ci<? string-ci=? string-ci>=? string-ci>? string-copy string-fill! string-length string-ref string-set! string<=? string<? string=? string>=? string>? string? substring symbol->string symbol? #t tan transcript-off transcript-on truncate values vector vector->list vector-fill! vector-length vector-ref vector-set! with-input-from-file with-output-to-file write write-char zero?");
+  var keywords17 = makeKeywords("\u03BB case-lambda call/cc class cond-expand define-class define-values exit-handler field import inherit init-field interface let*-values let-values let/ec mixin opt-lambda override protect provide public rename require require-for-syntax syntax syntax-case syntax-error unit/sig unless when with-syntax and begin call-with-current-continuation call-with-input-file call-with-output-file case cond define define-syntax define-macro defmacro delay do dynamic-wind else for-each if lambda let let* let-syntax letrec letrec-syntax map or syntax-rules abs acos angle append apply asin assoc assq assv atan boolean? caar cadr call-with-input-file call-with-output-file call-with-values car cdddar cddddr cdr ceiling char->integer char-alphabetic? char-ci<=? char-ci<? char-ci=? char-ci>=? char-ci>? char-downcase char-lower-case? char-numeric? char-ready? char-upcase char-upper-case? char-whitespace? char<=? char<? char=? char>=? char>? char? close-input-port close-output-port complex? cons cos current-input-port current-output-port denominator display eof-object? eq? equal? eqv? eval even? exact->inexact exact? exp expt #f floor force gcd imag-part inexact->exact inexact? input-port? integer->char integer? interaction-environment lcm length list list->string list->vector list-ref list-tail list? load log magnitude make-polar make-rectangular make-string make-vector max member memq memv min modulo negative? newline not null-environment null? number->string number? numerator odd? open-input-file open-output-file output-port? pair? peek-char port? positive? procedure? quasiquote quote quotient rational? rationalize read read-char real-part real? remainder reverse round scheme-report-environment set! set-car! set-cdr! sin sqrt string string->list string->number string->symbol string-append string-ci<=? string-ci<? string-ci=? string-ci>=? string-ci>? string-copy string-fill! string-length string-ref string-set! string<=? string<? string=? string>=? string>? string? substring symbol->string symbol? #t tan transcript-off transcript-on truncate values vector vector->list vector-fill! vector-length vector-ref vector-set! with-input-from-file with-output-to-file write write-char zero?");
   var indentKeys = makeKeywords("define let letrec let* lambda define-macro defmacro let-syntax letrec-syntax let-values let*-values define-syntax syntax-rules define-values when unless");
-  function stateStack(indent5, type4, prev) {
-    this.indent = indent5;
+  function stateStack(indent4, type4, prev) {
+    this.indent = indent4;
     this.type = type4;
     this.prev = prev;
   }
-  function pushStack(state, indent5, type4) {
-    state.indentStack = new stateStack(indent5, type4, state.indentStack);
+  function pushStack(state, indent4, type4) {
+    state.indentStack = new stateStack(indent4, type4, state.indentStack);
   }
   function popStack(state) {
     state.indentStack = state.indentStack.prev;
@@ -41328,7 +40949,7 @@
             }
           } else {
             stream.eatWhile(/[\w_\-!$%&*+\.\/:<=>?@\^~]/);
-            if (keywords19 && keywords19.propertyIsEnumerable(stream.current())) {
+            if (keywords17 && keywords17.propertyIsEnumerable(stream.current())) {
               returnType = BUILTIN;
             } else returnType = "variable";
           }
@@ -41446,7 +41067,7 @@
   define3("atom", commonAtoms2);
   define3("keyword", commonKeywords2);
   define3("builtin", commonCommands);
-  function tokenBase13(stream, state) {
+  function tokenBase12(stream, state) {
     if (stream.eatSpace()) return null;
     var sol = stream.sol();
     var ch2 = stream.next();
@@ -41549,7 +41170,7 @@
     };
   }
   function tokenize4(stream, state) {
-    return (state.tokens[0] || tokenBase13)(stream, state);
+    return (state.tokens[0] || tokenBase12)(stream, state);
   }
   var shell = {
     name: "shell",
@@ -41568,7 +41189,7 @@
 
   // node_modules/@codemirror/legacy-modes/mode/smalltalk.js
   var specialChars = /[+\-\/\\*~<>=@%|&?!.,:;^]/;
-  var keywords20 = /true|false|nil|self|super|thisContext/;
+  var keywords18 = /true|false|nil|self|super|thisContext/;
   var Context7 = function(tokenizer2, parent) {
     this.next = tokenizer2;
     this.parent = parent;
@@ -41629,7 +41250,7 @@
       token.name = "number";
     } else if (/[\w_]/.test(aChar)) {
       stream.eatWhile(/[\w\d_]/);
-      token.name = state.expectVariable ? keywords20.test(stream.current()) ? "keyword" : "variable" : null;
+      token.name = state.expectVariable ? keywords18.test(stream.current()) ? "keyword" : "variable" : null;
     } else {
       token.eos = state.expectVariable;
     }
@@ -41755,7 +41376,7 @@
     "a",
     "bind"
   ]);
-  var keywords21 = wordRegexp4([
+  var keywords19 = wordRegexp4([
     "base",
     "prefix",
     "select",
@@ -41808,7 +41429,7 @@
   var PN_CHARS = "[A-Za-z_\\-0-9]";
   var PREFIX_START = new RegExp("[A-Za-z]");
   var PREFIX_REMAINDER = new RegExp("((" + PN_CHARS + "|\\.)*(" + PN_CHARS + "))?:");
-  function tokenBase14(stream, state) {
+  function tokenBase13(stream, state) {
     var ch2 = stream.next();
     curPunc5 = null;
     if (ch2 == "$" || ch2 == "?") {
@@ -41842,10 +41463,10 @@
       return "atom";
     }
     stream.eatWhile(/[_\w\d]/);
-    var word2 = stream.current();
-    if (ops.test(word2))
+    var word = stream.current();
+    if (ops.test(word))
       return "builtin";
-    else if (keywords21.test(word2))
+    else if (keywords19.test(word))
       return "keyword";
     else
       return "variable";
@@ -41858,7 +41479,7 @@
       var escaped = false, ch2;
       while ((ch2 = stream.next()) != null) {
         if (ch2 == quote2 && !escaped) {
-          state.tokenize = tokenBase14;
+          state.tokenize = tokenBase13;
           break;
         }
         escaped = !escaped && ch2 == "\\";
@@ -41877,7 +41498,7 @@
     name: "sparql",
     startState: function() {
       return {
-        tokenize: tokenBase14,
+        tokenize: tokenBase13,
         context: null,
         indent: 0,
         col: 0
@@ -42207,15 +41828,15 @@
   }
   var tagKeywords = keySet2(tagKeywords_);
   var tagVariablesRegexp = /^(a|b|i|s|col|em)$/i;
-  var propertyKeywords3 = keySet2(propertyKeywords_2);
+  var propertyKeywords2 = keySet2(propertyKeywords_2);
   var nonStandardPropertyKeywords2 = keySet2(nonStandardPropertyKeywords_2);
-  var valueKeywords3 = keySet2(valueKeywords_2);
-  var colorKeywords3 = keySet2(colorKeywords_2);
+  var valueKeywords2 = keySet2(valueKeywords_2);
+  var colorKeywords2 = keySet2(colorKeywords_2);
   var documentTypes2 = keySet2(documentTypes_2);
   var documentTypesRegexp = wordRegexp5(documentTypes_2);
   var mediaFeatures2 = keySet2(mediaFeatures_2);
   var mediaTypes2 = keySet2(mediaTypes_2);
-  var fontProperties3 = keySet2(fontProperties_2);
+  var fontProperties2 = keySet2(fontProperties_2);
   var operatorsRegexp = /^\s*([.]{2,3}|&&|\|\||\*\*|[?!=:]?=|[-+*\/%<>]=?|\?:|\~)/;
   var wordOperatorKeywordsRegexp = wordRegexp5(wordOperatorKeywords_);
   var blockKeywords3 = keySet2(blockKeywords_);
@@ -42227,7 +41848,7 @@
   var style;
   var type3;
   var override;
-  function tokenBase15(stream, state) {
+  function tokenBase14(stream, state) {
     firstWordMatch = stream.string.match(/(^[\w-]+\s*=\s*$)|(^\s*[\w-]+\s*=\s*[\w-])|(^\s*(\.|#|@|\$|\&|\[|\d|\+|::?|\{|\>|~|\/)?\s*[\w-]*([a-z0-9-]|\*|\/\*)(\(|,)?)/);
     state.context.line.firstWord = firstWordMatch ? firstWordMatch[0].replace(/^\s*/, "") : "";
     state.context.line.indent = stream.indentation();
@@ -42350,15 +41971,15 @@
       state.tokenize = null;
     return [null, "("];
   }
-  function Context8(type4, indent5, prev, line) {
+  function Context8(type4, indent4, prev, line) {
     this.type = type4;
-    this.indent = indent5;
+    this.indent = indent4;
     this.prev = prev;
     this.line = line || { firstWord: "", indent: 0 };
   }
-  function pushContext5(state, stream, type4, indent5) {
-    indent5 = indent5 >= 0 ? indent5 : stream.indentUnit;
-    state.context = new Context8(type4, stream.indentation() + indent5, state.context);
+  function pushContext5(state, stream, type4, indent4) {
+    indent4 = indent4 >= 0 ? indent4 : stream.indentUnit;
+    state.context = new Context8(type4, stream.indentation() + indent4, state.context);
     return type4;
   }
   function popContext5(state, stream, currentIndent) {
@@ -42376,28 +41997,28 @@
       state.context = state.context.prev;
     return pass(type4, stream, state);
   }
-  function wordIsTag(word2) {
-    return word2.toLowerCase() in tagKeywords;
+  function wordIsTag(word) {
+    return word.toLowerCase() in tagKeywords;
   }
-  function wordIsProperty(word2) {
-    word2 = word2.toLowerCase();
-    return word2 in propertyKeywords3 || word2 in fontProperties3;
+  function wordIsProperty(word) {
+    word = word.toLowerCase();
+    return word in propertyKeywords2 || word in fontProperties2;
   }
-  function wordIsBlock(word2) {
-    return word2.toLowerCase() in blockKeywords3;
+  function wordIsBlock(word) {
+    return word.toLowerCase() in blockKeywords3;
   }
-  function wordIsVendorPrefix(word2) {
-    return word2.toLowerCase().match(vendorPrefixesRegexp);
+  function wordIsVendorPrefix(word) {
+    return word.toLowerCase().match(vendorPrefixesRegexp);
   }
-  function wordAsValue(word2) {
-    var wordLC = word2.toLowerCase();
+  function wordAsValue(word) {
+    var wordLC = word.toLowerCase();
     var override2 = "variable";
-    if (wordIsTag(word2)) override2 = "tag";
-    else if (wordIsBlock(word2)) override2 = "block-keyword";
-    else if (wordIsProperty(word2)) override2 = "property";
-    else if (wordLC in valueKeywords3 || wordLC in commonAtoms3) override2 = "atom";
-    else if (wordLC == "return" || wordLC in colorKeywords3) override2 = "keyword";
-    else if (word2.match(/^[A-Z]/)) override2 = "string";
+    if (wordIsTag(word)) override2 = "tag";
+    else if (wordIsBlock(word)) override2 = "block-keyword";
+    else if (wordIsProperty(word)) override2 = "property";
+    else if (wordLC in valueKeywords2 || wordLC in commonAtoms3) override2 = "atom";
+    else if (wordLC == "return" || wordLC in colorKeywords2) override2 = "keyword";
+    else if (word.match(/^[A-Z]/)) override2 = "string";
     return override2;
   }
   function typeIsBlock(type4, stream) {
@@ -42489,8 +42110,8 @@
       return pushContext5(state, stream, "vendorPrefixes");
     }
     if (type4 == "word") {
-      var word2 = stream.current();
-      override = wordAsValue(word2);
+      var word = stream.current();
+      override = wordAsValue(word);
       if (override == "property") {
         if (startOfLine(stream)) {
           return pushContext5(state, stream, "block", 0);
@@ -42500,17 +42121,17 @@
         }
       }
       if (override == "tag") {
-        if (/embed|menu|pre|progress|sub|table/.test(word2)) {
+        if (/embed|menu|pre|progress|sub|table/.test(word)) {
           if (wordIsProperty(firstWordOfLine(stream))) {
             override = "atom";
             return "block";
           }
         }
-        if (stream.string.match(new RegExp("\\[\\s*" + word2 + "|" + word2 + "\\s*\\]"))) {
+        if (stream.string.match(new RegExp("\\[\\s*" + word + "|" + word + "\\s*\\]"))) {
           override = "atom";
           return "block";
         }
-        if (tagVariablesRegexp.test(word2)) {
+        if (tagVariablesRegexp.test(word)) {
           if (startOfLine(stream) && stream.string.match(/=/) || !startOfLine(stream) && !stream.string.match(/^(\s*\.|#|\&|\[|\/|>|\*)/) && !wordIsTag(firstWordOfLine(stream))) {
             override = "variable";
             if (wordIsBlock(firstWordOfLine(stream))) return "block";
@@ -42526,7 +42147,7 @@
         }
         return pushContext5(state, stream, "block");
       }
-      if (word2 == "return") return pushContext5(state, stream, "block", 0);
+      if (word == "return") return pushContext5(state, stream, "block", 0);
       if (override == "variable" && stream.string.match(/^\s?\$[\w-\.\[\]\'\"]+$/)) {
         return pushContext5(state, stream, "block");
       }
@@ -42552,12 +42173,12 @@
       override = "variable";
     }
     if (type4 == "word") {
-      var word2 = stream.current();
-      override = wordAsValue(word2);
-      if (override == "tag" && tagVariablesRegexp.test(word2)) {
+      var word = stream.current();
+      override = wordAsValue(word);
+      if (override == "tag" && tagVariablesRegexp.test(word)) {
         override = "variable";
       }
-      if (override == "property" || word2 == "to") override = "atom";
+      if (override == "property" || word == "to") override = "atom";
     }
     if (type4 == "variable-name") {
       return pushContext5(state, stream, "variableName");
@@ -42592,16 +42213,16 @@
       return pushContext5(state, stream, "interpolation");
     }
     if (type4 == "word") {
-      var word2 = stream.current().toLowerCase();
-      if (/^(only|not|and|or)$/.test(word2))
+      var word = stream.current().toLowerCase();
+      if (/^(only|not|and|or)$/.test(word))
         override = "keyword";
-      else if (documentTypes2.hasOwnProperty(word2))
+      else if (documentTypes2.hasOwnProperty(word))
         override = "tag";
-      else if (mediaTypes2.hasOwnProperty(word2))
+      else if (mediaTypes2.hasOwnProperty(word))
         override = "attribute";
-      else if (mediaFeatures2.hasOwnProperty(word2))
+      else if (mediaFeatures2.hasOwnProperty(word))
         override = "property";
-      else if (nonStandardPropertyKeywords2.hasOwnProperty(word2))
+      else if (nonStandardPropertyKeywords2.hasOwnProperty(word))
         override = "string.special";
       else override = wordAsValue(stream.current());
       if (override == "tag" && endOfLine(stream)) {
@@ -42620,11 +42241,11 @@
       else return pushContext5(state, stream, "atBlock");
     }
     if (type4 == "word") {
-      var word2 = stream.current().toLowerCase();
-      override = wordAsValue(word2);
-      if (/^(max|min)/.test(word2)) override = "property";
+      var word = stream.current().toLowerCase();
+      override = wordAsValue(word);
+      if (/^(max|min)/.test(word)) override = "property";
       if (override == "tag") {
-        tagVariablesRegexp.test(word2) ? override = "variable" : override = "atom";
+        tagVariablesRegexp.test(word) ? override = "variable" : override = "atom";
       }
       return state.context.type;
     }
@@ -42704,7 +42325,7 @@
     },
     token: function(stream, state) {
       if (!state.tokenize && stream.eatSpace()) return null;
-      style = (state.tokenize || tokenBase15)(stream, state);
+      style = (state.tokenize || tokenBase14)(stream, state);
       if (style && typeof style == "object") {
         type3 = style[1];
         style = style[0];
@@ -42714,35 +42335,35 @@
       return override;
     },
     indent: function(state, textAfter, iCx) {
-      var cx = state.context, ch2 = textAfter && textAfter.charAt(0), indent5 = cx.indent, lineFirstWord = firstWordOfLine(textAfter), lineIndent = cx.line.indent, prevLineFirstWord = state.context.prev ? state.context.prev.line.firstWord : "", prevLineIndent = state.context.prev ? state.context.prev.line.indent : lineIndent;
+      var cx = state.context, ch2 = textAfter && textAfter.charAt(0), indent4 = cx.indent, lineFirstWord = firstWordOfLine(textAfter), lineIndent = cx.line.indent, prevLineFirstWord = state.context.prev ? state.context.prev.line.firstWord : "", prevLineIndent = state.context.prev ? state.context.prev.line.indent : lineIndent;
       if (cx.prev && (ch2 == "}" && (cx.type == "block" || cx.type == "atBlock" || cx.type == "keyframes") || ch2 == ")" && (cx.type == "parens" || cx.type == "atBlock_parens") || ch2 == "{" && cx.type == "at")) {
-        indent5 = cx.indent - iCx.unit;
+        indent4 = cx.indent - iCx.unit;
       } else if (!/(\})/.test(ch2)) {
         if (/@|\$|\d/.test(ch2) || /^\{/.test(textAfter) || /^\s*\/(\/|\*)/.test(textAfter) || /^\s*\/\*/.test(prevLineFirstWord) || /^\s*[\w-\.\[\]\'\"]+\s*(\?|:|\+)?=/i.test(textAfter) || /^(\+|-)?[a-z][\w-]*\(/i.test(textAfter) || /^return/.test(textAfter) || wordIsBlock(lineFirstWord)) {
-          indent5 = lineIndent;
+          indent4 = lineIndent;
         } else if (/(\.|#|:|\[|\*|&|>|~|\+|\/)/.test(ch2) || wordIsTag(lineFirstWord)) {
           if (/\,\s*$/.test(prevLineFirstWord)) {
-            indent5 = prevLineIndent;
+            indent4 = prevLineIndent;
           } else if (/(\.|#|:|\[|\*|&|>|~|\+|\/)/.test(prevLineFirstWord) || wordIsTag(prevLineFirstWord)) {
-            indent5 = lineIndent <= prevLineIndent ? prevLineIndent : prevLineIndent + iCx.unit;
+            indent4 = lineIndent <= prevLineIndent ? prevLineIndent : prevLineIndent + iCx.unit;
           } else {
-            indent5 = lineIndent;
+            indent4 = lineIndent;
           }
         } else if (!/,\s*$/.test(textAfter) && (wordIsVendorPrefix(lineFirstWord) || wordIsProperty(lineFirstWord))) {
           if (wordIsBlock(prevLineFirstWord)) {
-            indent5 = lineIndent <= prevLineIndent ? prevLineIndent : prevLineIndent + iCx.unit;
+            indent4 = lineIndent <= prevLineIndent ? prevLineIndent : prevLineIndent + iCx.unit;
           } else if (/^\{/.test(prevLineFirstWord)) {
-            indent5 = lineIndent <= prevLineIndent ? lineIndent : prevLineIndent + iCx.unit;
+            indent4 = lineIndent <= prevLineIndent ? lineIndent : prevLineIndent + iCx.unit;
           } else if (wordIsVendorPrefix(prevLineFirstWord) || wordIsProperty(prevLineFirstWord)) {
-            indent5 = lineIndent >= prevLineIndent ? prevLineIndent : lineIndent;
+            indent4 = lineIndent >= prevLineIndent ? prevLineIndent : lineIndent;
           } else if (/^(\.|#|:|\[|\*|&|@|\+|\-|>|~|\/)/.test(prevLineFirstWord) || /=\s*$/.test(prevLineFirstWord) || wordIsTag(prevLineFirstWord) || /^\$[\w-\.\[\]\'\"]/.test(prevLineFirstWord)) {
-            indent5 = prevLineIndent + iCx.unit;
+            indent4 = prevLineIndent + iCx.unit;
           } else {
-            indent5 = lineIndent;
+            indent4 = lineIndent;
           }
         }
       }
-      return indent5;
+      return indent4;
     },
     languageData: {
       indentOnInput: /^\s*\}$/,
@@ -42757,7 +42378,7 @@
     for (var i = 0; i < words10.length; i++) set[words10[i]] = true;
     return set;
   }
-  var keywords22 = wordSet([
+  var keywords20 = wordSet([
     "_",
     "var",
     "let",
@@ -42875,7 +42496,7 @@
     "UInt64",
     "Void"
   ]);
-  var operators5 = "+-/*%=|&<>~^?!";
+  var operators4 = "+-/*%=|&<>~^?!";
   var punc = ":;,.(){}[]";
   var binary = /^\-?0b[01][01_]*/;
   var octal = /^\-?0o[0-7][0-7_]*/;
@@ -42885,7 +42506,7 @@
   var property = /^\.(?:\$\d+|(`?)[_A-Za-z][_A-Za-z$0-9]*\1)/;
   var instruction = /^\#[A-Za-z]+/;
   var attribute = /^@(?:\$\d+|(`?)[_A-Za-z][_A-Za-z$0-9]*\1)/;
-  function tokenBase16(stream, state, prev) {
+  function tokenBase15(stream, state, prev) {
     if (stream.sol()) state.indented = stream.indentation();
     if (stream.eatSpace()) return null;
     var ch2 = stream.peek();
@@ -42906,7 +42527,7 @@
     if (stream.match(hexadecimal)) return "number";
     if (stream.match(decimal)) return "number";
     if (stream.match(property)) return "property";
-    if (operators5.indexOf(ch2) > -1) {
+    if (operators4.indexOf(ch2) > -1) {
       stream.next();
       return "operator";
     }
@@ -42925,7 +42546,7 @@
       var ident = stream.current();
       if (types3.hasOwnProperty(ident)) return "type";
       if (atoms5.hasOwnProperty(ident)) return "atom";
-      if (keywords22.hasOwnProperty(ident)) {
+      if (keywords20.hasOwnProperty(ident)) {
         if (definingKeywords.hasOwnProperty(ident))
           state.prev = "define";
         return "keyword";
@@ -42939,7 +42560,7 @@
   function tokenUntilClosingParen() {
     var depth = 0;
     return function(stream, state, prev) {
-      var inner = tokenBase16(stream, state, prev);
+      var inner = tokenBase15(stream, state, prev);
       if (inner == "punctuation") {
         if (stream.current() == "(") ++depth;
         else if (stream.current() == ")") {
@@ -43017,7 +42638,7 @@
     token: function(stream, state) {
       var prev = state.prev;
       state.prev = null;
-      var tokenize5 = state.tokenize[state.tokenize.length - 1] || tokenBase16;
+      var tokenize5 = state.tokenize[state.tokenize.length - 1] || tokenBase15;
       var style2 = tokenize5(stream, state, prev);
       if (!style2 || style2 == "comment") state.prev = prev;
       else if (!state.prev) state.prev = style2;
@@ -43122,9 +42743,9 @@
     return new RegExp("^(?:" + words10.join("|") + ")$", "i");
   }
   var ops2 = wordRegexp6([]);
-  var keywords23 = wordRegexp6(["@prefix", "@base", "a"]);
+  var keywords21 = wordRegexp6(["@prefix", "@base", "a"]);
   var operatorChars2 = /[*+\-<>=&|]/;
-  function tokenBase17(stream, state) {
+  function tokenBase16(stream, state) {
     var ch2 = stream.next();
     curPunc6 = null;
     if (ch2 == "<" && !stream.match(/^[\s\u00a0=]/, false)) {
@@ -43149,8 +42770,8 @@
       if (stream.peek() == ":") {
         return "variableName.special";
       } else {
-        var word2 = stream.current();
-        if (keywords23.test(word2)) {
+        var word = stream.current();
+        if (keywords21.test(word)) {
           return "meta";
         }
         if (ch2 >= "A" && ch2 <= "Z") {
@@ -43159,10 +42780,10 @@
           return "keyword";
         }
       }
-      var word2 = stream.current();
-      if (ops2.test(word2))
+      var word = stream.current();
+      if (ops2.test(word))
         return null;
-      else if (keywords23.test(word2))
+      else if (keywords21.test(word))
         return "meta";
       else
         return "variable";
@@ -43173,7 +42794,7 @@
       var escaped = false, ch2;
       while ((ch2 = stream.next()) != null) {
         if (ch2 == quote2 && !escaped) {
-          state.tokenize = tokenBase17;
+          state.tokenize = tokenBase16;
           break;
         }
         escaped = !escaped && ch2 == "\\";
@@ -43192,7 +42813,7 @@
     name: "turtle",
     startState: function() {
       return {
-        tokenize: tokenBase17,
+        tokenize: tokenBase16,
         context: null,
         indent: 0,
         col: 0
@@ -43263,7 +42884,7 @@
   var wordOperators2 = wordRegexp7(operatorKeywords);
   var commonKeywords3 = ["#const", "#else", "#elseif", "#end", "#if", "#region", "addhandler", "addressof", "alias", "as", "byref", "byval", "cbool", "cbyte", "cchar", "cdate", "cdbl", "cdec", "cint", "clng", "cobj", "compare", "const", "continue", "csbyte", "cshort", "csng", "cstr", "cuint", "culng", "cushort", "declare", "default", "delegate", "dim", "directcast", "each", "erase", "error", "event", "exit", "explicit", "false", "for", "friend", "gettype", "goto", "handles", "implements", "imports", "infer", "inherits", "interface", "isfalse", "istrue", "lib", "me", "mod", "mustinherit", "mustoverride", "my", "mybase", "myclass", "namespace", "narrowing", "new", "nothing", "notinheritable", "notoverridable", "of", "off", "on", "operator", "option", "optional", "out", "overloads", "overridable", "overrides", "paramarray", "partial", "private", "protected", "public", "raiseevent", "readonly", "redim", "removehandler", "resume", "return", "shadows", "shared", "static", "step", "stop", "strict", "then", "throw", "to", "true", "trycast", "typeof", "until", "until", "when", "widening", "withevents", "writeonly"];
   var commontypes = ["object", "boolean", "char", "string", "byte", "sbyte", "short", "ushort", "int16", "uint16", "integer", "uinteger", "int32", "uint32", "long", "ulong", "int64", "uint64", "decimal", "single", "double", "float", "date", "datetime", "intptr", "uintptr"];
-  var keywords24 = wordRegexp7(commonKeywords3);
+  var keywords22 = wordRegexp7(commonKeywords3);
   var types4 = wordRegexp7(commontypes);
   var stringPrefixes2 = '"';
   var opening2 = wordRegexp7(openingKeywords);
@@ -43272,13 +42893,13 @@
   var doubleClosing = wordRegexp7(["end"]);
   var doOpening = wordRegexp7(["do"]);
   var indentInfo = null;
-  function indent4(_stream, state) {
+  function indent3(_stream, state) {
     state.currentIndent++;
   }
-  function dedent3(_stream, state) {
+  function dedent2(_stream, state) {
     state.currentIndent--;
   }
-  function tokenBase18(stream, state) {
+  function tokenBase17(stream, state) {
     if (stream.eatSpace()) {
       return null;
     }
@@ -43330,13 +42951,13 @@
       return null;
     }
     if (stream.match(doOpening)) {
-      indent4(stream, state);
+      indent3(stream, state);
       state.doInCurrentLine = true;
       return "keyword";
     }
     if (stream.match(opening2)) {
       if (!state.doInCurrentLine)
-        indent4(stream, state);
+        indent3(stream, state);
       else
         state.doInCurrentLine = false;
       return "keyword";
@@ -43345,18 +42966,18 @@
       return "keyword";
     }
     if (stream.match(doubleClosing)) {
-      dedent3(stream, state);
-      dedent3(stream, state);
+      dedent2(stream, state);
+      dedent2(stream, state);
       return "keyword";
     }
     if (stream.match(closing2)) {
-      dedent3(stream, state);
+      dedent2(stream, state);
       return "keyword";
     }
     if (stream.match(types4)) {
       return "keyword";
     }
-    if (stream.match(keywords24)) {
+    if (stream.match(keywords22)) {
       return "keyword";
     }
     if (stream.match(identifiers6)) {
@@ -43372,19 +42993,19 @@
       while (!stream.eol()) {
         stream.eatWhile(/[^'"]/);
         if (stream.match(delimiter2)) {
-          state.tokenize = tokenBase18;
+          state.tokenize = tokenBase17;
           return OUTCLASS;
         } else {
           stream.eat(/['"]/);
         }
       }
       if (singleline) {
-        state.tokenize = tokenBase18;
+        state.tokenize = tokenBase17;
       }
       return OUTCLASS;
     };
   }
-  function tokenLexer2(stream, state) {
+  function tokenLexer(stream, state) {
     var style2 = state.tokenize(stream, state);
     var current = stream.current();
     if (current === ".") {
@@ -43397,16 +43018,16 @@
     }
     var delimiter_index = "[({".indexOf(current);
     if (delimiter_index !== -1) {
-      indent4(stream, state);
+      indent3(stream, state);
     }
     if (indentInfo === "dedent") {
-      if (dedent3(stream, state)) {
+      if (dedent2(stream, state)) {
         return ERRORCLASS;
       }
     }
     delimiter_index = "])}".indexOf(current);
     if (delimiter_index !== -1) {
-      if (dedent3(stream, state)) {
+      if (dedent2(stream, state)) {
         return ERRORCLASS;
       }
     }
@@ -43416,7 +43037,7 @@
     name: "vb",
     startState: function() {
       return {
-        tokenize: tokenBase18,
+        tokenize: tokenBase17,
         lastToken: null,
         currentIndent: 0,
         nextLineIndent: 0,
@@ -43429,7 +43050,7 @@
         state.nextLineIndent = 0;
         state.doInCurrentLine = 0;
       }
-      var style2 = tokenLexer2(stream, state);
+      var style2 = tokenLexer(stream, state);
       state.lastToken = { style: style2, content: stream.current() };
       return style2;
     },
@@ -43454,7 +43075,7 @@
       for (var i2 = 0; i2 < words11.length; ++i2) obj[words11[i2]] = true;
       return obj;
     }
-    var keywords26 = words10(
+    var keywords24 = words10(
       "accept_on alias always always_comb always_ff always_latch and assert assign assume automatic before begin bind bins binsof bit break buf bufif0 bufif1 byte case casex casez cell chandle checker class clocking cmos config const constraint context continue cover covergroup coverpoint cross deassign default defparam design disable dist do edge else end endcase endchecker endclass endclocking endconfig endfunction endgenerate endgroup endinterface endmodule endpackage endprimitive endprogram endproperty endspecify endsequence endtable endtask enum event eventually expect export extends extern final first_match for force foreach forever fork forkjoin function generate genvar global highz0 highz1 if iff ifnone ignore_bins illegal_bins implements implies import incdir include initial inout input inside instance int integer interconnect interface intersect join join_any join_none large let liblist library local localparam logic longint macromodule matches medium modport module nand negedge nettype new nexttime nmos nor noshowcancelled not notif0 notif1 null or output package packed parameter pmos posedge primitive priority program property protected pull0 pull1 pulldown pullup pulsestyle_ondetect pulsestyle_onevent pure rand randc randcase randsequence rcmos real realtime ref reg reject_on release repeat restrict return rnmos rpmos rtran rtranif0 rtranif1 s_always s_eventually s_nexttime s_until s_until_with scalared sequence shortint shortreal showcancelled signed small soft solve specify specparam static string strong strong0 strong1 struct super supply0 supply1 sync_accept_on sync_reject_on table tagged task this throughout time timeprecision timeunit tran tranif0 tranif1 tri tri0 tri1 triand trior trireg type typedef union unique unique0 unsigned until until_with untyped use uwire var vectored virtual void wait wait_order wand weak weak0 weak1 while wildcard wire with within wor xnor xor"
     );
     var isOperatorChar4 = /[\+\-\*\/!~&|^%=?:]/;
@@ -43489,7 +43110,7 @@
       }
     }
     var statementKeywords = words10("always always_comb always_ff always_latch assert assign assume else export for foreach forever if import initial repeat while");
-    function tokenBase20(stream, state) {
+    function tokenBase19(stream, state) {
       var ch2 = stream.peek(), style2;
       if (hooks3[ch2] && (style2 = hooks3[ch2](stream, state)) != false) return style2;
       if (hooks3.tokenBase && (style2 = hooks3.tokenBase(stream, state)) != false)
@@ -43548,7 +43169,7 @@
       }
       if (stream.eatWhile(/[\w\$_]/)) {
         var cur = stream.current();
-        if (keywords26[cur]) {
+        if (keywords24[cur]) {
           if (openClose[cur]) {
             curPunc8 = "newblock";
           }
@@ -43574,7 +43195,7 @@
           escaped = !escaped && next2 == "\\";
         }
         if (end || !(escaped || multiLineStrings3))
-          state.tokenize = tokenBase20;
+          state.tokenize = tokenBase19;
         return "string";
       };
     }
@@ -43582,7 +43203,7 @@
       var maybeEnd = false, ch2;
       while (ch2 = stream.next()) {
         if (ch2 == "/" && maybeEnd) {
-          state.tokenize = tokenBase20;
+          state.tokenize = tokenBase19;
           break;
         }
         maybeEnd = ch2 == "*";
@@ -43597,8 +43218,8 @@
       this.prev = prev;
     }
     function pushContext9(state, col, type4) {
-      var indent5 = state.indented;
-      var c2 = new Context11(indent5, col, type4, null, state.context);
+      var indent4 = state.indented;
+      var c2 = new Context11(indent4, col, type4, null, state.context);
       return state.context = c2;
     }
     function popContext9(state) {
@@ -43662,7 +43283,7 @@
         if (stream.eatSpace()) return null;
         curPunc8 = null;
         curKeyword = null;
-        var style2 = (state.tokenize || tokenBase20)(stream, state);
+        var style2 = (state.tokenize || tokenBase19)(stream, state);
         if (style2 == "comment" || style2 == "meta" || style2 == "variable") return style2;
         if (ctx.align == null) ctx.align = true;
         if (curPunc8 == ctx.type) {
@@ -43692,7 +43313,7 @@
         return style2;
       },
       indent: function(state, textAfter, cx) {
-        if (state.tokenize != tokenBase20 && state.tokenize != null) return null;
+        if (state.tokenize != tokenBase19 && state.tokenize != null) return null;
         if (hooks3.indent) {
           var fromHook = hooks3.indent(state);
           if (fromHook >= 0) return fromHook;
@@ -43917,11 +43538,11 @@
   var atoms6 = words9("null");
   var hooks2 = { "`": metaHook, "$": metaHook };
   var multiLineStrings2 = false;
-  var keywords25 = words9("abs,access,after,alias,all,and,architecture,array,assert,attribute,begin,block,body,buffer,bus,case,component,configuration,constant,disconnect,downto,else,elsif,end,end block,end case,end component,end for,end generate,end if,end loop,end process,end record,end units,entity,exit,file,for,function,generate,generic,generic map,group,guarded,if,impure,in,inertial,inout,is,label,library,linkage,literal,loop,map,mod,nand,new,next,nor,null,of,on,open,or,others,out,package,package body,port,port map,postponed,procedure,process,pure,range,record,register,reject,rem,report,return,rol,ror,select,severity,signal,sla,sll,sra,srl,subtype,then,to,transport,type,unaffected,units,until,use,variable,wait,when,while,with,xnor,xor");
+  var keywords23 = words9("abs,access,after,alias,all,and,architecture,array,assert,attribute,begin,block,body,buffer,bus,case,component,configuration,constant,disconnect,downto,else,elsif,end,end block,end case,end component,end for,end generate,end if,end loop,end process,end record,end units,entity,exit,file,for,function,generate,generic,generic map,group,guarded,if,impure,in,inertial,inout,is,label,library,linkage,literal,loop,map,mod,nand,new,next,nor,null,of,on,open,or,others,out,package,package body,port,port map,postponed,procedure,process,pure,range,record,register,reject,rem,report,return,rol,ror,select,severity,signal,sla,sll,sra,srl,subtype,then,to,transport,type,unaffected,units,until,use,variable,wait,when,while,with,xnor,xor");
   var blockKeywords4 = words9("architecture,entity,begin,case,port,else,elsif,end,for,function,if");
   var isOperatorChar3 = /[&|~><!\)\(*#%@+\/=?\:;}{,\.\^\-\[\]]/;
   var curPunc7;
-  function tokenBase19(stream, state) {
+  function tokenBase18(stream, state) {
     var ch2 = stream.next();
     if (hooks2[ch2]) {
       var result = hooks2[ch2](stream, state);
@@ -43955,7 +43576,7 @@
     }
     stream.eatWhile(/[\w\$_]/);
     var cur = stream.current();
-    if (keywords25.propertyIsEnumerable(cur.toLowerCase())) {
+    if (keywords23.propertyIsEnumerable(cur.toLowerCase())) {
       if (blockKeywords4.propertyIsEnumerable(cur)) curPunc7 = "newstatement";
       return "keyword";
     }
@@ -43973,7 +43594,7 @@
         escaped = !escaped && next2 == "--";
       }
       if (end || !(escaped || multiLineStrings2))
-        state.tokenize = tokenBase19;
+        state.tokenize = tokenBase18;
       return "string";
     };
   }
@@ -43988,7 +43609,7 @@
         escaped = !escaped && next2 == "--";
       }
       if (end || !(escaped || multiLineStrings2))
-        state.tokenize = tokenBase19;
+        state.tokenize = tokenBase18;
       return "string.special";
     };
   }
@@ -44027,7 +43648,7 @@
       }
       if (stream.eatSpace()) return null;
       curPunc7 = null;
-      var style2 = (state.tokenize || tokenBase19)(stream, state);
+      var style2 = (state.tokenize || tokenBase18)(stream, state);
       if (style2 == "comment" || style2 == "meta") return style2;
       if (ctx.align == null) ctx.align = true;
       if ((curPunc7 == ";" || curPunc7 == ":") && ctx.type == "statement") popContext8(state);
@@ -44045,7 +43666,7 @@
       return style2;
     },
     indent: function(state, textAfter, cx) {
-      if (state.tokenize != tokenBase19 && state.tokenize != null) return 0;
+      if (state.tokenize != tokenBase18 && state.tokenize != null) return 0;
       var firstChar = textAfter && textAfter.charAt(0), ctx = state.context, closing3 = firstChar == ctx.type;
       if (ctx.type == "statement") return ctx.indented + (firstChar == "{" ? 0 : cx.unit);
       else if (ctx.align) return ctx.column + (closing3 ? 0 : 1);
@@ -44407,16 +44028,12 @@
       octave
     ),
     legacyCodeLanguage(
-      { name: "SCSS", alias: ["scss"], extensions: ["scss"] },
+      { name: "SCSS", alias: ["scss", "sass"], extensions: ["scss", "sass"] },
       sCSS
     ),
     legacyCodeLanguage(
       { name: "Less", alias: ["less"], extensions: ["less"] },
       less
-    ),
-    legacyCodeLanguage(
-      { name: "Sass", alias: ["sass"], extensions: ["sass"] },
-      sass
     ),
     legacyCodeLanguage(
       { name: "Stylus", alias: ["styl", "stylus"], extensions: ["styl"] },
@@ -48085,11 +47702,11 @@ ${rowText}`;
       if (range.empty) {
         if (!conf.highlightWordAroundCursor)
           return Decoration.none;
-        let word2 = state.wordAt(range.head);
-        if (!word2)
+        let word = state.wordAt(range.head);
+        if (!word)
           return Decoration.none;
         check = state.charCategorizer(range.head);
-        query = state.sliceDoc(word2.from, word2.to);
+        query = state.sliceDoc(word.from, word.to);
       } else {
         let len = range.to - range.from;
         if (len < conf.minSelectionLength || len > 200)
@@ -48139,7 +47756,7 @@ ${rowText}`;
   };
   function findNextOccurrence(state, query) {
     let { main, ranges } = state.selection;
-    let word2 = state.wordAt(main.head), fullWord = word2 && word2.from == main.from && word2.to == main.to;
+    let word = state.wordAt(main.head), fullWord = word && word.from == main.from && word.to == main.to;
     for (let cycled = false, cursor = new SearchCursor(state.doc, query, ranges[ranges.length - 1].to); ; ) {
       cursor.next();
       if (cursor.done) {
@@ -48151,8 +47768,8 @@ ${rowText}`;
         if (cycled && ranges.some((r2) => r2.from == cursor.value.from))
           continue;
         if (fullWord) {
-          let word3 = state.wordAt(cursor.value.from);
-          if (!word3 || word3.from != cursor.value.from || word3.to != cursor.value.to)
+          let word2 = state.wordAt(cursor.value.from);
+          if (!word2 || word2.from != cursor.value.from || word2.to != cursor.value.to)
             continue;
         }
         return cursor.value;

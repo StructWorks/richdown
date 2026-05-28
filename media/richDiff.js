@@ -12623,6 +12623,62 @@
     };
   }
 
+  // node_modules/highlight.js/es/languages/properties.js
+  function properties(hljs) {
+    const WS0 = "[ \\t\\f]*";
+    const WS1 = "[ \\t\\f]+";
+    const EQUAL_DELIM = WS0 + "[:=]" + WS0;
+    const WS_DELIM = WS1;
+    const DELIM = "(" + EQUAL_DELIM + "|" + WS_DELIM + ")";
+    const KEY = "([^\\\\:= \\t\\f\\n]|\\\\.)+";
+    const DELIM_AND_VALUE = {
+      // skip DELIM
+      end: DELIM,
+      relevance: 0,
+      starts: {
+        // value: everything until end of line (again, taking into account backslashes)
+        className: "string",
+        end: /$/,
+        relevance: 0,
+        contains: [
+          { begin: "\\\\\\\\" },
+          { begin: "\\\\\\n" }
+        ]
+      }
+    };
+    return {
+      name: ".properties",
+      disableAutodetect: true,
+      case_insensitive: true,
+      illegal: /\S/,
+      contains: [
+        hljs.COMMENT("^\\s*[!#]", "$"),
+        // key: everything until whitespace or = or : (taking into account backslashes)
+        // case of a key-value pair
+        {
+          returnBegin: true,
+          variants: [
+            { begin: KEY + EQUAL_DELIM },
+            { begin: KEY + WS_DELIM }
+          ],
+          contains: [
+            {
+              className: "attr",
+              begin: KEY,
+              endsParent: true
+            }
+          ],
+          starts: DELIM_AND_VALUE
+        },
+        // case of an empty key
+        {
+          className: "attr",
+          begin: KEY + WS0 + "$"
+        }
+      ]
+    };
+  }
+
   // node_modules/highlight.js/es/languages/protobuf.js
   function protobuf(hljs) {
     const KEYWORDS3 = [
@@ -21022,7 +21078,7 @@
     ["fsx", "fsharp"],
     ["gql", "graphql"],
     ["golang", "go"],
-    ["h", "c"],
+    ["h", "cpp"],
     ["hh", "cpp"],
     ["hs", "haskell"],
     ["hpp", "cpp"],
@@ -21891,10 +21947,10 @@
     "zsh"
   ]);
   registerCodeLanguage("brainfuck", brainfuck, ["bf"]);
-  registerCodeLanguage("c", c, ["h"]);
+  registerCodeLanguage("c", c);
   registerCodeLanguage("clojure", clojure, ["clj", "cljs", "cljc"]);
   registerCodeLanguage("cmake", cmake);
-  registerCodeLanguage("cpp", cpp, ["c++", "cc", "cxx", "hh", "hpp", "hxx"]);
+  registerCodeLanguage("cpp", cpp, ["c++", "cc", "cxx", "h", "hh", "hpp", "hxx"]);
   registerCodeLanguage("crystal", crystal, ["cr"]);
   registerCodeLanguage("css", css);
   registerCodeLanguage("csharp", csharp, ["c#", "cs"]);
@@ -21913,7 +21969,7 @@
   registerCodeLanguage("groovy", groovy);
   registerCodeLanguage("haskell", haskell, ["hs"]);
   registerCodeLanguage("http", http);
-  registerCodeLanguage("ini", ini, ["conf", "properties", "toml"]);
+  registerCodeLanguage("ini", ini);
   registerCodeLanguage("java", java);
   registerCodeLanguage("javascript", javascript, ["cjs", "js", "jsx", "mjs"]);
   registerCodeLanguage("json", json, ["json5", "jsonc"]);
@@ -21931,6 +21987,7 @@
   registerCodeLanguage("ocaml", ocaml, ["ml", "mli"]);
   registerCodeLanguage("php", php);
   registerCodeLanguage("powershell", powershell, ["ps1", "pwsh"]);
+  registerCodeLanguage("properties", properties, ["conf"]);
   registerCodeLanguage("protobuf", protobuf, ["proto"]);
   registerCodeLanguage("puppet", puppet, ["pp"]);
   registerCodeLanguage("python", python, ["py"]);
@@ -21946,6 +22003,7 @@
   registerCodeLanguage("stylus", stylus, ["styl"]);
   registerCodeLanguage("swift", swift);
   registerCodeLanguage("thrift", thrift);
+  registerCodeLanguage("toml", ini);
   registerCodeLanguage("typescript", typescript, ["ts", "tsx"]);
   registerCodeLanguage("vbnet", vbnet, ["vb", "visualbasic"]);
   registerCodeLanguage("verilog", verilog, ["sv", "systemverilog"]);
