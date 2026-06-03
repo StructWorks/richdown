@@ -44159,7 +44159,6 @@
       "EmphasisMark",
       "CodeMark",
       "LinkMark",
-      "URL",
       "TaskMarker",
       "StrikethroughMark",
       "CodeInfo",
@@ -44512,6 +44511,26 @@
   };
 
   // src/rich-editor/domain/markdownBlocks.js
+  var detailsBlocksCache = /* @__PURE__ */ new WeakMap();
+  var tableBlocksCache = /* @__PURE__ */ new WeakMap();
+  var mermaidBlocksCache = /* @__PURE__ */ new WeakMap();
+  function memoizeBlocks(cache4, doc2, compute) {
+    let result = cache4.get(doc2);
+    if (result === void 0) {
+      result = compute(doc2);
+      cache4.set(doc2, result);
+    }
+    return result;
+  }
+  function findDetailsBlocks(doc2) {
+    return memoizeBlocks(detailsBlocksCache, doc2, computeDetailsBlocks);
+  }
+  function findTableBlocks(doc2) {
+    return memoizeBlocks(tableBlocksCache, doc2, computeTableBlocks);
+  }
+  function findMermaidBlocks(doc2) {
+    return memoizeBlocks(mermaidBlocksCache, doc2, computeMermaidBlocks);
+  }
   function isThematicBreakLine(text2) {
     return /^\s{0,3}(?:(?:-\s*){3,}|(?:\*\s*){3,}|(?:_\s*){3,})$/.test(text2);
   }
@@ -44552,7 +44571,7 @@
       (range) => range.from >= detailsBlock.from && range.to <= detailsBlock.sourceTo
     );
   }
-  function findDetailsBlocks(doc2) {
+  function computeDetailsBlocks(doc2) {
     const blocks = [];
     const stack = [];
     for (let lineNumber = 1; lineNumber <= doc2.lines; lineNumber += 1) {
@@ -44646,7 +44665,7 @@
   function splitTableCells(text2) {
     return text2.trim().replace(/^\|/, "").replace(/\|$/, "").split("|");
   }
-  function findMermaidBlocks(doc2) {
+  function computeMermaidBlocks(doc2) {
     const blocks = [];
     for (let lineNumber = 1; lineNumber <= doc2.lines; lineNumber += 1) {
       const openingLine = doc2.line(lineNumber);
@@ -44695,7 +44714,7 @@
       (range) => range.from >= mermaidBlock.from && range.to <= mermaidBlock.sourceTo
     );
   }
-  function findTableBlocks(doc2) {
+  function computeTableBlocks(doc2) {
     const blocks = [];
     let inFence = false;
     let fenceChar = "";
@@ -44863,6 +44882,14 @@
       eq(other) {
         return other.detailsBlock.from === this.detailsBlock.from && other.detailsBlock.to === this.detailsBlock.to && other.detailsBlock.signature === this.detailsBlock.signature && other.open === this.open;
       }
+      // Advisory height (summary row, plus body lines when open) so CodeMirror
+      // reserves space before first measure. CodeMirror corrects it on measure.
+      get estimatedHeight() {
+        const summary = 44;
+        if (!this.open) return summary;
+        const bodyLines = this.detailsBlock.bodyLines?.length || 1;
+        return summary + bodyLines * 24 + 16;
+      }
       toDOM(view2) {
         const wrapper = document.createElement("div");
         wrapper.className = "cm-details-preview";
@@ -44978,6 +45005,18 @@
       }
       eq(other) {
         return other.mermaidBlock.from === this.mermaidBlock.from && other.mermaidBlock.to === this.mermaidBlock.to && other.mermaidBlock.signature === this.mermaidBlock.signature && other.previewSize === this.previewSize && other.revision === this.revision;
+      }
+      // Advisory height so CodeMirror reserves space before the widget is first
+      // measured. Without it, measuring a tall diagram mid-scroll resizes the
+      // document and kills downward scroll momentum. CodeMirror corrects this on
+      // the real measure.
+      get estimatedHeight() {
+        const sourceHeight = (this.mermaidBlock.sourceLineCount || 1) * 20;
+        return getMermaidPreviewHeight(
+          sourceHeight,
+          this.previewSize,
+          this.mermaidBlock.code
+        );
       }
       toDOM(view2) {
         const wrapper = document.createElement("div");
@@ -45797,6 +45836,16 @@
       const current = classesByLine.get(lineStart);
       classesByLine.set(lineStart, current ? `${current} ${className2}` : className2);
     }
+    function hasAncestor(nodeRef, name2) {
+      let node = nodeRef.node.parent;
+      while (node) {
+        if (node.name === name2) {
+          return true;
+        }
+        node = node.parent;
+      }
+      return false;
+    }
     function buildInlineDecorations(view2) {
       const ranges = [];
       const imageRanges = [];
@@ -45864,6 +45913,15 @@
                 from: node.from,
                 to: node.to,
                 decoration: Decoration.mark({ class: "cm-markdown-marker" })
+              });
+            }
+            if (nodeName === "URL") {
+              ranges.push({
+                from: node.from,
+                to: node.to,
+                decoration: Decoration.mark({
+                  class: hasAncestor(node, "Link") ? "cm-markdown-marker" : "cm-link"
+                })
               });
             }
             if (nodeName === "Link") {
@@ -46011,6 +46069,13 @@
       }
       eq(other) {
         return other.tableBlock.from === this.tableBlock.from && other.tableBlock.to === this.tableBlock.to && other.tableBlock.signature === this.tableBlock.signature;
+      }
+      // Advisory height (header + body rows) so CodeMirror reserves space before
+      // first measure, avoiding scroll-momentum loss when a table is measured
+      // mid-scroll. CodeMirror corrects this on the real measure.
+      get estimatedHeight() {
+        const rows = this.tableBlock.rows?.length || 1;
+        return rows * 40 + 24;
       }
       toDOM(view2) {
         const wrapper = document.createElement("div");
@@ -46846,6 +46911,9 @@ ${rowText}`;
       }
     }
     function isLineFocused2(state, line) {
+      if (state.readOnly) {
+        return false;
+      }
       return state.selection.ranges.some(
         (range) => range.from <= line.to && range.to >= line.from
       );
@@ -47066,6 +47134,12 @@ ${rowText}`;
       }
       eq(other) {
         return other.src === this.src && other.alt === this.alt && other.from === this.from;
+      }
+      // The real image height isn't known until it loads, so reserve a nominal
+      // block. This advisory value reduces (not eliminates) scroll jump; the
+      // load handler re-measures once the image arrives.
+      get estimatedHeight() {
+        return 240;
       }
       toDOM(view2) {
         const wrapper = document.createElement("span");
