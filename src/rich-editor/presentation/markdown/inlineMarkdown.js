@@ -174,6 +174,13 @@ export function createInlineMarkdownSupport({ postMessage, requestEditorMeasure 
         other.from === this.from
       );
     }
+
+    // The real image height isn't known until it loads, so reserve a nominal
+    // block. This advisory value reduces (not eliminates) scroll jump; the
+    // load handler re-measures once the image arrives.
+    get estimatedHeight() {
+      return 240;
+    }
   
     toDOM(view) {
       const wrapper = document.createElement("span");
