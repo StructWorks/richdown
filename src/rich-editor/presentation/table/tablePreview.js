@@ -106,6 +106,14 @@ export function createTablePreviewWidgetClass({
         other.tableBlock.signature === this.tableBlock.signature
       );
     }
+
+    // Advisory height (header + body rows) so CodeMirror reserves space before
+    // first measure, avoiding scroll-momentum loss when a table is measured
+    // mid-scroll. CodeMirror corrects this on the real measure.
+    get estimatedHeight() {
+      const rows = this.tableBlock.rows?.length || 1;
+      return rows * 40 + 24;
+    }
   
     toDOM(view) {
       const wrapper = document.createElement("div");

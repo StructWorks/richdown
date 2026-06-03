@@ -29,6 +29,19 @@ export function createMermaidPreviewWidgetClass({
         other.revision === this.revision
       );
     }
+
+    // Advisory height so CodeMirror reserves space before the widget is first
+    // measured. Without it, measuring a tall diagram mid-scroll resizes the
+    // document and kills downward scroll momentum. CodeMirror corrects this on
+    // the real measure.
+    get estimatedHeight() {
+      const sourceHeight = (this.mermaidBlock.sourceLineCount || 1) * 20;
+      return getMermaidPreviewHeight(
+        sourceHeight,
+        this.previewSize,
+        this.mermaidBlock.code,
+      );
+    }
   
     toDOM(view) {
       const wrapper = document.createElement("div");

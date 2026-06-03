@@ -26,6 +26,15 @@ export function createDetailsPreviewWidgetClass({
         other.open === this.open
       );
     }
+
+    // Advisory height (summary row, plus body lines when open) so CodeMirror
+    // reserves space before first measure. CodeMirror corrects it on measure.
+    get estimatedHeight() {
+      const summary = 44;
+      if (!this.open) return summary;
+      const bodyLines = this.detailsBlock.bodyLines?.length || 1;
+      return summary + bodyLines * 24 + 16;
+    }
   
     toDOM(view) {
       const wrapper = document.createElement("div");

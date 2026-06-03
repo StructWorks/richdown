@@ -552,6 +552,11 @@ export function createPreviewExtensions({
   }
   
   function isLineFocused(state, line) {
+    // In read-only (viewer) mode no line is ever "focused", so all Markdown
+    // syntax stays concealed and the document reads as rendered output.
+    if (state.readOnly) {
+      return false;
+    }
     return state.selection.ranges.some(
       (range) => range.from <= line.to && range.to >= line.from,
     );

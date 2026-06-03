@@ -4,6 +4,38 @@
 // turns a CodeMirror document into semantic ranges that presentation modules can
 // replace with richer UI while preserving source positions for editing.
 
+// The block scans below are pure functions of the document, but each one runs
+// several times per keystroke — once per preview StateField plus once per
+// viewport syntax plugin (and `getPreviewedDetailsRanges` re-scans details for
+// the table and mermaid builders). Memoizing by the immutable CodeMirror `Text`
+// instance collapses those repeated O(n) full-document scans for a given
+// document version into a single pass. Each edit produces a new `Text`, so the
+// WeakMap holds at most the live document(s); older entries are GC'd.
+const detailsBlocksCache = new WeakMap();
+const tableBlocksCache = new WeakMap();
+const mermaidBlocksCache = new WeakMap();
+
+function memoizeBlocks(cache, doc, compute) {
+  let result = cache.get(doc);
+  if (result === undefined) {
+    result = compute(doc);
+    cache.set(doc, result);
+  }
+  return result;
+}
+
+export function findDetailsBlocks(doc) {
+  return memoizeBlocks(detailsBlocksCache, doc, computeDetailsBlocks);
+}
+
+export function findTableBlocks(doc) {
+  return memoizeBlocks(tableBlocksCache, doc, computeTableBlocks);
+}
+
+export function findMermaidBlocks(doc) {
+  return memoizeBlocks(mermaidBlocksCache, doc, computeMermaidBlocks);
+}
+
 export function isThematicBreakLine(text) {
   return /^\s{0,3}(?:(?:-\s*){3,}|(?:\*\s*){3,}|(?:_\s*){3,})$/.test(text);
 }
@@ -52,7 +84,7 @@ export function isEditingDetailsBlock(detailsBlock, activeEdit, selection) {
   );
 }
 
-export function findDetailsBlocks(doc) {
+function computeDetailsBlocks(doc) {
   const blocks = [];
   const stack = [];
 
@@ -228,7 +260,7 @@ export function splitTableCells(text) {
   return text.trim().replace(/^\|/, "").replace(/\|$/, "").split("|");
 }
 
-export function findMermaidBlocks(doc) {
+function computeMermaidBlocks(doc) {
   const blocks = [];
   for (let lineNumber = 1; lineNumber <= doc.lines; lineNumber += 1) {
     const openingLine = doc.line(lineNumber);
@@ -296,7 +328,7 @@ export function isEditingMermaidBlock(mermaidBlock, activeEdit, selection) {
   );
 }
 
-export function findTableBlocks(doc) {
+function computeTableBlocks(doc) {
   const blocks = [];
   let inFence = false;
   let fenceChar = "";
