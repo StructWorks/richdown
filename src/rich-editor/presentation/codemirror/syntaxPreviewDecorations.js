@@ -299,6 +299,17 @@ export function createSyntaxPreviewDecorations({
     const current = classesByLine.get(lineStart);
     classesByLine.set(lineStart, current ? `${current} ${className}` : className);
   }
+
+  function hasAncestor(nodeRef, name) {
+    let node = nodeRef.node.parent;
+    while (node) {
+      if (node.name === name) {
+        return true;
+      }
+      node = node.parent;
+    }
+    return false;
+  }
   
   function buildInlineDecorations(view) {
     const ranges = [];
@@ -382,6 +393,17 @@ export function createSyntaxPreviewDecorations({
               from: node.from,
               to: node.to,
               decoration: Decoration.mark({ class: "cm-markdown-marker" }),
+            });
+          }
+          if (nodeName === "URL") {
+            ranges.push({
+              from: node.from,
+              to: node.to,
+              decoration: Decoration.mark({
+                class: hasAncestor(node, "Link")
+                  ? "cm-markdown-marker"
+                  : "cm-link",
+              }),
             });
           }
           if (nodeName === "Link") {

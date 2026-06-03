@@ -44159,7 +44159,6 @@
       "EmphasisMark",
       "CodeMark",
       "LinkMark",
-      "URL",
       "TaskMarker",
       "StrikethroughMark",
       "CodeInfo",
@@ -45797,6 +45796,16 @@
       const current = classesByLine.get(lineStart);
       classesByLine.set(lineStart, current ? `${current} ${className2}` : className2);
     }
+    function hasAncestor(nodeRef, name2) {
+      let node = nodeRef.node.parent;
+      while (node) {
+        if (node.name === name2) {
+          return true;
+        }
+        node = node.parent;
+      }
+      return false;
+    }
     function buildInlineDecorations(view2) {
       const ranges = [];
       const imageRanges = [];
@@ -45864,6 +45873,15 @@
                 from: node.from,
                 to: node.to,
                 decoration: Decoration.mark({ class: "cm-markdown-marker" })
+              });
+            }
+            if (nodeName === "URL") {
+              ranges.push({
+                from: node.from,
+                to: node.to,
+                decoration: Decoration.mark({
+                  class: hasAncestor(node, "Link") ? "cm-markdown-marker" : "cm-link"
+                })
               });
             }
             if (nodeName === "Link") {

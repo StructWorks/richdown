@@ -21358,22 +21358,32 @@
     `;
     }
     function renderInlineMarkdown(text) {
-      let value = escapeHtml(text);
-      value = value.replace(
-        /!\[([^\]]*)\]\(([^)]+)\)/g,
-        (_, alt, src) => `<span class="rdiff-image" data-image-src="${escapeAttribute(src)}" data-image-alt="${escapeAttribute(alt)}"><span class="rdiff-image-loading">${escapeHtml(alt || "Loading image")}</span></span>`
-      );
-      value = value.replace(
-        /\[([^\]]+)\]\(([^)]+)\)/g,
-        (_, label, href) => `<a href="#" data-href="${escapeAttribute(href)}">${label}</a>`
-      );
-      value = value.replace(/`([^`]+)`/g, "<code>$1</code>");
-      value = value.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
-      value = value.replace(/__([^_]+)__/g, "<strong>$1</strong>");
-      value = value.replace(/\*([^*]+)\*/g, "<em>$1</em>");
-      value = value.replace(/_([^_]+)_/g, "<em>$1</em>");
-      value = value.replace(/~~([^~]+)~~/g, "<del>$1</del>");
-      return value;
+      const pattern = /!\[(?<imageAlt>[^\]]*)\]\(\s*(?:<(?<imageSrcAngle>[^>]+)>|(?<imageSrc>[^)\s]+))(?:\s+(?:"[^"]*"|'[^']*'))?\s*\)|`(?<code>[^`]+)`|\*\*(?<boldStar>[^*]+)\*\*|__(?<boldUnderscore>[^_]+)__|\*(?<italicStar>[^*\s][^*]*?)\*|_(?<italicUnderscore>[^_\s][^_]*?)_|~~(?<strike>[^~]+)~~|\[(?<linkText>[^\]]+)\]\(\s*(?:<(?<linkHrefAngle>[^>]+)>|(?<linkHref>[^)\s]+))(?:\s+(?:"[^"]*"|'[^']*'))?\s*\)|(?<bareUrl>https?:\/\/[^\s<>"')\]]+)/g;
+      let html = "";
+      let lastIndex = 0;
+      for (const match of text.matchAll(pattern)) {
+        const groups = match.groups || {};
+        html += escapeHtml(text.slice(lastIndex, match.index));
+        if (groups.imageAlt !== void 0) {
+          const src = groups.imageSrcAngle || groups.imageSrc || "";
+          html += `<span class="rdiff-image" data-image-src="${escapeAttribute(src)}" data-image-alt="${escapeAttribute(groups.imageAlt)}"><span class="rdiff-image-loading">${escapeHtml(groups.imageAlt || "Loading image")}</span></span>`;
+        } else if (groups.code !== void 0) {
+          html += `<code>${escapeHtml(groups.code)}</code>`;
+        } else if (groups.boldStar !== void 0 || groups.boldUnderscore !== void 0) {
+          html += `<strong>${escapeHtml(groups.boldStar ?? groups.boldUnderscore)}</strong>`;
+        } else if (groups.italicStar !== void 0 || groups.italicUnderscore !== void 0) {
+          html += `<em>${escapeHtml(groups.italicStar ?? groups.italicUnderscore)}</em>`;
+        } else if (groups.strike !== void 0) {
+          html += `<del>${escapeHtml(groups.strike)}</del>`;
+        } else if (groups.linkText !== void 0 || groups.bareUrl !== void 0) {
+          const href = groups.bareUrl || groups.linkHrefAngle || groups.linkHref || "";
+          const label = groups.bareUrl || groups.linkText || href;
+          html += `<a href="#" data-href="${escapeAttribute(href)}">${escapeHtml(label)}</a>`;
+        }
+        lastIndex = match.index + match[0].length;
+      }
+      html += escapeHtml(text.slice(lastIndex));
+      return html;
     }
     function isThematicBreakLine(text) {
       return /^\s{0,3}(?:(?:-\s*){3,}|(?:\*\s*){3,}|(?:_\s*){3,})$/.test(text);
