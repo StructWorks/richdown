@@ -5,7 +5,6 @@ export function isMarkdownMarker(nodeName) {
     "EmphasisMark",
     "CodeMark",
     "LinkMark",
-    "URL",
     "TaskMarker",
     "StrikethroughMark",
     "CodeInfo",
