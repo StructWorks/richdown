@@ -493,16 +493,50 @@ class RichdownEditorProvider {
         settings: getRichEditorSettings()
       });
     };
+    let gitDiffUpdateTimer;
+    let gitDiffUpdateSequence = 0;
+    const postGitDiff = async text => {
+      const sequence = ++gitDiffUpdateSequence;
+      try {
+        const changes = await getGitDiffLineChanges(document, text ?? document.getText());
+        if (sequence !== gitDiffUpdateSequence) {
+          return;
+        }
+        webviewPanel.webview.postMessage({
+          type: 'gitDiff',
+          changes
+        });
+      } catch (error) {
+        if (sequence === gitDiffUpdateSequence) {
+          webviewPanel.webview.postMessage({
+            type: 'gitDiff',
+            changes: []
+          });
+        }
+      }
+    };
+    const scheduleGitDiffUpdate = (text, delay = 120) => {
+      if (gitDiffUpdateTimer) {
+        clearTimeout(gitDiffUpdateTimer);
+      }
+      gitDiffUpdateTimer = setTimeout(() => {
+        gitDiffUpdateTimer = undefined;
+        void postGitDiff(text);
+      }, delay);
+    };
 
     webviewPanel.webview.html = getRichEditorHtml(this.context, webviewPanel.webview, document.getText(), getRichEditorSettings());
+    scheduleGitDiffUpdate(document.getText(), 0);
 
     const changeDocumentSubscription = vscode.workspace.onDidChangeTextDocument(event => {
       if (event.document.uri.toString() === document.uri.toString()) {
         const nextText = document.getText();
         if (pendingWebviewEditSignatures.delete(makeTextSignature(nextText))) {
+          scheduleGitDiffUpdate(nextText);
           return;
         }
         updateWebview(nextText);
+        scheduleGitDiffUpdate(nextText);
       }
     });
     const changeConfigurationSubscription = vscode.workspace.onDidChangeConfiguration(event => {
@@ -521,11 +555,20 @@ class RichdownEditorProvider {
     });
 
     webviewPanel.onDidDispose(() => {
+      if (gitDiffUpdateTimer) {
+        clearTimeout(gitDiffUpdateTimer);
+      }
+      gitDiffUpdateSequence += 1;
       changeDocumentSubscription.dispose();
       changeConfigurationSubscription.dispose();
     });
 
     webviewPanel.webview.onDidReceiveMessage(async event => {
+      if (event.type === 'ready') {
+        scheduleGitDiffUpdate(document.getText(), 0);
+        return;
+      }
+
       if (event.type === 'edit') {
         if (typeof event.text === 'string') {
           queuedWebviewText = event.text;
@@ -646,6 +689,258 @@ function getRichEditorSettings() {
   };
 }
 
+async function getGitDiffLineChanges(document, text) {
+  if (!document || document.uri.scheme !== 'file') {
+    return [];
+  }
+
+  const repository = await getGitRepositoryForUri(document.uri);
+  if (!repository) {
+    return [];
+  }
+
+  let headText;
+  try {
+    headText = await readUriText(createGitHeadUri(document.uri));
+  } catch (error) {
+    if (!repositoryHasResourceChange(repository, document.uri)) {
+      return [];
+    }
+    headText = '';
+  }
+
+  const currentText = typeof text === 'string' ? text : document.getText();
+  return createLineChanges(headText, currentText);
+}
+
+async function getGitRepositoryForUri(uri) {
+  try {
+    const gitExtension = vscode.extensions.getExtension('vscode.git');
+    if (!gitExtension) {
+      return undefined;
+    }
+
+    const gitExports = gitExtension.isActive
+      ? gitExtension.exports
+      : await gitExtension.activate();
+    const gitApi = gitExports?.getAPI?.(1);
+    if (!gitApi || !Array.isArray(gitApi.repositories)) {
+      return undefined;
+    }
+
+    return gitApi.repositories
+      .filter(repository => isUriInsideRoot(uri, repository.rootUri))
+      .sort((left, right) => right.rootUri.fsPath.length - left.rootUri.fsPath.length)[0];
+  } catch (error) {
+    return undefined;
+  }
+}
+
+function isUriInsideRoot(uri, rootUri) {
+  if (!uri?.fsPath || !rootUri?.fsPath) {
+    return false;
+  }
+  const filePath = path.normalize(uri.fsPath);
+  const rootPath = path.normalize(rootUri.fsPath);
+  return filePath === rootPath || filePath.startsWith(rootPath + path.sep);
+}
+
+function repositoryHasResourceChange(repository, uri) {
+  const state = repository?.state;
+  if (!state) {
+    return false;
+  }
+
+  const changeGroups = [
+    state.workingTreeChanges,
+    state.indexChanges,
+    state.mergeChanges,
+    state.untrackedChanges
+  ];
+
+  return changeGroups.some(group =>
+    Array.isArray(group) &&
+    group.some(change => isSameUri(change?.resourceUri || change?.uri, uri))
+  );
+}
+
+function createLineChanges(baseText, currentText) {
+  if (baseText === currentText) {
+    return [];
+  }
+
+  const baseLines = splitDiffLines(baseText);
+  const currentLines = splitDiffLines(currentText);
+  const lineCount = Math.max(currentLines.length, 1);
+  const changesByLine = new Map();
+
+  for (const hunk of createLineDiffHunks(baseLines, currentLines)) {
+    appendLineChangeHunk(changesByLine, hunk, lineCount);
+  }
+
+  return [...changesByLine.entries()]
+    .sort((left, right) => left[0] - right[0])
+    .flatMap(([line, types]) =>
+      [...types].sort().map(type => ({
+        line,
+        type
+      }))
+    );
+}
+
+function splitDiffLines(text) {
+  if (!text) {
+    return [];
+  }
+  return text.split(/\r\n|\n|\r/);
+}
+
+function createLineDiffHunks(baseLines, currentLines) {
+  let prefixLength = 0;
+  while (
+    prefixLength < baseLines.length &&
+    prefixLength < currentLines.length &&
+    baseLines[prefixLength] === currentLines[prefixLength]
+  ) {
+    prefixLength += 1;
+  }
+
+  let baseEnd = baseLines.length - 1;
+  let currentEnd = currentLines.length - 1;
+  while (
+    baseEnd >= prefixLength &&
+    currentEnd >= prefixLength &&
+    baseLines[baseEnd] === currentLines[currentEnd]
+  ) {
+    baseEnd -= 1;
+    currentEnd -= 1;
+  }
+
+  const baseCount = baseEnd - prefixLength + 1;
+  const currentCount = currentEnd - prefixLength + 1;
+  if (baseCount <= 0 && currentCount <= 0) {
+    return [];
+  }
+  if (baseCount <= 0 || currentCount <= 0 || baseCount * currentCount > 1200000) {
+    return [
+      {
+        baseStart: prefixLength,
+        baseCount: Math.max(baseCount, 0),
+        currentStart: prefixLength,
+        currentCount: Math.max(currentCount, 0)
+      }
+    ];
+  }
+
+  return createMiddleLineDiffHunks(
+    baseLines.slice(prefixLength, baseEnd + 1),
+    currentLines.slice(prefixLength, currentEnd + 1),
+    prefixLength
+  );
+}
+
+function createMiddleLineDiffHunks(baseLines, currentLines, offset) {
+  const columnCount = currentLines.length + 1;
+  const lcs = new Uint32Array((baseLines.length + 1) * columnCount);
+  const index = (baseIndex, currentIndex) => baseIndex * columnCount + currentIndex;
+
+  for (let baseIndex = baseLines.length - 1; baseIndex >= 0; baseIndex -= 1) {
+    for (
+      let currentIndex = currentLines.length - 1;
+      currentIndex >= 0;
+      currentIndex -= 1
+    ) {
+      lcs[index(baseIndex, currentIndex)] =
+        baseLines[baseIndex] === currentLines[currentIndex]
+          ? lcs[index(baseIndex + 1, currentIndex + 1)] + 1
+          : Math.max(
+            lcs[index(baseIndex + 1, currentIndex)],
+            lcs[index(baseIndex, currentIndex + 1)]
+          );
+    }
+  }
+
+  const hunks = [];
+  let activeHunk;
+  let baseIndex = 0;
+  let currentIndex = 0;
+
+  const ensureHunk = () => {
+    if (!activeHunk) {
+      activeHunk = {
+        baseStart: offset + baseIndex,
+        baseCount: 0,
+        currentStart: offset + currentIndex,
+        currentCount: 0
+      };
+    }
+    return activeHunk;
+  };
+  const flushHunk = () => {
+    if (activeHunk) {
+      hunks.push(activeHunk);
+      activeHunk = undefined;
+    }
+  };
+
+  while (baseIndex < baseLines.length && currentIndex < currentLines.length) {
+    if (baseLines[baseIndex] === currentLines[currentIndex]) {
+      flushHunk();
+      baseIndex += 1;
+      currentIndex += 1;
+    } else if (
+      lcs[index(baseIndex + 1, currentIndex)] >=
+      lcs[index(baseIndex, currentIndex + 1)]
+    ) {
+      ensureHunk().baseCount += 1;
+      baseIndex += 1;
+    } else {
+      ensureHunk().currentCount += 1;
+      currentIndex += 1;
+    }
+  }
+
+  while (baseIndex < baseLines.length) {
+    ensureHunk().baseCount += 1;
+    baseIndex += 1;
+  }
+  while (currentIndex < currentLines.length) {
+    ensureHunk().currentCount += 1;
+    currentIndex += 1;
+  }
+  flushHunk();
+
+  return hunks;
+}
+
+function appendLineChangeHunk(changesByLine, hunk, lineCount) {
+  const pairedCount = Math.min(hunk.baseCount, hunk.currentCount);
+
+  for (let index = 0; index < pairedCount; index += 1) {
+    addLineChange(changesByLine, hunk.currentStart + index + 1, 'modified', lineCount);
+  }
+
+  for (let index = pairedCount; index < hunk.currentCount; index += 1) {
+    addLineChange(changesByLine, hunk.currentStart + index + 1, 'added', lineCount);
+  }
+
+  if (hunk.baseCount > pairedCount) {
+    addLineChange(
+      changesByLine,
+      hunk.currentStart + pairedCount + 1,
+      'deleted',
+      lineCount
+    );
+  }
+}
+
+function addLineChange(changesByLine, lineNumber, type, lineCount) {
+  const line = Math.min(Math.max(lineNumber, 1), lineCount);
+  const types = changesByLine.get(line) || new Set();
+  types.add(type);
+  changesByLine.set(line, types);
+}
+
 function makeTextSignature(text) {
   let hash = 2166136261;
   for (let index = 0; index < text.length; index += 1) {
@@ -755,6 +1050,7 @@ function getRichEditorHtml(context, webview, initialText, settings) {
   <script type="application/json" id="initial-document">${serializeForScript(initialText)}</script>
   <script type="application/json" id="initial-settings">${serializeForScript(settings)}</script>
   <script type="application/json" id="mermaid-script-uri">${serializeForScript(mermaidScriptUri.toString())}</script>
+  <script type="application/json" id="initial-git-diff">${serializeForScript([])}</script>
   <script nonce="${nonce}" src="${scriptUri}"></script>
 </body>
 </html>`;

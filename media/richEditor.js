@@ -2609,7 +2609,7 @@
   EditorState.transactionFilter = transactionFilter;
   EditorState.transactionExtender = transactionExtender;
   Compartment.reconfigure = /* @__PURE__ */ StateEffect.define();
-  function combineConfig(configs, defaults3, combine = {}) {
+  function combineConfig(configs, defaults4, combine = {}) {
     let result = {};
     for (let config of configs)
       for (let key of Object.keys(config)) {
@@ -2622,9 +2622,9 @@
         else
           throw new Error("Config merge conflict for field " + key);
       }
-    for (let key in defaults3)
+    for (let key in defaults4)
       if (result[key] === void 0)
-        result[key] = defaults3[key];
+        result[key] = defaults4[key];
     return result;
   }
   var RangeValue = class {
@@ -12379,7 +12379,23 @@
   GutterMarker.prototype.point = true;
   var gutterLineClass = /* @__PURE__ */ Facet.define();
   var gutterWidgetClass = /* @__PURE__ */ Facet.define();
+  var defaults = {
+    class: "",
+    renderEmptyElements: false,
+    elementStyle: "",
+    markers: () => RangeSet.empty,
+    lineMarker: () => null,
+    widgetMarker: () => null,
+    lineMarkerChange: null,
+    initialSpacer: null,
+    updateSpacer: null,
+    domEventHandlers: {},
+    side: "before"
+  };
   var activeGutters = /* @__PURE__ */ Facet.define();
+  function gutter(config) {
+    return [gutters(), activeGutters.of({ ...defaults, ...config })];
+  }
   var unfixGutters = /* @__PURE__ */ Facet.define({
     combine: (values2) => values2.some((x) => x)
   });
@@ -27925,7 +27941,7 @@
   }
   var SQLTypes = "array binary bit boolean char character clob date decimal double float int integer interval large national nchar nclob numeric object precision real smallint time timestamp varchar varying ";
   var SQLKeywords = "absolute action add after all allocate alter and any are as asc assertion at authorization before begin between both breadth by call cascade cascaded case cast catalog check close collate collation column commit condition connect connection constraint constraints constructor continue corresponding count create cross cube current current_date current_default_transform_group current_transform_group_for_type current_path current_role current_time current_timestamp current_user cursor cycle data day deallocate declare default deferrable deferred delete depth deref desc describe descriptor deterministic diagnostics disconnect distinct do domain drop dynamic each else elseif end end-exec equals escape except exception exec execute exists exit external fetch first for foreign found from free full function general get global go goto grant group grouping handle having hold hour identity if immediate in indicator initially inner inout input insert intersect into is isolation join key language last lateral leading leave left level like limit local localtime localtimestamp locator loop map match method minute modifies module month names natural nesting new next no none not of old on only open option or order ordinality out outer output overlaps pad parameter partial path prepare preserve primary prior privileges procedure public read reads recursive redo ref references referencing relative release repeat resignal restrict result return returns revoke right role rollback rollup routine row rows savepoint schema scroll search second section select session session_user set sets signal similar size some space specific specifictype sql sqlexception sqlstate sqlwarning start state static system_user table temporary then timezone_hour timezone_minute to trailing transaction translation treat trigger under undo union unique unnest until update usage user using value values view when whenever where while with without work write year zone ";
-  var defaults = {
+  var defaults2 = {
     backslashEscapes: false,
     hashComments: false,
     spaceAfterDashes: false,
@@ -27944,8 +27960,8 @@
   };
   function dialect(spec, kws, types5, builtin2) {
     let dialect2 = {};
-    for (let prop in defaults)
-      dialect2[prop] = (spec.hasOwnProperty(prop) ? spec : defaults)[prop];
+    for (let prop in defaults2)
+      dialect2[prop] = (spec.hasOwnProperty(prop) ? spec : defaults2)[prop];
     if (kws)
       dialect2.words = keywords4(kws, types5 || "", builtin2);
     return dialect2;
@@ -28083,7 +28099,7 @@
       }
     });
   }
-  var tokens = /* @__PURE__ */ tokensFor(defaults);
+  var tokens = /* @__PURE__ */ tokensFor(defaults2);
   var parser$1 = /* @__PURE__ */ LRParser.deserialize({
     version: 14,
     states: "%vQ]QQOOO#wQRO'#DSO$OQQO'#CwO%eQQO'#CxO%lQQO'#CyO%sQQO'#CzOOQQ'#DS'#DSOOQQ'#C}'#C}O'UQRO'#C{OOQQ'#Cv'#CvOOQQ'#C|'#C|Q]QQOOQOQQOOO'`QQO'#DOO(xQRO,59cO)PQQO,59cO)UQQO'#DSOOQQ,59d,59dO)cQQO,59dOOQQ,59e,59eO)jQQO,59eOOQQ,59f,59fO)qQQO,59fOOQQ-E6{-E6{OOQQ,59b,59bOOQQ-E6z-E6zOOQQ,59j,59jOOQQ-E6|-E6|O+VQRO1G.}O+^QQO,59cOOQQ1G/O1G/OOOQQ1G/P1G/POOQQ1G/Q1G/QP+kQQO'#C}O+rQQO1G.}O)PQQO,59cO,PQQO'#Cw",
@@ -30805,7 +30821,7 @@
 
   // node_modules/@codemirror/legacy-modes/mode/css.js
   function mkCSS(parserConfig2) {
-    parserConfig2 = { ...defaults2, ...parserConfig2 };
+    parserConfig2 = { ...defaults3, ...parserConfig2 };
     var inline = parserConfig2.inline;
     var tokenHooks = parserConfig2.tokenHooks, documentTypes3 = parserConfig2.documentTypes || {}, mediaTypes3 = parserConfig2.mediaTypes || {}, mediaFeatures3 = parserConfig2.mediaFeatures || {}, mediaValueKeywords2 = parserConfig2.mediaValueKeywords || {}, propertyKeywords3 = parserConfig2.propertyKeywords || {}, nonStandardPropertyKeywords3 = parserConfig2.nonStandardPropertyKeywords || {}, fontProperties3 = parserConfig2.fontProperties || {}, counterDescriptors2 = parserConfig2.counterDescriptors || {}, colorKeywords3 = parserConfig2.colorKeywords || {}, valueKeywords3 = parserConfig2.valueKeywords || {}, allowNested = parserConfig2.allowNested, lineComment = parserConfig2.lineComment, supportsAtComponent = parserConfig2.supportsAtComponent === true, highlightNonStandardPropertyKeywords = parserConfig2.highlightNonStandardPropertyKeywords !== false;
     var type4, override2;
@@ -32453,7 +32469,7 @@
   ];
   var valueKeywords = keySet(valueKeywords_);
   var allWords = documentTypes_.concat(mediaTypes_).concat(mediaFeatures_).concat(mediaValueKeywords_).concat(propertyKeywords_).concat(nonStandardPropertyKeywords_).concat(colorKeywords_).concat(valueKeywords_);
-  var defaults2 = {
+  var defaults3 = {
     documentTypes,
     mediaTypes,
     mediaFeatures,
@@ -44151,6 +44167,94 @@
     { tag: tags.invalid, color: "var(--rip-danger)" }
   ]);
 
+  // src/rich-editor/presentation/codemirror/gitDiffGutter.js
+  var gitChangeTypes = /* @__PURE__ */ new Set(["added", "modified", "deleted"]);
+  var gitChangeOrder = ["deleted", "modified", "added"];
+  function createGitDiffGutter(initialChanges = []) {
+    const setGitDiffChanges = StateEffect.define();
+    const gitDiffField = StateField.define({
+      create(state) {
+        return buildGitDiffState(state, initialChanges);
+      },
+      update(value, transaction) {
+        let changes = value.changes;
+        let shouldRebuild = transaction.docChanged;
+        for (const effect of transaction.effects) {
+          if (effect.is(setGitDiffChanges)) {
+            changes = effect.value;
+            shouldRebuild = true;
+          }
+        }
+        return shouldRebuild ? buildGitDiffState(transaction.state, changes) : value;
+      },
+      provide: (field) => gutter({
+        class: "cm-git-diff-gutter",
+        renderEmptyElements: true,
+        markers: (view2) => view2.state.field(field).markers
+      })
+    });
+    function update(view2, changes) {
+      if (!view2) return;
+      view2.dispatch({
+        effects: setGitDiffChanges.of(normalizeGitChanges(changes))
+      });
+    }
+    return {
+      extension: gitDiffField,
+      update
+    };
+  }
+  var GitDiffMarker = class extends GutterMarker {
+    constructor(types5) {
+      super();
+      this.types = types5;
+    }
+    eq(other) {
+      return this.types.join(",") === other.types.join(",");
+    }
+    get elementClass() {
+      return this.types.map((type4) => `cm-git-diff-line-${type4}`).join(" ");
+    }
+  };
+  function buildGitDiffState(state, changes) {
+    const normalizedChanges = normalizeGitChanges(changes);
+    const changesByLine = /* @__PURE__ */ new Map();
+    const lineCount = Math.max(state.doc.lines, 1);
+    for (const change of normalizedChanges) {
+      const lineNumber = Math.min(Math.max(change.line, 1), lineCount);
+      const types5 = changesByLine.get(lineNumber) || /* @__PURE__ */ new Set();
+      types5.add(change.type);
+      changesByLine.set(lineNumber, types5);
+    }
+    const builder = new RangeSetBuilder();
+    for (const [lineNumber, types5] of [...changesByLine.entries()].sort(
+      (left, right) => left[0] - right[0]
+    )) {
+      const line = state.doc.line(lineNumber);
+      builder.add(line.from, line.from, new GitDiffMarker(sortChangeTypes(types5)));
+    }
+    return {
+      changes: normalizedChanges,
+      markers: builder.finish()
+    };
+  }
+  function normalizeGitChanges(changes) {
+    if (!Array.isArray(changes)) {
+      return [];
+    }
+    return changes.map((change) => ({
+      line: Number(change?.line),
+      type: String(change?.type || "")
+    })).filter(
+      (change) => Number.isInteger(change.line) && change.line >= 1 && gitChangeTypes.has(change.type)
+    );
+  }
+  function sortChangeTypes(types5) {
+    return [...types5].sort(
+      (left, right) => gitChangeOrder.indexOf(left) - gitChangeOrder.indexOf(right)
+    );
+  }
+
   // src/rich-editor/presentation/codemirror/links.js
   function isMarkdownMarker(nodeName) {
     return [
@@ -45571,6 +45675,23 @@
       return checkbox;
     }
   };
+  var ColorPreviewWidget = class extends WidgetType {
+    constructor(color) {
+      super();
+      this.color = color;
+    }
+    eq(other) {
+      return other.color === this.color;
+    }
+    toDOM() {
+      const swatch = document.createElement("span");
+      swatch.className = "cm-inline-color-preview";
+      swatch.style.backgroundColor = this.color;
+      swatch.title = this.color;
+      swatch.setAttribute("aria-label", `Color sample ${this.color}`);
+      return swatch;
+    }
+  };
   function getUnorderedListSymbol(level) {
     return ["\u2022", "\u25E6", "\u25AA", "\u2023"][level % 4];
   }
@@ -45937,6 +46058,19 @@
                 to: node.to,
                 decoration: Decoration.mark({ class: "cm-inline-code" })
               });
+              const color = getInlineCodeColor(
+                view2.state.doc.sliceString(node.from, node.to)
+              );
+              if (color) {
+                ranges.push({
+                  from: node.from,
+                  to: node.from,
+                  decoration: Decoration.widget({
+                    side: -1,
+                    widget: new ColorPreviewWidget(color)
+                  })
+                });
+              }
             }
           }
         });
@@ -45945,6 +46079,32 @@
         ranges.map((range) => range.decoration.range(range.from, range.to)),
         true
       );
+    }
+    function getInlineCodeColor(source) {
+      const code2 = getInlineCodeText(source).trim();
+      if (isHexColorCode(code2)) {
+        return code2;
+      }
+      if (!isFunctionalColorCode(code2)) {
+        return null;
+      }
+      if (typeof CSS === "undefined" || typeof CSS.supports !== "function") {
+        return null;
+      }
+      return CSS.supports("color", code2) ? code2 : null;
+    }
+    function getInlineCodeText(source) {
+      const opening3 = source.match(/^`+/)?.[0];
+      if (!opening3 || !source.endsWith(opening3)) {
+        return source;
+      }
+      return source.slice(opening3.length, -opening3.length);
+    }
+    function isHexColorCode(value) {
+      return /^#(?:[\da-f]{3,4}|[\da-f]{6}|[\da-f]{8})$/i.test(value);
+    }
+    function isFunctionalColorCode(value) {
+      return /^(?:rgb|rgba|hsl|hsla|hwb|lab|lch|oklab|oklch)\(/i.test(value);
     }
     function buildTaskCheckboxes(view2) {
       const builder = new RangeSetBuilder();
@@ -48105,6 +48265,10 @@ ${rowText}`;
     },
     provide: (f) => showPanel.from(f, (val) => val.panel)
   });
+  function getSearchQuery(state) {
+    let curState = state.field(searchState, false);
+    return curState ? curState.query.spec : defaultQuery(state);
+  }
   var SearchState = class {
     constructor(query, panel) {
       this.query = query;
@@ -48508,11 +48672,56 @@ ${rowText}`;
   function createSearchExtensions() {
     return [
       search({ top: true }),
+      createRichSearchHighlightExtension(),
       highlightSelectionMatches({
         highlightWordAroundCursor: true,
         minSelectionLength: 2
       })
     ];
+  }
+  function createRichSearchHighlightExtension() {
+    return ViewPlugin.fromClass(
+      class {
+        constructor(view2) {
+          this.decorations = buildSearchHighlights(view2);
+        }
+        update(update) {
+          if (update.docChanged || update.viewportChanged || update.transactions.some((transaction) => transaction.effects.length > 0)) {
+            this.decorations = buildSearchHighlights(update.view);
+          }
+        }
+      },
+      {
+        decorations: (plugin) => plugin.decorations
+      }
+    );
+  }
+  function buildSearchHighlights(view2) {
+    const query = getSearchQuery(view2.state);
+    if (!query.valid || !query.search) {
+      return Decoration.none;
+    }
+    const builder = new RangeSetBuilder();
+    let matchCount = 0;
+    for (const range of view2.visibleRanges) {
+      const cursor = query.getCursor(view2.state, range.from, range.to);
+      for (let result = cursor.next(); !result.done; result = cursor.next()) {
+        const { from: from3, to } = result.value;
+        if (from3 === to) {
+          continue;
+        }
+        builder.add(
+          from3,
+          to,
+          Decoration.mark({ class: "cm-richdown-search-match" })
+        );
+        matchCount += 1;
+        if (matchCount > 500) {
+          return builder.finish();
+        }
+      }
+    }
+    return builder.finish();
   }
   function getSearchKeymap() {
     return searchKeymap;
@@ -48973,6 +49182,41 @@ ${rowText}`;
         backgroundColor: "var(--rip-bg)",
         borderRight: "1px solid var(--rip-border)"
       },
+      ".cm-gutter.cm-git-diff-gutter": {
+        width: "14px",
+        minWidth: "14px",
+        padding: "0 2px",
+        borderRight: "0"
+      },
+      ".cm-git-diff-gutter .cm-gutterElement": {
+        position: "relative",
+        padding: "0",
+        minWidth: "10px"
+      },
+      ".cm-git-diff-gutter .cm-gutterElement[class*='cm-git-diff-line-']::before": {
+        content: '""',
+        position: "absolute",
+        left: "4px",
+        top: "3px",
+        bottom: "3px",
+        width: "6px",
+        minHeight: "12px",
+        borderRadius: "3px",
+        backgroundColor: "color-mix(in srgb, var(--vscode-gitDecoration-modifiedResourceForeground, #d29922) 72%, transparent)"
+      },
+      ".cm-git-diff-gutter .cm-gutterElement.cm-git-diff-line-added::before": {
+        backgroundColor: "color-mix(in srgb, var(--vscode-gitDecoration-addedResourceForeground, #2ea043) 72%, transparent)"
+      },
+      ".cm-git-diff-gutter .cm-gutterElement.cm-git-diff-line-modified::before": {
+        backgroundColor: "color-mix(in srgb, var(--vscode-gitDecoration-modifiedResourceForeground, #d29922) 72%, transparent)"
+      },
+      ".cm-git-diff-gutter .cm-gutterElement.cm-git-diff-line-deleted::before": {
+        backgroundColor: "color-mix(in srgb, var(--vscode-gitDecoration-deletedResourceForeground, #f85149) 72%, transparent)"
+      },
+      ".cm-git-diff-gutter .cm-gutterElement.cm-git-diff-line-added.cm-git-diff-line-modified::before, .cm-git-diff-gutter .cm-gutterElement.cm-git-diff-line-added.cm-git-diff-line-deleted::before, .cm-git-diff-gutter .cm-gutterElement.cm-git-diff-line-modified.cm-git-diff-line-deleted::before": {
+        width: "8px",
+        background: "linear-gradient(to bottom, color-mix(in srgb, var(--vscode-gitDecoration-deletedResourceForeground, #f85149) 72%, transparent) 0 33%, color-mix(in srgb, var(--vscode-gitDecoration-modifiedResourceForeground, #d29922) 72%, transparent) 33% 66%, color-mix(in srgb, var(--vscode-gitDecoration-addedResourceForeground, #2ea043) 72%, transparent) 66% 100%)"
+      },
       ".cm-activeLineGutter": {
         color: "var(--rip-heading)",
         backgroundColor: "var(--rip-hover)"
@@ -49070,6 +49314,10 @@ ${rowText}`;
         backgroundColor: "color-mix(in srgb, var(--rip-heading) 46%, transparent)",
         outline: "1px solid var(--rip-heading)"
       },
+      ".cm-richdown-search-match": {
+        backgroundColor: "color-mix(in srgb, var(--vscode-editor-findMatchHighlightBackground, #ea5c0055) 82%, transparent)",
+        boxShadow: "inset 0 -2px 0 var(--vscode-editor-findMatchHighlightBorder, color-mix(in srgb, var(--rip-syntax-orange) 70%, transparent))"
+      },
       ".cm-selectionMatch": {
         backgroundColor: "color-mix(in srgb, var(--rip-link) 24%, transparent)"
       },
@@ -49131,6 +49379,16 @@ ${rowText}`;
         borderRadius: "4px",
         padding: "0 0.26em",
         backgroundColor: "color-mix(in srgb, var(--rip-code-bg) 74%, transparent)"
+      },
+      ".cm-inline-color-preview": {
+        width: "0.9em",
+        height: "0.9em",
+        display: "inline-block",
+        marginRight: "0.34em",
+        border: "1px solid color-mix(in srgb, var(--rip-border) 86%, var(--rip-fg))",
+        borderRadius: "2px",
+        boxShadow: "0 0 0 1px color-mix(in srgb, var(--rip-bg) 78%, transparent)",
+        verticalAlign: "-0.08em"
       },
       ".cm-list-line": {
         position: "relative"
@@ -50219,14 +50477,19 @@ ${rowText}`;
   var mermaidScriptUri = JSON.parse(
     document.querySelector("#mermaid-script-uri").textContent
   );
+  var initialGitDiffChanges = JSON.parse(
+    document.querySelector("#initial-git-diff")?.textContent || "[]"
+  );
   var applyingExternalUpdate = false;
   var settings = normalizeRichEditorSettings(initialSettings);
+  var latestGitDiffChanges = initialGitDiffChanges;
   var outlineNavigation = createOutlineNavigation();
   var fallbackEditor = createFallbackEditor({
     root,
     postMessage: (message) => vscodePort.postMessage(message)
   });
   var slashCommands2 = createSlashCommandController();
+  var gitDiffGutter = createGitDiffGutter(initialGitDiffChanges);
   var settingsMenu = createSettingsMenuController({
     getSettings: () => settings,
     postMessage: (message) => vscodePort.postMessage(message),
@@ -50286,6 +50549,7 @@ ${rowText}`;
         state: EditorState.create({
           doc: initialDocument,
           extensions: [
+            gitDiffGutter.extension,
             lineNumbers(),
             history(),
             highlightActiveLine(),
@@ -50363,16 +50627,24 @@ ${rowText}`;
       });
       settingsMenu.render();
       outlineNavigation.render(view);
+      gitDiffGutter.update(view, latestGitDiffChanges);
+      vscodePort.postMessage({ type: "ready" });
     } catch (error) {
       reportRichdownError("editor-startup", error);
       view = null;
       fallbackEditor.render(initialDocument);
+      vscodePort.postMessage({ type: "ready" });
     }
   });
   window.addEventListener("message", (event) => {
     if (!event.data) return;
     if (event.data.type === "resolvedImage") {
       handleResolvedImage(event.data);
+      return;
+    }
+    if (event.data.type === "gitDiff") {
+      latestGitDiffChanges = event.data.changes || [];
+      gitDiffGutter.update(view, latestGitDiffChanges);
       return;
     }
     if (event.data.type === "theme") {
