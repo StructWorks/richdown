@@ -1,6 +1,6 @@
 # Richdown
 
-Richdown is a VS Code Markdown editor that keeps writing, previewing, and reviewing changes in one place. It opens Markdown files in a CodeMirror-based rich editor with inline Markdown previews, editable rich tables, Mermaid diagrams, syntax-highlighted code blocks, images, links, task checkboxes, Richdown Diff, and configurable writing themes.
+Richdown is a VS Code Markdown editor that keeps writing, previewing, and reviewing changes in one place. It opens Markdown files in a CodeMirror-based rich editor with inline Markdown previews, editable rich tables, Mermaid diagrams, syntax-highlighted code blocks, inline color swatches, images, links, task checkboxes, Git change markers, Richdown Diff, and configurable writing themes.
 
 ## Screenshots
 
@@ -23,6 +23,8 @@ Richdown Diff gives Markdown changes a rendered side-by-side review view while k
 - Open the VS Code Git diff for the current Markdown file from the editor title button or the command palette.
 - Open a Richdown Diff view for Markdown changes, including rendered headings, lists, tables, images, links, and highlighted code blocks.
 - Preview headings, emphasis, inline code, links, images, blockquotes, task checkboxes, thematic breaks, code blocks, tables, details blocks, and Mermaid diagrams while editing.
+- Show a color swatch after inline code color values such as `#ff0066`, and mark added, changed, and deleted Git lines beside the line numbers.
+- Highlight matches for the active Richdown search query using VS Code find-match colors.
 - Edit Markdown tables as rich tables, including cell editing, row/column insertion, and row/column deletion.
 - Render Mermaid diagrams lazily, with fit, zoom, pan, and modal viewing controls.
 - Choose the preview width and theme from the in-editor settings button.
@@ -75,7 +77,7 @@ Install locally from VSIX:
 1. Run `npm run package:vsix`.
 2. In Cursor, open the command palette.
 3. Run `Extensions: Install from VSIX...`.
-4. Select `richdown-0.3.0.vsix`.
+4. Select `richdown-0.5.0.vsix`.
 
 Publish to Open VSX:
 

@@ -31,6 +31,49 @@ export function createEditorThemeExtension() {
     backgroundColor: "var(--rip-bg)",
     borderRight: "1px solid var(--rip-border)",
   },
+  ".cm-gutter.cm-git-diff-gutter": {
+    width: "14px",
+    minWidth: "14px",
+    padding: "0 2px",
+    borderRight: "0",
+  },
+  ".cm-git-diff-gutter .cm-gutterElement": {
+    position: "relative",
+    padding: "0",
+    minWidth: "10px",
+  },
+  ".cm-git-diff-gutter .cm-gutterElement[class*='cm-git-diff-line-']::before":
+    {
+      content: '""',
+      position: "absolute",
+      left: "4px",
+      top: "3px",
+      bottom: "3px",
+      width: "6px",
+      minHeight: "12px",
+      borderRadius: "3px",
+      backgroundColor:
+        "color-mix(in srgb, var(--vscode-gitDecoration-modifiedResourceForeground, #d29922) 72%, transparent)",
+    },
+  ".cm-git-diff-gutter .cm-gutterElement.cm-git-diff-line-added::before": {
+    backgroundColor:
+      "color-mix(in srgb, var(--vscode-gitDecoration-addedResourceForeground, #2ea043) 72%, transparent)",
+  },
+  ".cm-git-diff-gutter .cm-gutterElement.cm-git-diff-line-modified::before":
+    {
+      backgroundColor:
+        "color-mix(in srgb, var(--vscode-gitDecoration-modifiedResourceForeground, #d29922) 72%, transparent)",
+    },
+  ".cm-git-diff-gutter .cm-gutterElement.cm-git-diff-line-deleted::before": {
+    backgroundColor:
+      "color-mix(in srgb, var(--vscode-gitDecoration-deletedResourceForeground, #f85149) 72%, transparent)",
+  },
+  ".cm-git-diff-gutter .cm-gutterElement.cm-git-diff-line-added.cm-git-diff-line-modified::before, .cm-git-diff-gutter .cm-gutterElement.cm-git-diff-line-added.cm-git-diff-line-deleted::before, .cm-git-diff-gutter .cm-gutterElement.cm-git-diff-line-modified.cm-git-diff-line-deleted::before":
+    {
+      width: "8px",
+      background:
+        "linear-gradient(to bottom, color-mix(in srgb, var(--vscode-gitDecoration-deletedResourceForeground, #f85149) 72%, transparent) 0 33%, color-mix(in srgb, var(--vscode-gitDecoration-modifiedResourceForeground, #d29922) 72%, transparent) 33% 66%, color-mix(in srgb, var(--vscode-gitDecoration-addedResourceForeground, #2ea043) 72%, transparent) 66% 100%)",
+    },
   ".cm-activeLineGutter": {
     color: "var(--rip-heading)",
     backgroundColor: "var(--rip-hover)",
@@ -133,6 +176,12 @@ export function createEditorThemeExtension() {
       "color-mix(in srgb, var(--rip-heading) 46%, transparent)",
     outline: "1px solid var(--rip-heading)",
   },
+  ".cm-richdown-search-match": {
+    backgroundColor:
+      "color-mix(in srgb, var(--vscode-editor-findMatchHighlightBackground, #ea5c0055) 82%, transparent)",
+    boxShadow:
+      "inset 0 -2px 0 var(--vscode-editor-findMatchHighlightBorder, color-mix(in srgb, var(--rip-syntax-orange) 70%, transparent))",
+  },
   ".cm-selectionMatch": {
     backgroundColor:
       "color-mix(in srgb, var(--rip-link) 24%, transparent)",
@@ -197,6 +246,17 @@ export function createEditorThemeExtension() {
     padding: "0 0.26em",
     backgroundColor:
       "color-mix(in srgb, var(--rip-code-bg) 74%, transparent)",
+  },
+  ".cm-inline-color-preview": {
+    width: "0.9em",
+    height: "0.9em",
+    display: "inline-block",
+    marginRight: "0.34em",
+    border: "1px solid color-mix(in srgb, var(--rip-border) 86%, var(--rip-fg))",
+    borderRadius: "2px",
+    boxShadow:
+      "0 0 0 1px color-mix(in srgb, var(--rip-bg) 78%, transparent)",
+    verticalAlign: "-0.08em",
   },
   ".cm-list-line": {
     position: "relative",

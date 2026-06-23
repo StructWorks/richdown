@@ -2,6 +2,12 @@
 
 All notable changes to Richdown will be documented in this file.
 
+## 0.5.0 - 2026-06-14
+
+- Added inline color swatches after Markdown inline code color values.
+- Added Git change markers beside line numbers for added, changed, and deleted lines.
+- Added stronger Richdown search match highlighting for the active search query.
+
 ## 0.3.0 - 2026-05-16
 
 - Added `Richdown: Open Rich Diff` for viewing Markdown changes with Richdown-rendered side-by-side diffs.

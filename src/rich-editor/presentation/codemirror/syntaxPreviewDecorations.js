@@ -12,7 +12,12 @@ import {
   rangeIntersectsRanges,
 } from "../../domain/markdownBlocks.js";
 import { isMarkdownMarker } from "./links.js";
-import { CheckboxWidget, CodeCopyButtonWidget, ListMarkerWidget } from "./widgets.js";
+import {
+  CheckboxWidget,
+  CodeCopyButtonWidget,
+  ColorPreviewWidget,
+  ListMarkerWidget,
+} from "./widgets.js";
 
 export function createSyntaxPreviewDecorations({
   safeBuildDecorations,
@@ -419,6 +424,19 @@ export function createSyntaxPreviewDecorations({
               to: node.to,
               decoration: Decoration.mark({ class: "cm-inline-code" }),
             });
+            const color = getInlineCodeColor(
+              view.state.doc.sliceString(node.from, node.to),
+            );
+            if (color) {
+              ranges.push({
+                from: node.from,
+                to: node.from,
+                decoration: Decoration.widget({
+                  side: -1,
+                  widget: new ColorPreviewWidget(color),
+                }),
+              });
+            }
           }
         },
       });
@@ -428,6 +446,36 @@ export function createSyntaxPreviewDecorations({
       ranges.map((range) => range.decoration.range(range.from, range.to)),
       true,
     );
+  }
+
+  function getInlineCodeColor(source) {
+    const code = getInlineCodeText(source).trim();
+    if (isHexColorCode(code)) {
+      return code;
+    }
+    if (!isFunctionalColorCode(code)) {
+      return null;
+    }
+    if (typeof CSS === "undefined" || typeof CSS.supports !== "function") {
+      return null;
+    }
+    return CSS.supports("color", code) ? code : null;
+  }
+
+  function getInlineCodeText(source) {
+    const opening = source.match(/^`+/)?.[0];
+    if (!opening || !source.endsWith(opening)) {
+      return source;
+    }
+    return source.slice(opening.length, -opening.length);
+  }
+
+  function isHexColorCode(value) {
+    return /^#(?:[\da-f]{3,4}|[\da-f]{6}|[\da-f]{8})$/i.test(value);
+  }
+
+  function isFunctionalColorCode(value) {
+    return /^(?:rgb|rgba|hsl|hsla|hwb|lab|lch|oklab|oklch)\(/i.test(value);
   }
   
   function buildTaskCheckboxes(view) {

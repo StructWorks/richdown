@@ -32,6 +32,7 @@ import {
   codeLanguages,
   markdownHighlightStyle,
 } from "./rich-editor/presentation/codemirror/language.js";
+import { createGitDiffGutter } from "./rich-editor/presentation/codemirror/gitDiffGutter.js";
 import { findLinkAtClick } from "./rich-editor/presentation/codemirror/links.js";
 import { createSlashCommandController } from "./rich-editor/presentation/codemirror/slashCommands.js";
 import { createPreviewExtensions } from "./rich-editor/presentation/codemirror/previewExtensions.js";
@@ -64,15 +65,20 @@ const initialSettings = JSON.parse(
 const mermaidScriptUri = JSON.parse(
   document.querySelector("#mermaid-script-uri").textContent,
 );
+const initialGitDiffChanges = JSON.parse(
+  document.querySelector("#initial-git-diff")?.textContent || "[]",
+);
 
 let applyingExternalUpdate = false;
 let settings = normalizeRichEditorSettings(initialSettings);
+let latestGitDiffChanges = initialGitDiffChanges;
 const outlineNavigation = createOutlineNavigation();
 const fallbackEditor = createFallbackEditor({
   root,
   postMessage: (message) => vscodePort.postMessage(message),
 });
 const slashCommands = createSlashCommandController();
+const gitDiffGutter = createGitDiffGutter(initialGitDiffChanges);
 const settingsMenu = createSettingsMenuController({
   getSettings: () => settings,
   postMessage: (message) => vscodePort.postMessage(message),
@@ -139,6 +145,7 @@ queueMicrotask(() => {
       state: EditorState.create({
         doc: initialDocument,
         extensions: [
+          gitDiffGutter.extension,
           lineNumbers(),
           history(),
           highlightActiveLine(),
@@ -218,10 +225,13 @@ queueMicrotask(() => {
     });
     settingsMenu.render();
     outlineNavigation.render(view);
+    gitDiffGutter.update(view, latestGitDiffChanges);
+    vscodePort.postMessage({ type: "ready" });
   } catch (error) {
     reportRichdownError("editor-startup", error);
     view = null;
     fallbackEditor.render(initialDocument);
+    vscodePort.postMessage({ type: "ready" });
   }
 });
 
@@ -230,6 +240,12 @@ window.addEventListener("message", (event) => {
 
   if (event.data.type === "resolvedImage") {
     handleResolvedImage(event.data);
+    return;
+  }
+
+  if (event.data.type === "gitDiff") {
+    latestGitDiffChanges = event.data.changes || [];
+    gitDiffGutter.update(view, latestGitDiffChanges);
     return;
   }
 

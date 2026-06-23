@@ -109,6 +109,26 @@ export class CheckboxWidget extends WidgetType {
   }
 }
 
+export class ColorPreviewWidget extends WidgetType {
+  constructor(color) {
+    super();
+    this.color = color;
+  }
+
+  eq(other) {
+    return other.color === this.color;
+  }
+
+  toDOM() {
+    const swatch = document.createElement("span");
+    swatch.className = "cm-inline-color-preview";
+    swatch.style.backgroundColor = this.color;
+    swatch.title = this.color;
+    swatch.setAttribute("aria-label", `Color sample ${this.color}`);
+    return swatch;
+  }
+}
+
 function getUnorderedListSymbol(level) {
   return ["•", "◦", "▪", "‣"][level % 4];
 }
