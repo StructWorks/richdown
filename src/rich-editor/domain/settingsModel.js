@@ -7,9 +7,11 @@ export function normalizeRichEditorSettings(nextSettings = {}) {
     showEmptyLineHint: nextSettings.showEmptyLineHint !== false,
     richTablePreview: nextSettings.richTablePreview !== false,
     mermaidPreview: nextSettings.mermaidPreview !== false,
+    mermaidColorized: nextSettings.mermaidColorized !== false,
     mermaidPreviewSize: normalizeMermaidPreviewSize(
       nextSettings.mermaidPreviewSize,
     ),
+    gherkinPreview: nextSettings.gherkinPreview !== false,
     previewWidth: normalizePreviewWidth(nextSettings.previewWidth),
   };
 }
@@ -26,6 +28,8 @@ export function hasPreviewSettingChanged(previousSettings, nextSettings) {
   return (
     previousSettings.richTablePreview !== nextSettings.richTablePreview ||
     previousSettings.mermaidPreview !== nextSettings.mermaidPreview ||
-    previousSettings.mermaidPreviewSize !== nextSettings.mermaidPreviewSize
+    previousSettings.mermaidColorized !== nextSettings.mermaidColorized ||
+    previousSettings.mermaidPreviewSize !== nextSettings.mermaidPreviewSize ||
+    previousSettings.gherkinPreview !== nextSettings.gherkinPreview
   );
 }

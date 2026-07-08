@@ -145,6 +145,28 @@ export function createSettingsMenuController({
       return;
     }
 
+    if (item.dataset.toggleMermaidColorized !== undefined) {
+      settings.mermaidColorized = !settings.mermaidColorized;
+      update();
+      refreshDecorations();
+      postMessage({
+        type: "setMermaidColorized",
+        value: settings.mermaidColorized,
+      });
+      return;
+    }
+
+    if (item.dataset.toggleGherkinPreview !== undefined) {
+      settings.gherkinPreview = !settings.gherkinPreview;
+      update();
+      refreshDecorations();
+      postMessage({
+        type: "setGherkinPreview",
+        value: settings.gherkinPreview,
+      });
+      return;
+    }
+
     if (item.dataset.mermaidSize !== undefined) {
       const previewSize = normalizeMermaidPreviewSize(item.dataset.mermaidSize);
       settings.mermaidPreviewSize = previewSize;
@@ -192,10 +214,12 @@ export function createSettingsMenuController({
       <div class="cm-settings-section">
         <div class="cm-settings-menu-title">Preview</div>
         <button type="button" class="cm-settings-menu-item" data-toggle-table-preview="true"><span>Rich tables</span><span>${settings.richTablePreview ? "On" : "Off"}</span></button>
+        <button type="button" class="cm-settings-menu-item" data-toggle-gherkin-preview="true"><span>Gherkin boards</span><span>${settings.gherkinPreview ? "On" : "Off"}</span></button>
       </div>
       <div class="cm-settings-section">
         <div class="cm-settings-menu-title">Mermaid</div>
         <button type="button" class="cm-settings-menu-item" data-toggle-mermaid-preview="true"><span>Diagrams</span><span>${settings.mermaidPreview ? "On" : "Off"}</span></button>
+        <button type="button" class="cm-settings-menu-item" data-toggle-mermaid-colorized="true"><span>Colorized</span><span>${settings.mermaidColorized ? "On" : "Off"}</span></button>
         <div class="cm-settings-subtitle">Size</div>
         ${getMermaidSizeOptions()
           .map(
@@ -220,6 +244,12 @@ function getActionKey(item) {
   }
   if (item.dataset.toggleMermaidPreview !== undefined) {
     return "mermaid-preview";
+  }
+  if (item.dataset.toggleMermaidColorized !== undefined) {
+    return "mermaid-colorized";
+  }
+  if (item.dataset.toggleGherkinPreview !== undefined) {
+    return "gherkin-preview";
   }
   if (item.dataset.mermaidSize !== undefined) {
     return `mermaid-size:${item.dataset.mermaidSize}`;

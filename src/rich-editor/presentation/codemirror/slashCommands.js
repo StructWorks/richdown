@@ -54,6 +54,19 @@ const slashCommands = [
     cursor: 11,
   },
   {
+    label: "Azure Mermaid",
+    description: "Azure DevOps diagram block",
+    insert: "::: mermaid\n\n:::",
+    cursor: 12,
+  },
+  {
+    label: "Gherkin",
+    description: "BDD scenario block",
+    insert:
+      "```gherkin\nFeature: \n\n  Scenario: \n    Given \n    When \n    Then \n```",
+    cursor: 20,
+  },
+  {
     label: "Table",
     description: "Three-column table",
     insert: "| Column | Column | Column |\n| --- | --- | --- |\n|  |  |  |",

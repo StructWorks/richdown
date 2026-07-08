@@ -4,7 +4,7 @@
 // enhancing syntax markers when a line is not focused. Block replacement widgets
 // are handled by previewExtensions.js.
 import { syntaxTree } from "@codemirror/language";
-import { RangeSetBuilder } from "@codemirror/state";
+import { EditorState, RangeSetBuilder } from "@codemirror/state";
 import { Decoration, ViewPlugin } from "@codemirror/view";
 import {
   isThematicBreakLine,
@@ -111,15 +111,16 @@ export function createSyntaxPreviewDecorations({
       decorations: (plugin) => plugin.decorations,
     },
   );
-  
+
   function buildBlockLineDecorations(view) {
     const builder = new RangeSetBuilder();
     const classesByLine = new Map();
+    const stylesByLine = new Map();
     // Merge regex-based Markdown line classes with parser-provided code block
     // classes before writing decorations, because CodeMirror requires line
     // decorations to be emitted in document order.
-    const codeBlockLineClasses = collectCodeBlockLineClasses(view);
-    const codeBlockLineStarts = new Set(codeBlockLineClasses.keys());
+    const codeBlockLineSpecs = collectCodeBlockLineSpecs(view);
+    const codeBlockLineStarts = new Set(codeBlockLineSpecs.keys());
     const previewedDetailsRanges = getPreviewedDetailsRanges(view.state);
   
     for (const range of view.visibleRanges) {
@@ -161,27 +162,40 @@ export function createSyntaxPreviewDecorations({
       }
     }
   
-    for (const [lineStart, className] of codeBlockLineClasses) {
+    for (const [lineStart, spec] of codeBlockLineSpecs) {
       if (
         rangeIntersectsRanges(lineStart, lineStart + 1, previewedDetailsRanges)
       ) {
         continue;
       }
-      addLineClass(classesByLine, lineStart, className);
+      addLineClass(classesByLine, lineStart, spec.className);
+      if (spec.style) {
+        stylesByLine.set(lineStart, spec.style);
+      }
     }
   
     for (const [lineStart, className] of [...classesByLine.entries()].sort(
       (a, b) => a[0] - b[0],
     )) {
-      builder.add(lineStart, lineStart, Decoration.line({ class: className }));
+      const style = stylesByLine.get(lineStart);
+      builder.add(
+        lineStart,
+        lineStart,
+        Decoration.line(
+          style
+            ? { class: className, attributes: { style } }
+            : { class: className },
+        ),
+      );
     }
   
     return builder.finish();
   }
   
-  function collectCodeBlockLineClasses(view) {
-    const lineClasses = new Map();
+  function collectCodeBlockLineSpecs(view) {
+    const lineSpecs = new Map();
     const doc = view.state.doc;
+    const tabSize = Math.max(1, view.state.facet(EditorState.tabSize) || 4);
     for (const range of view.visibleRanges) {
       syntaxTree(view.state).iterate({
         from: range.from,
@@ -195,6 +209,18 @@ export function createSyntaxPreviewDecorations({
           const lastLineNumber = doc.lineAt(
             Math.max(node.from, node.to - 1),
           ).number;
+          // Indent guides are only rendered while the caret/selection is
+          // inside the code block, mirroring VS Code's focused editor look.
+          const blockFocused = isCodeBlockFocused(view.state, node);
+          const codeLineRange = blockFocused
+            ? getCodeBlockContentLineRange(doc, node)
+            : null;
+          const indentUnit = codeLineRange
+            ? inferCodeBlockIndentUnit(doc, codeLineRange, tabSize)
+            : tabSize;
+          const indentColumnsByLineNumber = codeLineRange
+            ? getCodeBlockIndentColumnsByLine(doc, codeLineRange, tabSize)
+            : new Map();
           let position = Math.max(node.from, range.from);
           while (position <= node.to && position <= range.to) {
             const line = doc.lineAt(position);
@@ -205,14 +231,29 @@ export function createSyntaxPreviewDecorations({
             if (line.number === lastLineNumber) {
               classes.push("cm-codeblock-last");
             }
-            lineClasses.set(line.from, classes.join(" "));
+            const style =
+              codeLineRange &&
+              line.number >= codeLineRange.fromLineNumber &&
+              line.number <= codeLineRange.toLineNumber
+                ? getIndentGuideLineStyle(
+                    indentColumnsByLineNumber.get(line.number) || 0,
+                    indentUnit,
+                  )
+                : "";
+            if (style) {
+              classes.push("cm-code-indent-guides-line");
+            }
+            lineSpecs.set(line.from, {
+              className: classes.join(" "),
+              style,
+            });
             position = line.to + 1;
             if (position > doc.length) break;
           }
         },
       });
     }
-    return lineClasses;
+    return lineSpecs;
   }
   
   function buildCodeBlockCopyButtons(view) {
@@ -303,6 +344,145 @@ export function createSyntaxPreviewDecorations({
   function addLineClass(classesByLine, lineStart, className) {
     const current = classesByLine.get(lineStart);
     classesByLine.set(lineStart, current ? `${current} ${className}` : className);
+  }
+
+  function isCodeBlockFocused(state, block) {
+    // Read-only (viewer) mode never shows focus-dependent chrome.
+    if (state.readOnly) {
+      return false;
+    }
+    return state.selection.ranges.some(
+      (range) => range.from <= block.to && range.to >= block.from,
+    );
+  }
+
+  function getCodeBlockContentLineRange(doc, block) {
+    const openingLine = doc.lineAt(block.from);
+    if (block.name === "FencedCode") {
+      const closingLine =
+        block.to > block.from
+          ? doc.lineAt(Math.max(block.from, block.to - 1))
+          : null;
+      const hasClosingFence =
+        closingLine &&
+        closingLine.number > openingLine.number &&
+        /^\s{0,3}(`{3,}|~{3,})\s*$/.test(closingLine.text);
+      const fromLineNumber = openingLine.number + 1;
+      const toLineNumber = hasClosingFence
+        ? closingLine.number - 1
+        : doc.lineAt(block.to).number;
+      return toLineNumber >= fromLineNumber
+        ? { fromLineNumber, toLineNumber }
+        : null;
+    }
+
+    return {
+      fromLineNumber: openingLine.number,
+      toLineNumber: doc.lineAt(Math.max(block.from, block.to - 1)).number,
+    };
+  }
+
+  function inferCodeBlockIndentUnit(doc, lineRange, tabSize) {
+    let smallestIndent = Infinity;
+    for (
+      let lineNumber = lineRange.fromLineNumber;
+      lineNumber <= lineRange.toLineNumber && lineNumber <= doc.lines;
+      lineNumber += 1
+    ) {
+      const line = doc.line(lineNumber);
+      if (!line.text.trim()) {
+        continue;
+      }
+      const indentColumns = countLeadingIndentColumns(line.text, tabSize);
+      if (indentColumns > 1) {
+        smallestIndent = Math.min(smallestIndent, indentColumns);
+      }
+    }
+
+    if (!Number.isFinite(smallestIndent)) {
+      return tabSize;
+    }
+    return Math.max(2, Math.min(tabSize, smallestIndent));
+  }
+
+  function getCodeBlockIndentColumnsByLine(doc, lineRange, tabSize) {
+    const lineEntries = [];
+    let previousNonBlankIndent = null;
+    for (
+      let lineNumber = lineRange.fromLineNumber;
+      lineNumber <= lineRange.toLineNumber && lineNumber <= doc.lines;
+      lineNumber += 1
+    ) {
+      const line = doc.line(lineNumber);
+      const indentColumns = countLeadingIndentColumns(line.text, tabSize);
+      const isBlank = !line.text.trim();
+      lineEntries.push({
+        lineNumber,
+        indentColumns,
+        isBlank,
+        previousNonBlankIndent,
+      });
+      if (!isBlank) {
+        previousNonBlankIndent = indentColumns;
+      }
+    }
+
+    const indentColumnsByLineNumber = new Map();
+    let nextNonBlankIndent = null;
+    for (let index = lineEntries.length - 1; index >= 0; index -= 1) {
+      const entry = lineEntries[index];
+      if (entry.isBlank) {
+        const inheritedIndent = Math.max(
+          entry.previousNonBlankIndent ?? 0,
+          nextNonBlankIndent ?? 0,
+        );
+        indentColumnsByLineNumber.set(
+          entry.lineNumber,
+          Math.max(entry.indentColumns, inheritedIndent),
+        );
+      } else {
+        indentColumnsByLineNumber.set(entry.lineNumber, entry.indentColumns);
+        nextNonBlankIndent = entry.indentColumns;
+      }
+    }
+
+    return indentColumnsByLineNumber;
+  }
+
+  function countLeadingIndentColumns(text, tabSize) {
+    let column = 0;
+    for (let index = 0; index < text.length; index += 1) {
+      const character = text[index];
+      if (character === " ") {
+        column += 1;
+      } else if (character === "\t") {
+        column += tabSize - (column % tabSize);
+      } else {
+        return column;
+      }
+    }
+    return column;
+  }
+
+  function getIndentGuideLineStyle(indentColumns, indentUnit) {
+    if (indentColumns <= 0) {
+      return "";
+    }
+    const normalizedIndentUnit = Math.max(1, indentUnit || 1);
+    const guideCount = Math.min(
+      Math.max(1, Math.floor(indentColumns / normalizedIndentUnit)),
+      12,
+    );
+    // Draw a 1px guide on every indent-unit column (0, unit, 2*unit, ...)
+    // like VS Code. A single repeating gradient paints all guides at once and
+    // the overlay width cuts the pattern off after the last guide, so no line
+    // is ever drawn on the column where the text starts.
+    return [
+      `--cm-code-indent-width: calc(${
+        (guideCount - 1) * normalizedIndentUnit
+      }ch + 1px)`,
+      `--cm-code-indent-guides: repeating-linear-gradient(to right, var(--cm-code-indent-guide) 0 1px, transparent 1px ${normalizedIndentUnit}ch)`,
+    ].join("; ");
   }
 
   function hasAncestor(nodeRef, name) {

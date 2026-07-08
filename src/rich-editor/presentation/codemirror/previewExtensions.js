@@ -7,15 +7,18 @@ import { RangeSetBuilder, StateEffect, StateField } from "@codemirror/state";
 import { Decoration, EditorView } from "@codemirror/view";
 import {
   findDetailsBlocks,
+  findGherkinBlocks,
   findMermaidBlocks,
   findTableBlocks,
   isEditingDetailsBlock,
+  isEditingGherkinBlock,
   isEditingMermaidBlock,
   isEditingTableBlock,
   rangeIntersectsRanges,
   selectionInsideRange,
 } from "../../domain/markdownBlocks.js";
 import { createDetailsPreviewWidgetClass } from "../details/detailsPreview.js";
+import { createGherkinPreviewWidgetClass } from "../gherkin/gherkinPreview.js";
 import { createMermaidPreviewWidgetClass } from "../mermaid/mermaidPreview.js";
 import { createSyntaxPreviewDecorations } from "./syntaxPreviewDecorations.js";
 import { createTablePreviewWidgetClass } from "../table/tablePreview.js";
@@ -74,6 +77,19 @@ export function createPreviewExtensions({
       reportError("mermaid-preview", error);
       return {
         activeEdit: null,
+        decorations: Decoration.none,
+      };
+    }
+  }
+
+  function safeBuildGherkinDecorationState(state, activeEdit, modes) {
+    try {
+      return buildGherkinDecorationState(state, activeEdit, modes);
+    } catch (error) {
+      reportError("gherkin-preview", error);
+      return {
+        activeEdit: null,
+        modes,
         decorations: Decoration.none,
       };
     }
@@ -310,6 +326,86 @@ export function createPreviewExtensions({
     provide: (field) =>
       EditorView.decorations.from(field, (value) => value.decorations),
   });
+
+  const setActiveGherkinEdit = StateEffect.define({
+    map(value, changes) {
+      if (!value) {
+        return null;
+      }
+      return {
+        from: changes.mapPos(value.from),
+        to: changes.mapPos(value.to),
+      };
+    },
+  });
+
+  const setGherkinPreviewMode = StateEffect.define();
+
+  const GherkinPreviewWidget = createGherkinPreviewWidgetClass({
+    setActiveGherkinEdit,
+    setGherkinPreviewMode,
+    requestEditorMeasure,
+  });
+
+  const gherkinDecorationField = StateField.define({
+    create(state) {
+      return safeBuildGherkinDecorationState(state, null, new Map());
+    },
+
+    update(value, transaction) {
+      let modes = value.modes;
+      let activeEdit = value.activeEdit;
+      let shouldRebuild = transaction.docChanged || transaction.selection;
+
+      if (activeEdit && transaction.docChanged) {
+        activeEdit = {
+          from: transaction.changes.mapPos(activeEdit.from),
+          to: transaction.changes.mapPos(activeEdit.to),
+        };
+        shouldRebuild = true;
+      }
+
+      for (const effect of transaction.effects) {
+        if (effect.is(setActiveGherkinEdit)) {
+          activeEdit = effect.value;
+          shouldRebuild = true;
+        }
+        if (effect.is(setGherkinPreviewMode)) {
+          modes = new Map(modes);
+          modes.set(effect.value.key, effect.value.mode);
+          shouldRebuild = true;
+        }
+        if (effect.is(refreshPreviewDecorations)) {
+          shouldRebuild = true;
+        }
+      }
+
+      if (
+        activeEdit &&
+        !selectionInsideRange(
+          transaction.state.selection,
+          activeEdit.from,
+          activeEdit.to,
+        )
+      ) {
+        activeEdit = null;
+        shouldRebuild = true;
+      }
+
+      if (!shouldRebuild) {
+        return value;
+      }
+
+      return safeBuildGherkinDecorationState(
+        transaction.state,
+        activeEdit,
+        modes,
+      );
+    },
+
+    provide: (field) =>
+      EditorView.decorations.from(field, (value) => value.decorations),
+  });
   
   function exitDetailsEditMode(view, force = false) {
     if (!view) return;
@@ -335,6 +431,15 @@ export function createPreviewExtensions({
     if (!force && !activeEdit) return;
     view.dispatch({
       effects: setActiveMermaidEdit.of(null),
+    });
+  }
+
+  function exitGherkinEditMode(view, force = false) {
+    if (!view) return;
+    const activeEdit = view.state.field(gherkinDecorationField).activeEdit;
+    if (!force && !activeEdit) return;
+    view.dispatch({
+      effects: setActiveGherkinEdit.of(null),
     });
   }
   
@@ -413,7 +518,13 @@ export function createPreviewExtensions({
           addTableLineMarks(builder, row.line, row.role);
         }
       } else if (
-        isEditingTableBlock(tableBlock, nextActiveEdit, state.selection)
+        isEditingTableBlock(tableBlock, nextActiveEdit, state.selection) ||
+        (!state.readOnly &&
+          selectionInsideRange(
+            state.selection,
+            tableBlock.from,
+            tableBlock.sourceTo,
+          ))
       ) {
         nextActiveEdit = {
           from: tableBlock.from,
@@ -492,6 +603,7 @@ export function createPreviewExtensions({
           widget: new MermaidPreviewWidget(
             mermaidBlock,
             getSettings().mermaidPreviewSize,
+            getSettings().mermaidColorized,
             previewDecorationRevision,
           ),
         }),
@@ -509,6 +621,81 @@ export function createPreviewExtensions({
   
     return {
       activeEdit: nextActiveEdit,
+      decorations: builder.finish(),
+    };
+  }
+
+  function buildGherkinDecorationState(state, activeEdit, modes) {
+    const builder = new RangeSetBuilder();
+    if (!getSettings().gherkinPreview) {
+      return {
+        activeEdit: null,
+        modes,
+        decorations: builder.finish(),
+      };
+    }
+
+    const gherkinBlocks = findGherkinBlocks(state.doc);
+    const previewedDetailsRanges = getPreviewedDetailsRanges(state);
+    const blockKeys = new Set(gherkinBlocks.map((block) => block.key));
+    const nextModes = new Map(
+      [...modes].filter(([key]) => blockKeys.has(key)),
+    );
+    let nextActiveEdit = activeEdit;
+
+    for (const gherkinBlock of gherkinBlocks) {
+      if (
+        rangeIntersectsRanges(
+          gherkinBlock.from,
+          gherkinBlock.sourceTo,
+          previewedDetailsRanges,
+        )
+      ) {
+        continue;
+      }
+
+      if (
+        isEditingGherkinBlock(gherkinBlock, nextActiveEdit, state.selection) ||
+        (!state.readOnly &&
+          selectionInsideRange(
+            state.selection,
+            gherkinBlock.from,
+            gherkinBlock.sourceTo,
+          ))
+      ) {
+        nextActiveEdit = {
+          from: gherkinBlock.from,
+          to: gherkinBlock.sourceTo,
+        };
+        continue;
+      }
+
+      builder.add(
+        gherkinBlock.from,
+        gherkinBlock.to,
+        Decoration.replace({
+          block: true,
+          widget: new GherkinPreviewWidget(
+            gherkinBlock,
+            nextModes.get(gherkinBlock.key),
+            previewDecorationRevision,
+          ),
+        }),
+      );
+    }
+
+    if (
+      nextActiveEdit &&
+      !gherkinBlocks.some(
+        (gherkinBlock) => gherkinBlock.from === nextActiveEdit.from,
+      )
+    ) {
+      nextActiveEdit = null;
+    }
+
+    return {
+      activeEdit: nextActiveEdit,
+      modes: nextModes,
       decorations: builder.finish(),
     };
   }
@@ -572,6 +759,7 @@ export function createPreviewExtensions({
         refreshPreviewDecorations.of(null),
         setActiveTableEdit.of(null),
         setActiveMermaidEdit.of(null),
+        setActiveGherkinEdit.of(null),
       ],
     });
     requestEditorMeasure(view);
@@ -582,6 +770,7 @@ export function createPreviewExtensions({
       detailsDecorationField,
       tableDecorationField,
       mermaidDecorationField,
+      gherkinDecorationField,
       blockLineDecorations,
       codeBlockCopyButtons,
       inlineDecorations,
@@ -591,6 +780,7 @@ export function createPreviewExtensions({
     exitDetailsEditMode,
     exitTableEditMode,
     exitMermaidEditMode,
+    exitGherkinEditMode,
     isLineFocused,
   };
 }

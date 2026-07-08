@@ -14,6 +14,7 @@
 const detailsBlocksCache = new WeakMap();
 const tableBlocksCache = new WeakMap();
 const mermaidBlocksCache = new WeakMap();
+const gherkinBlocksCache = new WeakMap();
 
 function memoizeBlocks(cache, doc, compute) {
   let result = cache.get(doc);
@@ -34,6 +35,10 @@ export function findTableBlocks(doc) {
 
 export function findMermaidBlocks(doc) {
   return memoizeBlocks(mermaidBlocksCache, doc, computeMermaidBlocks);
+}
+
+export function findGherkinBlocks(doc) {
+  return memoizeBlocks(gherkinBlocksCache, doc, computeGherkinBlocks);
 }
 
 export function isThematicBreakLine(text) {
@@ -246,14 +251,14 @@ export function isTableRowLine(text) {
   }
 
   const cells = splitTableCells(text);
-  return cells.length >= 2;
+  return cells.length >= 1;
 }
 
 export function isTableDelimiterLine(text) {
   if (!text.includes("|")) {
     return false;
   }
-  return /^\s*\|?\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)+\|?\s*$/.test(text);
+  return /^\s*\|?\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)*\|?\s*$/.test(text);
 }
 
 export function splitTableCells(text) {
@@ -264,7 +269,91 @@ function computeMermaidBlocks(doc) {
   const blocks = [];
   for (let lineNumber = 1; lineNumber <= doc.lines; lineNumber += 1) {
     const openingLine = doc.line(lineNumber);
-    const opening = openingLine.text.match(/^\s{0,3}(`{3,}|~{3,})\s*mermaid\b.*$/i);
+    const opening = parseMermaidOpeningFence(openingLine.text);
+    if (!opening) {
+      continue;
+    }
+
+    const codeLines = [];
+    let closingLine = null;
+
+    // Respect the opening fence character and length so diagrams inside longer
+    // fences do not close too early. Azure DevOps also accepts ::: mermaid
+    // blocks, so treat colon fences as first-class Mermaid containers here.
+    for (
+      let nextLineNumber = lineNumber + 1;
+      nextLineNumber <= doc.lines;
+      nextLineNumber += 1
+    ) {
+      const nextLine = doc.line(nextLineNumber);
+      if (isMatchingClosingFence(nextLine.text, opening)) {
+        closingLine = nextLine;
+        break;
+      }
+      codeLines.push(nextLine.text);
+    }
+
+    if (!closingLine) {
+      continue;
+    }
+
+    blocks.push({
+      from: openingLine.from,
+      to: closingLine.to,
+      sourceTo: closingLine.to,
+      sourceLineCount: closingLine.number - openingLine.number + 1,
+      code: codeLines.join("\n").trim(),
+      signature: [
+        openingLine.text,
+        ...codeLines,
+        closingLine.text,
+      ].join("\n"),
+    });
+    lineNumber = closingLine.number;
+  }
+  return blocks;
+}
+
+function parseMermaidOpeningFence(text) {
+  const opening = text.match(
+    /^\s{0,3}((?:`{3,})|(?:~{3,})|(?::{3,}))\s*mermaid\b.*$/i,
+  );
+  if (!opening) {
+    return null;
+  }
+  return {
+    marker: opening[1],
+    char: opening[1][0],
+    length: opening[1].length,
+  };
+}
+
+function isMatchingClosingFence(text, opening) {
+  const closing = text.match(/^\s{0,3}((?:`{3,})|(?:~{3,})|(?::{3,}))\s*$/);
+  return Boolean(
+    closing &&
+      closing[1][0] === opening.char &&
+      closing[1].length >= opening.length,
+  );
+}
+
+export function isEditingMermaidBlock(mermaidBlock, activeEdit, selection) {
+  if (!activeEdit || activeEdit.from !== mermaidBlock.from) {
+    return false;
+  }
+
+  return selection.ranges.some(
+    (range) => range.from >= mermaidBlock.from && range.to <= mermaidBlock.sourceTo,
+  );
+}
+
+function computeGherkinBlocks(doc) {
+  const blocks = [];
+  for (let lineNumber = 1; lineNumber <= doc.lines; lineNumber += 1) {
+    const openingLine = doc.line(lineNumber);
+    const opening = openingLine.text.match(
+      /^\s{0,3}(`{3,}|~{3,})\s*(?:gherkin|feature|cucumber)\b.*$/i,
+    );
     if (!opening) {
       continue;
     }
@@ -275,8 +364,6 @@ function computeMermaidBlocks(doc) {
     const codeLines = [];
     let closingLine = null;
 
-    // Respect the opening fence character and length so diagrams inside longer
-    // fences do not close too early.
     for (
       let nextLineNumber = lineNumber + 1;
       nextLineNumber <= doc.lines;
@@ -299,32 +386,31 @@ function computeMermaidBlocks(doc) {
       continue;
     }
 
+    const signature = [openingLine.text, ...codeLines, closingLine.text].join(
+      "\n",
+    );
     blocks.push({
       from: openingLine.from,
-      to: closingLine.number < doc.lines
-        ? doc.line(closingLine.number + 1).from
-        : closingLine.to,
+      to: closingLine.to,
       sourceTo: closingLine.to,
       sourceLineCount: closingLine.number - openingLine.number + 1,
       code: codeLines.join("\n").trim(),
-      signature: [
-        openingLine.text,
-        ...codeLines,
-        closingLine.text,
-      ].join("\n"),
+      signature,
+      key: `${openingLine.from}:${signature}`,
     });
     lineNumber = closingLine.number;
   }
   return blocks;
 }
 
-export function isEditingMermaidBlock(mermaidBlock, activeEdit, selection) {
-  if (!activeEdit || activeEdit.from !== mermaidBlock.from) {
+export function isEditingGherkinBlock(gherkinBlock, activeEdit, selection) {
+  if (!activeEdit || activeEdit.from !== gherkinBlock.from) {
     return false;
   }
 
   return selection.ranges.some(
-    (range) => range.from >= mermaidBlock.from && range.to <= mermaidBlock.sourceTo,
+    (range) =>
+      range.from >= gherkinBlock.from && range.to <= gherkinBlock.sourceTo,
   );
 }
 

@@ -1,3 +1,5 @@
+import { EditorView } from "@codemirror/view";
+
 export function createOutlineNavigation() {
   let outlineRoot = null;
   let outlineButton = null;
@@ -131,9 +133,10 @@ export function createOutlineNavigation() {
   }
 
   function jumpToHeading(editorView, heading) {
+    const anchor = Math.min(heading.from, editorView.state.doc.length);
     editorView.dispatch({
-      selection: { anchor: Math.min(heading.from, editorView.state.doc.length) },
-      scrollIntoView: true,
+      selection: { anchor },
+      effects: EditorView.scrollIntoView(anchor, { y: "start", yMargin: 0 }),
     });
     editorView.focus();
     close();

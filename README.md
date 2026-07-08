@@ -1,6 +1,6 @@
 # Richdown
 
-Richdown is a VS Code Markdown editor that keeps writing, previewing, and reviewing changes in one place. It opens Markdown files in a CodeMirror-based rich editor with inline Markdown previews, editable rich tables, Mermaid diagrams, syntax-highlighted code blocks, inline color swatches, images, links, task checkboxes, Git change markers, Richdown Diff, and configurable writing themes.
+Richdown is a VS Code Markdown editor that keeps writing, previewing, and reviewing changes in one place. It opens Markdown files in a CodeMirror-based rich editor with inline Markdown previews, editable rich tables, colored Mermaid diagrams, Gherkin BDD boards, syntax-highlighted code blocks, inline color swatches, images, links, task checkboxes, Git change markers, Richdown Diff, and configurable writing themes.
 
 ## Screenshots
 
@@ -22,11 +22,12 @@ Richdown Diff gives Markdown changes a rendered side-by-side review view while k
 - Toggle between Richdown and the standard VS Code text editor from the editor title button or the command palette.
 - Open the VS Code Git diff for the current Markdown file from the editor title button or the command palette.
 - Open a Richdown Diff view for Markdown changes, including rendered headings, lists, tables, images, links, and highlighted code blocks.
-- Preview headings, emphasis, inline code, links, images, blockquotes, task checkboxes, thematic breaks, code blocks, tables, details blocks, and Mermaid diagrams while editing.
+- Preview headings, emphasis, inline code, links, images, blockquotes, task checkboxes, thematic breaks, code blocks, tables, details blocks, Mermaid diagrams, and Gherkin scenarios while editing.
 - Show a color swatch after inline code color values such as `#ff0066`, and mark added, changed, and deleted Git lines beside the line numbers.
 - Highlight matches for the active Richdown search query using VS Code find-match colors.
 - Edit Markdown tables as rich tables, including cell editing, row/column insertion, and row/column deletion.
-- Render Mermaid diagrams lazily, with fit, zoom, pan, and modal viewing controls.
+- Render Mermaid diagrams lazily with optional Richdown colorization, fit, zoom, pan, and modal viewing controls. Richdown supports both Markdown fences and Azure DevOps-style `::: mermaid` blocks.
+- Render `gherkin`, `feature`, and `cucumber` fenced code blocks as switchable BDD boards with highlighted source view.
 - Choose the preview width and theme from the in-editor settings button.
 - Switch between the default VS Code theme and several built-in dark/light themes.
 
@@ -43,7 +44,9 @@ Richdown Diff gives Markdown changes a rendered side-by-side review view while k
 - `richdown.showEmptyLineHint`: Show the `Click to write` hint for empty lines.
 - `richdown.richTablePreview`: Render Markdown tables as editable rich tables.
 - `richdown.mermaidPreview`: Render Mermaid code blocks as diagrams.
+- `richdown.mermaidColorized`: Apply Richdown's clearer color palette to Mermaid diagrams.
 - `richdown.mermaidPreviewSize`: Choose the Mermaid preview height behavior.
+- `richdown.gherkinPreview`: Render Gherkin code blocks as BDD boards.
 - `richdown.previewWidth`: Choose the Richdown content width.
 
 ## Development
@@ -77,7 +80,7 @@ Install locally from VSIX:
 1. Run `npm run package:vsix`.
 2. In Cursor, open the command palette.
 3. Run `Extensions: Install from VSIX...`.
-4. Select `richdown-0.5.0.vsix`.
+4. Select `richdown-0.6.0.vsix`.
 
 Publish to Open VSX:
 

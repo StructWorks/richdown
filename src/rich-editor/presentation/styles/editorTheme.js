@@ -399,6 +399,28 @@ export function createEditorThemeExtension() {
     backgroundColor:
       "color-mix(in srgb, var(--rip-panel) 78%, var(--rip-hover))",
   },
+  ".cm-code-indent-guides-line::before": {
+    content: '""',
+    position: "absolute",
+    left: "12px",
+    top: "0",
+    bottom: "0",
+    width: "var(--cm-code-indent-width, 0)",
+    zIndex: "1",
+    backgroundImage: "var(--cm-code-indent-guides, none)",
+    opacity: "0.9",
+    pointerEvents: "none",
+  },
+  ".cm-code-indent-guides-line": {
+    // Match VS Code's own indent guides; fall back to a muted line when the
+    // webview does not expose the editor theme variables.
+    "--cm-code-indent-guide":
+      "var(--vscode-editorIndentGuide-background1, var(--vscode-editorIndentGuide-background, color-mix(in srgb, var(--rip-muted) 35%, transparent)))",
+  },
+  ".cm-code-indent-guides-line.cm-activeLine": {
+    "--cm-code-indent-guide":
+      "var(--vscode-editorIndentGuide-activeBackground1, var(--vscode-editorIndentGuide-activeBackground, color-mix(in srgb, var(--rip-muted) 60%, transparent)))",
+  },
   ".cm-codeblock-line .cm-markdown-marker": {
     opacity: "0",
   },
@@ -691,6 +713,348 @@ export function createEditorThemeExtension() {
   ".cm-rich-table-action-icon": {
     color: "var(--rip-heading)",
     fontWeight: "760",
+  },
+  ".cm-gherkin-preview": {
+    display: "block",
+    boxSizing: "border-box",
+    maxWidth: "100%",
+    margin: "0",
+    border: "1px solid var(--rip-border)",
+    borderRadius: "8px",
+    overflow: "hidden",
+    backgroundColor: "var(--rip-panel)",
+    boxShadow: "0 10px 26px rgba(0, 0, 0, 0.10)",
+    color: "var(--rip-fg)",
+    fontFamily: "var(--vscode-font-family)",
+    userSelect: "text",
+  },
+  ".cm-gherkin-preview.cm-widgetBuffer": {
+    display: "none",
+  },
+  ".cm-gherkin-toolbar": {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: "8px",
+    borderBottom: "1px solid var(--rip-border)",
+    padding: "7px 8px",
+    backgroundColor:
+      "color-mix(in srgb, var(--rip-panel) 86%, var(--rip-bg))",
+  },
+  ".cm-gherkin-toolbar-title": {
+    minWidth: "0",
+    display: "flex",
+    alignItems: "center",
+    gap: "7px",
+  },
+  ".cm-gherkin-toolbar-label": {
+    flex: "0 0 auto",
+    border: "1px solid color-mix(in srgb, var(--rip-syntax-blue) 55%, var(--rip-border))",
+    borderRadius: "999px",
+    padding: "2px 7px",
+    color: "var(--rip-syntax-blue)",
+    backgroundColor:
+      "color-mix(in srgb, var(--rip-syntax-blue) 12%, transparent)",
+    fontSize: "11px",
+    fontWeight: "760",
+  },
+  ".cm-gherkin-toolbar-name": {
+    minWidth: "0",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+    color: "var(--rip-heading)",
+    fontSize: "13px",
+    fontWeight: "760",
+  },
+  ".cm-gherkin-stats": {
+    display: "flex",
+    flexWrap: "wrap",
+    justifyContent: "center",
+    gap: "4px",
+  },
+  ".cm-gherkin-stat": {
+    border: "1px solid var(--rip-border)",
+    borderRadius: "999px",
+    padding: "2px 7px",
+    color: "var(--rip-muted)",
+    backgroundColor: "var(--rip-input-bg)",
+    fontSize: "11px",
+  },
+  ".cm-gherkin-actions": {
+    display: "inline-flex",
+    flex: "0 0 auto",
+    gap: "4px",
+  },
+  ".cm-gherkin-button": {
+    height: "24px",
+    border: "1px solid var(--rip-border)",
+    borderRadius: "5px",
+    padding: "0 8px",
+    color: "var(--rip-fg)",
+    backgroundColor: "var(--rip-input-bg)",
+    font: "12px var(--vscode-font-family)",
+    cursor: "pointer",
+  },
+  ".cm-gherkin-button:hover, .cm-gherkin-button.is-active": {
+    borderColor: "var(--rip-focus)",
+    color: "var(--rip-heading)",
+    backgroundColor: "var(--rip-hover)",
+  },
+  ".cm-gherkin-body": {
+    maxHeight: "none",
+    overflow: "visible",
+  },
+  ".cm-gherkin-board": {
+    display: "grid",
+    gap: "14px",
+    padding: "14px",
+  },
+  ".cm-gherkin-feature-section": {
+    display: "grid",
+    gap: "12px",
+  },
+  ".cm-gherkin-feature-section + .cm-gherkin-feature-section": {
+    borderTop: "1px solid var(--rip-border)",
+    paddingTop: "14px",
+  },
+  ".cm-gherkin-feature": {
+    display: "grid",
+    gap: "9px",
+    border: "1px solid color-mix(in srgb, var(--rip-syntax-blue) 32%, var(--rip-border))",
+    borderRadius: "8px",
+    padding: "14px",
+    background:
+      "linear-gradient(135deg, color-mix(in srgb, var(--rip-syntax-blue) 16%, var(--rip-panel)), color-mix(in srgb, var(--rip-syntax-green) 9%, var(--rip-panel)))",
+  },
+  ".cm-gherkin-feature-heading": {
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+    minWidth: "0",
+  },
+  ".cm-gherkin-feature-title": {
+    minWidth: "0",
+    overflowWrap: "anywhere",
+    color: "var(--rip-heading)",
+    fontSize: "16px",
+    fontWeight: "780",
+  },
+  ".cm-gherkin-keyword-pill": {
+    flex: "0 0 auto",
+    borderRadius: "999px",
+    padding: "2px 7px",
+    color: "var(--rip-button-fg)",
+    backgroundColor: "var(--rip-syntax-blue)",
+    fontSize: "11px",
+    fontWeight: "760",
+    lineHeight: "1.35",
+  },
+  ".cm-gherkin-keyword-pill.is-background": {
+    backgroundColor: "var(--rip-syntax-purple)",
+  },
+  ".cm-gherkin-keyword-pill.is-outline": {
+    backgroundColor: "var(--rip-syntax-orange)",
+  },
+  ".cm-gherkin-keyword-pill.is-scenario": {
+    backgroundColor: "var(--rip-syntax-green)",
+  },
+  ".cm-gherkin-tags": {
+    display: "flex",
+    flexWrap: "wrap",
+    gap: "6px",
+  },
+  ".cm-gherkin-tag": {
+    border: "1px solid color-mix(in srgb, var(--rip-syntax-purple) 40%, var(--rip-border))",
+    borderRadius: "999px",
+    padding: "1px 6px",
+    color: "var(--rip-syntax-purple)",
+    backgroundColor:
+      "color-mix(in srgb, var(--rip-syntax-purple) 10%, transparent)",
+    fontSize: "11px",
+  },
+  ".cm-gherkin-description": {
+    display: "grid",
+    gap: "5px",
+    color: "var(--rip-muted)",
+    fontSize: "12px",
+    lineHeight: "1.55",
+  },
+  ".cm-gherkin-description p": {
+    margin: "0",
+  },
+  ".cm-gherkin-group": {
+    display: "grid",
+    gap: "10px",
+  },
+  ".cm-gherkin-group-header": {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: "8px",
+  },
+  ".cm-gherkin-group-title": {
+    display: "flex",
+    alignItems: "center",
+    gap: "6px",
+    minWidth: "0",
+    color: "var(--rip-heading)",
+    fontWeight: "760",
+  },
+  ".cm-gherkin-group-eyebrow": {
+    color: "var(--rip-muted)",
+    fontSize: "11px",
+    textTransform: "uppercase",
+    letterSpacing: "0",
+  },
+  ".cm-gherkin-scenario-grid": {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 280px), 1fr))",
+    gap: "12px",
+  },
+  ".cm-gherkin-scenario": {
+    display: "grid",
+    alignContent: "start",
+    gap: "10px",
+    border: "1px solid var(--rip-border)",
+    borderRadius: "8px",
+    padding: "12px",
+    backgroundColor:
+      "color-mix(in srgb, var(--rip-panel) 88%, var(--rip-bg))",
+  },
+  ".cm-gherkin-scenario.is-background": {
+    borderColor:
+      "color-mix(in srgb, var(--rip-syntax-purple) 38%, var(--rip-border))",
+  },
+  ".cm-gherkin-scenario-header": {
+    display: "flex",
+    alignItems: "center",
+    gap: "7px",
+    minWidth: "0",
+  },
+  ".cm-gherkin-scenario-title": {
+    minWidth: "0",
+    overflowWrap: "anywhere",
+    color: "var(--rip-heading)",
+    fontWeight: "760",
+    lineHeight: "1.3",
+  },
+  ".cm-gherkin-flow": {
+    display: "grid",
+    gap: "8px",
+  },
+  ".cm-gherkin-step": {
+    display: "grid",
+    gridTemplateColumns: "8px minmax(58px, auto) minmax(0, 1fr)",
+    alignItems: "start",
+    columnGap: "9px",
+    border: "1px solid color-mix(in srgb, var(--rip-border) 68%, transparent)",
+    borderRadius: "7px",
+    padding: "8px 10px 8px 8px",
+    backgroundColor:
+      "color-mix(in srgb, var(--rip-bg) 26%, transparent)",
+  },
+  ".cm-gherkin-step-rail": {
+    width: "4px",
+    height: "100%",
+    minHeight: "22px",
+    borderRadius: "3px",
+    backgroundColor: "var(--rip-syntax-blue)",
+  },
+  ".cm-gherkin-step.is-when .cm-gherkin-step-rail": {
+    backgroundColor: "var(--rip-syntax-orange)",
+  },
+  ".cm-gherkin-step.is-then .cm-gherkin-step-rail": {
+    backgroundColor: "var(--rip-syntax-green)",
+  },
+  ".cm-gherkin-step.is-and .cm-gherkin-step-rail, .cm-gherkin-step.is-but .cm-gherkin-step-rail": {
+    backgroundColor: "var(--rip-syntax-purple)",
+  },
+  ".cm-gherkin-step-keyword": {
+    color: "var(--rip-muted)",
+    fontSize: "12px",
+    fontWeight: "760",
+    lineHeight: "1.5",
+  },
+  ".cm-gherkin-step-text": {
+    minWidth: "0",
+    overflowWrap: "anywhere",
+    lineHeight: "1.5",
+  },
+  ".cm-gherkin-step-table, .cm-gherkin-example-table": {
+    gridColumn: "2 / 4",
+    width: "100%",
+    borderCollapse: "collapse",
+    marginTop: "8px",
+    fontSize: "12px",
+  },
+  ".cm-gherkin-step-table td, .cm-gherkin-example-table td": {
+    border: "1px solid var(--rip-border)",
+    padding: "6px 8px",
+    overflowWrap: "anywhere",
+  },
+  ".cm-gherkin-example-table tr:first-child td": {
+    color: "var(--rip-heading)",
+    backgroundColor:
+      "color-mix(in srgb, var(--rip-heading) 8%, transparent)",
+    fontWeight: "760",
+  },
+  ".cm-gherkin-examples": {
+    display: "grid",
+    gap: "7px",
+  },
+  ".cm-gherkin-examples-title": {
+    color: "var(--rip-muted)",
+    fontSize: "12px",
+    fontWeight: "760",
+  },
+  ".cm-gherkin-empty": {
+    color: "var(--rip-muted)",
+    fontSize: "12px",
+  },
+  ".cm-gherkin-source": {
+    margin: "0",
+    padding: "10px 12px",
+    overflow: "visible",
+    color: "var(--rip-fg)",
+    backgroundColor: "var(--rip-code-bg)",
+    font:
+      "12.5px var(--vscode-editor-font-family, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace)",
+    lineHeight: "1.62",
+  },
+  ".cm-gherkin-source-line": {
+    minHeight: "1.62em",
+    whiteSpace: "pre-wrap",
+    overflowWrap: "anywhere",
+  },
+  ".cm-gherkin-token.is-feature, .cm-gherkin-token.is-rule, .cm-gherkin-token.is-background, .cm-gherkin-token.is-scenario, .cm-gherkin-token.is-outline, .cm-gherkin-token.is-examples, .cm-gherkin-token.is-given, .cm-gherkin-token.is-when, .cm-gherkin-token.is-then, .cm-gherkin-token.is-and, .cm-gherkin-token.is-but": {
+    color: "var(--rip-syntax-purple)",
+    fontWeight: "760",
+  },
+  ".cm-gherkin-token.is-given": {
+    color: "var(--rip-syntax-blue)",
+  },
+  ".cm-gherkin-token.is-when": {
+    color: "var(--rip-syntax-orange)",
+  },
+  ".cm-gherkin-token.is-then": {
+    color: "var(--rip-syntax-green)",
+  },
+  ".cm-gherkin-token.is-tag": {
+    color: "var(--rip-syntax-purple)",
+  },
+  ".cm-gherkin-token.is-title": {
+    color: "var(--rip-heading)",
+  },
+  ".cm-gherkin-token.is-comment": {
+    color: "var(--rip-muted)",
+    fontStyle: "italic",
+  },
+  ".cm-gherkin-token.is-table": {
+    color: "var(--rip-syntax-orange)",
+  },
+  ".cm-gherkin-token.is-punctuation": {
+    color: "var(--rip-muted)",
   },
   ".cm-mermaid-preview": {
     display: "block",
