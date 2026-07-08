@@ -13,10 +13,11 @@ export function createMermaidPreviewWidgetClass({
   let mermaidLoadPromise = null;
 
   class MermaidPreviewWidget extends WidgetType {
-    constructor(mermaidBlock, previewSize, revision) {
+    constructor(mermaidBlock, previewSize, colorized, revision) {
       super();
       this.mermaidBlock = mermaidBlock;
       this.previewSize = normalizeMermaidPreviewSize(previewSize);
+      this.colorized = colorized !== false;
       this.revision = revision;
     }
   
@@ -26,6 +27,7 @@ export function createMermaidPreviewWidgetClass({
         other.mermaidBlock.to === this.mermaidBlock.to &&
         other.mermaidBlock.signature === this.mermaidBlock.signature &&
         other.previewSize === this.previewSize &&
+        other.colorized === this.colorized &&
         other.revision === this.revision
       );
     }
@@ -113,12 +115,17 @@ export function createMermaidPreviewWidgetClass({
     async render(output, view, setController) {
       try {
         const mermaid = await loadMermaid();
+        mermaid.initialize(getMermaidConfig(this.colorized));
         const id = `richdown-mermaid-${this.mermaidBlock.from}-${Math.random()
           .toString(36)
           .slice(2)}`;
         const result = await mermaid.render(id, this.mermaidBlock.code);
-        this.svgMarkup = result.svg;
-        const { canvas, stage } = createMermaidCanvas(result.svg, "cm-mermaid");
+        const { canvas, stage, svgMarkup } = createMermaidCanvas(
+          result.svg,
+          "cm-mermaid",
+          this.colorized,
+        );
+        this.svgMarkup = svgMarkup;
         output.replaceChildren(canvas);
         if (typeof result.bindFunctions === "function") {
           result.bindFunctions(stage);
@@ -142,9 +149,10 @@ export function createMermaidPreviewWidgetClass({
     }
   
     focusSource(view) {
+      const openingLine = view.state.doc.lineAt(this.mermaidBlock.from);
       const anchor = Math.min(
         view.state.doc.length,
-        this.mermaidBlock.from + "```mermaid\n".length,
+        openingLine.to + 1,
       );
       view.dispatch({
         effects: setActiveMermaidEdit.of({
@@ -201,7 +209,7 @@ export function createMermaidPreviewWidgetClass({
     event.stopPropagation();
   }
   
-  function createMermaidCanvas(svgMarkup, classPrefix) {
+  function createMermaidCanvas(svgMarkup, classPrefix, colorized = true) {
     const canvas = document.createElement("div");
     canvas.className = `${classPrefix}-canvas`;
   
@@ -210,6 +218,9 @@ export function createMermaidPreviewWidgetClass({
     stage.innerHTML = svgMarkup;
   
     const svg = stage.querySelector("svg");
+    if (colorized) {
+      colorizeMermaidSvg(svg);
+    }
     const size = getSvgNaturalSize(svg);
     stage.style.width = `${size.width}px`;
     stage.style.height = `${size.height}px`;
@@ -221,7 +232,75 @@ export function createMermaidPreviewWidgetClass({
     }
   
     canvas.appendChild(stage);
-    return { canvas, stage };
+    return { canvas, stage, svgMarkup: stage.innerHTML };
+  }
+
+  function colorizeMermaidSvg(svg) {
+    if (!svg || svg.querySelector("style[data-richdown-mermaid]")) {
+      return;
+    }
+    svg.setAttribute("data-richdown-colorized", "true");
+    const style = document.createElementNS("http://www.w3.org/2000/svg", "style");
+    style.setAttribute("data-richdown-mermaid", "true");
+    style.textContent = getMermaidSvgPaletteCss();
+    svg.insertBefore(style, svg.firstChild);
+  }
+
+  function getMermaidSvgPaletteCss() {
+    return `
+      .node:nth-of-type(6n+1) rect,
+      .node:nth-of-type(6n+1) polygon,
+      .node:nth-of-type(6n+1) circle,
+      .node:nth-of-type(6n+1) ellipse { fill: #dbeafe !important; stroke: #2563eb !important; }
+      .node:nth-of-type(6n+2) rect,
+      .node:nth-of-type(6n+2) polygon,
+      .node:nth-of-type(6n+2) circle,
+      .node:nth-of-type(6n+2) ellipse { fill: #dcfce7 !important; stroke: #16a34a !important; }
+      .node:nth-of-type(6n+3) rect,
+      .node:nth-of-type(6n+3) polygon,
+      .node:nth-of-type(6n+3) circle,
+      .node:nth-of-type(6n+3) ellipse { fill: #fef3c7 !important; stroke: #d97706 !important; }
+      .node:nth-of-type(6n+4) rect,
+      .node:nth-of-type(6n+4) polygon,
+      .node:nth-of-type(6n+4) circle,
+      .node:nth-of-type(6n+4) ellipse { fill: #fce7f3 !important; stroke: #db2777 !important; }
+      .node:nth-of-type(6n+5) rect,
+      .node:nth-of-type(6n+5) polygon,
+      .node:nth-of-type(6n+5) circle,
+      .node:nth-of-type(6n+5) ellipse { fill: #ede9fe !important; stroke: #7c3aed !important; }
+      .node:nth-of-type(6n) rect,
+      .node:nth-of-type(6n) polygon,
+      .node:nth-of-type(6n) circle,
+      .node:nth-of-type(6n) ellipse { fill: #ccfbf1 !important; stroke: #0f766e !important; }
+      .node rect,
+      .node polygon,
+      .node circle,
+      .node ellipse,
+      .classGroup rect,
+      .stateGroup rect { stroke-width: 1.5px !important; }
+      .cluster rect { fill: #f8fafc !important; stroke: #94a3b8 !important; stroke-width: 1.4px !important; stroke-dasharray: 5 4 !important; }
+      .edgeLabel rect,
+      .labelBkg { fill: #f8fafc !important; opacity: 0.96 !important; }
+      .edgePath .path,
+      .flowchart-link,
+      .messageLine0,
+      .messageLine1,
+      .transition { stroke: #64748b !important; stroke-width: 1.5px !important; }
+      marker path { fill: #64748b !important; stroke: #64748b !important; }
+      .actor,
+      .participant rect { fill: #dbeafe !important; stroke: #2563eb !important; }
+      .activation0,
+      .activation1,
+      .activation2 { fill: #fef3c7 !important; stroke: #d97706 !important; }
+      .note { fill: #fef3c7 !important; stroke: #d97706 !important; }
+      text,
+      .label,
+      .nodeLabel,
+      .edgeLabel,
+      .cluster-label,
+      .messageText,
+      .actor > text { fill: #172033 !important; color: #172033 !important; }
+    `;
   }
   
   function getSvgNaturalSize(svg) {
@@ -436,7 +515,11 @@ export function createMermaidPreviewWidgetClass({
     const controls = document.createElement("div");
     controls.className = "cm-mermaid-modal-controls";
   
-    const { canvas, stage } = createMermaidCanvas(svgMarkup, "cm-mermaid-modal");
+    const { canvas, stage } = createMermaidCanvas(
+      svgMarkup,
+      "cm-mermaid-modal",
+      false,
+    );
     const controller = new MermaidViewportController(canvas, stage, {
       maxScale: 10,
       fitMaxScale: 2,
@@ -548,13 +631,7 @@ export function createMermaidPreviewWidgetClass({
             reject(new Error("Mermaid loader did not expose Mermaid."));
             return;
           }
-          mermaid.initialize({
-            startOnLoad: false,
-            securityLevel: "strict",
-            theme: document.documentElement.dataset.richTheme === "default"
-              ? "default"
-              : "dark",
-          });
+          mermaid.initialize(getMermaidConfig(true));
           resolve(mermaid);
         };
         script.onerror = () => {
@@ -565,6 +642,72 @@ export function createMermaidPreviewWidgetClass({
     }
   
     return mermaidLoadPromise;
+  }
+
+  function getMermaidConfig(colorized = true) {
+    if (!colorized) {
+      return {
+        startOnLoad: false,
+        securityLevel: "strict",
+        theme:
+          document.documentElement.dataset.richTheme === "default"
+            ? "default"
+            : "dark",
+      };
+    }
+
+    return {
+      startOnLoad: false,
+      securityLevel: "strict",
+      theme: "base",
+      themeVariables: {
+        background: "transparent",
+        primaryColor: "#dbeafe",
+        primaryTextColor: "#172033",
+        primaryBorderColor: "#2563eb",
+        secondaryColor: "#dcfce7",
+        secondaryTextColor: "#172033",
+        secondaryBorderColor: "#16a34a",
+        tertiaryColor: "#fef3c7",
+        tertiaryTextColor: "#172033",
+        tertiaryBorderColor: "#d97706",
+        mainBkg: "#dbeafe",
+        secondBkg: "#dcfce7",
+        nodeBorder: "#2563eb",
+        clusterBkg: "#f8fafc",
+        clusterBorder: "#94a3b8",
+        lineColor: "#64748b",
+        edgeLabelBackground: "#f8fafc",
+        textColor: "#172033",
+        titleColor: "#172033",
+        actorBkg: "#dbeafe",
+        actorBorder: "#2563eb",
+        actorTextColor: "#172033",
+        actorLineColor: "#64748b",
+        signalColor: "#64748b",
+        signalTextColor: "#172033",
+        noteBkgColor: "#fef3c7",
+        noteTextColor: "#172033",
+        noteBorderColor: "#d97706",
+        labelBoxBkgColor: "#f8fafc",
+        labelBoxBorderColor: "#94a3b8",
+        labelTextColor: "#172033",
+        loopTextColor: "#172033",
+        stateBkg: "#dbeafe",
+        stateBorder: "#2563eb",
+        classText: "#172033",
+        taskBkgColor: "#dbeafe",
+        taskTextColor: "#172033",
+        taskTextOutsideColor: "#172033",
+        taskBorderColor: "#2563eb",
+        activeTaskBkgColor: "#fef3c7",
+        doneTaskBkgColor: "#dcfce7",
+        critBkgColor: "#fee2e2",
+        sectionBkgColor: "#dbeafe",
+        sectionBkgColor2: "#dcfce7",
+        gridColor: "#cbd5e1",
+      },
+    };
   }
 
   return MermaidPreviewWidget;

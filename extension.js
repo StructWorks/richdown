@@ -1,5 +1,6 @@
 const vscode = require('vscode');
 const path = require('path');
+const fs = require('fs');
 
 const richEditorViewType = 'richdown.richEditor';
 const legacyMarkdownEditorAssociationPatterns = ['*.md', '*.markdown'];
@@ -194,7 +195,9 @@ function createRichDiffPanel(context, documentUri, diffData) {
     if (
       event.affectsConfiguration('richdown.richTheme') ||
       event.affectsConfiguration('richdown.mermaidPreview') ||
+      event.affectsConfiguration('richdown.mermaidColorized') ||
       event.affectsConfiguration('richdown.mermaidPreviewSize') ||
+      event.affectsConfiguration('richdown.gherkinPreview') ||
       event.affectsConfiguration('richdown.previewWidth')
     ) {
       postSettings();
@@ -547,7 +550,9 @@ class RichdownEditorProvider {
         event.affectsConfiguration('richdown.showEmptyLineHint') ||
         event.affectsConfiguration('richdown.richTablePreview') ||
         event.affectsConfiguration('richdown.mermaidPreview') ||
+        event.affectsConfiguration('richdown.mermaidColorized') ||
         event.affectsConfiguration('richdown.mermaidPreviewSize') ||
+        event.affectsConfiguration('richdown.gherkinPreview') ||
         event.affectsConfiguration('richdown.previewWidth')
       ) {
         updateSettings();
@@ -649,6 +654,16 @@ class RichdownEditorProvider {
         return;
       }
 
+      if (event.type === 'setMermaidColorized') {
+        if (typeof event.value !== 'boolean') {
+          return;
+        }
+        await vscode.workspace
+          .getConfiguration('richdown')
+          .update('mermaidColorized', event.value, vscode.ConfigurationTarget.Global);
+        return;
+      }
+
       if (event.type === 'setMermaidPreviewSize') {
         if (!mermaidPreviewSizeValues.includes(event.value)) {
           return;
@@ -656,6 +671,16 @@ class RichdownEditorProvider {
         await vscode.workspace
           .getConfiguration('richdown')
           .update('mermaidPreviewSize', event.value, vscode.ConfigurationTarget.Global);
+        return;
+      }
+
+      if (event.type === 'setGherkinPreview') {
+        if (typeof event.value !== 'boolean') {
+          return;
+        }
+        await vscode.workspace
+          .getConfiguration('richdown')
+          .update('gherkinPreview', event.value, vscode.ConfigurationTarget.Global);
         return;
       }
 
@@ -684,7 +709,9 @@ function getRichEditorSettings() {
     showEmptyLineHint: config.get('showEmptyLineHint', true),
     richTablePreview: config.get('richTablePreview', true),
     mermaidPreview: config.get('mermaidPreview', true),
+    mermaidColorized: config.get('mermaidColorized', true),
     mermaidPreviewSize: config.get('mermaidPreviewSize', 'readable'),
+    gherkinPreview: config.get('gherkinPreview', true),
     previewWidth: config.get('previewWidth', 'default')
   };
 }
@@ -1021,8 +1048,8 @@ function resolveMarkdownImageUri(document, webview, src) {
 
 function getRichEditorHtml(context, webview, initialText, settings) {
   const nonce = getNonce();
-  const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(context.extensionUri, 'media', 'richEditor.js'));
-  const mermaidScriptUri = webview.asWebviewUri(vscode.Uri.joinPath(context.extensionUri, 'media', 'mermaid.js'));
+  const scriptUri = getWebviewMediaUri(context, webview, 'richEditor.js');
+  const mermaidScriptUri = getWebviewMediaUri(context, webview, 'mermaid.js');
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -1054,6 +1081,17 @@ function getRichEditorHtml(context, webview, initialText, settings) {
   <script nonce="${nonce}" src="${scriptUri}"></script>
 </body>
 </html>`;
+}
+
+function getWebviewMediaUri(context, webview, fileName) {
+  const mediaUri = vscode.Uri.joinPath(context.extensionUri, 'media', fileName);
+  const webviewUri = webview.asWebviewUri(mediaUri).toString();
+  try {
+    const stat = fs.statSync(mediaUri.fsPath);
+    return `${webviewUri}?v=${Math.floor(stat.mtimeMs)}`;
+  } catch (error) {
+    return webviewUri;
+  }
 }
 
 function getRichDiffHtml(context, webview, diffData, settings) {

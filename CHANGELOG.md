@@ -2,6 +2,13 @@
 
 All notable changes to Richdown will be documented in this file.
 
+## 0.6.0 - 2026-07-08
+
+- Added clearer colorized Mermaid rendering for inline diagram previews.
+- Added a setting to turn Mermaid colorization on or off.
+- Added Mermaid preview support for Azure DevOps-style `::: mermaid` blocks.
+- Added Gherkin fenced code block support with switchable BDD board and source views.
+
 ## 0.5.0 - 2026-06-14
 
 - Added inline color swatches after Markdown inline code color values.

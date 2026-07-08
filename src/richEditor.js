@@ -163,6 +163,7 @@ queueMicrotask(() => {
               previewExtensions.exitDetailsEditMode(view, true);
               previewExtensions.exitTableEditMode(view, true);
               previewExtensions.exitMermaidEditMode(view, true);
+              previewExtensions.exitGherkinEditMode(view, true);
               return false;
             },
             mousedown(event, view) {

@@ -164,7 +164,7 @@ export function createMarkdownRenderer({ hljs, registerCopyPayload }) {
       meta.set(index + 1, { kind: "table", role: "header" });
       meta.set(index + 2, { kind: "table", role: "delimiter" });
       index += 2;
-      while (index < lines.length && isTableContentLine(lines[index])) {
+      while (index < lines.length && isTableRowLine(lines[index])) {
         meta.set(index + 1, { kind: "table", role: "body" });
         index += 1;
       }
@@ -339,17 +339,24 @@ export function createMarkdownRenderer({ hljs, registerCopyPayload }) {
   }
   
   function isTableContentLine(text) {
+    if (!isTableRowLine(text)) {
+      return false;
+    }
+    return splitTableCells(text).some((cell) => cell.trim());
+  }
+
+  function isTableRowLine(text) {
     if (!text.includes("|") || isTableDelimiterLine(text)) {
       return false;
     }
-    return splitTableCells(text).length >= 2;
+    return splitTableCells(text).length >= 1;
   }
   
   function isTableDelimiterLine(text) {
     if (!text.includes("|")) {
       return false;
     }
-    return /^\s*\|?\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)+\|?\s*$/.test(text);
+    return /^\s*\|?\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)*\|?\s*$/.test(text);
   }
   
   function splitTableCells(text) {

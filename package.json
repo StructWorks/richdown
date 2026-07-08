@@ -1,8 +1,8 @@
 {
   "name": "richdown",
   "displayName": "Richdown",
-  "description": "Edit Markdown with a rich inline preview, editable tables, Mermaid diagrams, Richdown diffs, and a focused writing flow in VS Code.",
-  "version": "0.5.0",
+  "description": "Edit Markdown with a rich inline preview, editable tables, colored Mermaid diagrams, Gherkin boards, Richdown diffs, and a focused writing flow in VS Code.",
+  "version": "0.6.0",
   "publisher": "mytooyodev",
   "license": "SEE LICENSE IN LICENSE",
   "repository": {
@@ -26,6 +26,8 @@
     "live preview",
     "diff",
     "mermaid",
+    "gherkin",
+    "bdd",
     "tables",
     "notes"
   ],
@@ -135,10 +137,20 @@
           "default": true,
           "description": "Show Markdown tables as rich editable tables in the Rich Editor."
         },
+        "richdown.gherkinPreview": {
+          "type": "boolean",
+          "default": true,
+          "description": "Render Gherkin code blocks as BDD boards in the Rich Editor."
+        },
         "richdown.mermaidPreview": {
           "type": "boolean",
           "default": true,
           "description": "Render Mermaid code blocks as diagrams in the Rich Editor."
+        },
+        "richdown.mermaidColorized": {
+          "type": "boolean",
+          "default": true,
+          "description": "Apply Richdown's clearer color palette to Mermaid diagrams."
         },
         "richdown.mermaidPreviewSize": {
           "type": "string",

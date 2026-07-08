@@ -6,7 +6,11 @@
   var __getProtoOf = Object.getPrototypeOf;
   var __hasOwnProp = Object.prototype.hasOwnProperty;
   var __commonJS = (cb, mod) => function __require() {
-    return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
+    try {
+      return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
+    } catch (e) {
+      throw mod = 0, e;
+    }
   };
   var __copyProps = (to, from, except, desc) => {
     if (from && typeof from === "object" || typeof from === "function") {
@@ -6851,6 +6855,48 @@
         NUMBER,
         GENERIC_TYPE_SYMBOL,
         OPERATOR
+      ]
+    };
+  }
+
+  // node_modules/highlight.js/es/languages/gherkin.js
+  function gherkin(hljs) {
+    return {
+      name: "Gherkin",
+      aliases: ["feature"],
+      keywords: "Feature Background Ability Business Need Scenario Scenarios Scenario Outline Scenario Template Examples Given And Then But When",
+      contains: [
+        {
+          className: "symbol",
+          begin: "\\*",
+          relevance: 0
+        },
+        {
+          className: "meta",
+          begin: "@[^@\\s]+"
+        },
+        {
+          begin: "\\|",
+          end: "\\|\\w*$",
+          contains: [
+            {
+              className: "string",
+              begin: "[^|]+"
+            }
+          ]
+        },
+        {
+          className: "variable",
+          begin: "<",
+          end: ">"
+        },
+        hljs.HASH_COMMENT_MODE,
+        {
+          className: "string",
+          begin: '"""',
+          end: '"""'
+        },
+        hljs.QUOTE_STRING_MODE
       ]
     };
   }
@@ -21266,7 +21312,7 @@
         meta.set(index + 1, { kind: "table", role: "header" });
         meta.set(index + 2, { kind: "table", role: "delimiter" });
         index += 2;
-        while (index < lines.length && isTableContentLine(lines[index])) {
+        while (index < lines.length && isTableRowLine(lines[index])) {
           meta.set(index + 1, { kind: "table", role: "body" });
           index += 1;
         }
@@ -21407,16 +21453,22 @@
       return columns;
     }
     function isTableContentLine(text) {
+      if (!isTableRowLine(text)) {
+        return false;
+      }
+      return splitTableCells(text).some((cell) => cell.trim());
+    }
+    function isTableRowLine(text) {
       if (!text.includes("|") || isTableDelimiterLine(text)) {
         return false;
       }
-      return splitTableCells(text).length >= 2;
+      return splitTableCells(text).length >= 1;
     }
     function isTableDelimiterLine(text) {
       if (!text.includes("|")) {
         return false;
       }
-      return /^\s*\|?\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)+\|?\s*$/.test(text);
+      return /^\s*\|?\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)*\|?\s*$/.test(text);
     }
     function splitTableCells(text) {
       return text.trim().replace(/^\|/, "").replace(/\|$/, "").split("|");
@@ -22045,6 +22097,7 @@
   registerCodeLanguage("erlang", erlang, ["erl"]);
   registerCodeLanguage("fortran", fortran, ["f90", "f95"]);
   registerCodeLanguage("fsharp", fsharp, ["f#", "fs", "fsi", "fsx"]);
+  registerCodeLanguage("gherkin", gherkin, ["cucumber", "feature"]);
   registerCodeLanguage("go", go, ["golang"]);
   registerCodeLanguage("gradle", gradle);
   registerCodeLanguage("graphql", graphql, ["gql"]);

@@ -83,6 +83,40 @@ function legacyCodeLanguage(spec, parser) {
   });
 }
 
+const gherkinMode = {
+  name: "gherkin",
+  token(stream) {
+    if (stream.sol()) {
+      if (stream.match(/\s*#.*$/)) return "comment";
+      if (stream.match(/\s*@[\w-]+(?:\s+@[\w-]+)*/)) return "attribute";
+      if (
+        stream.match(
+          /\s*(?:Feature|Rule|Background|Scenario Outline|Scenario Template|Scenario|Examples|機能|ルール|背景|シナリオアウトライン|シナリオテンプレート|シナリオ|例|サンプル)\s*:/i,
+        )
+      ) {
+        return "keyword";
+      }
+      if (
+        stream.match(
+          /\s*(?:(?:Given|When|Then|And|But)\b|(?:前提|もし|ならば|かつ|しかし))/i,
+        )
+      ) {
+        return "keyword";
+      }
+      if (stream.match(/\s*\|/)) {
+        stream.skipToEnd();
+        return "string";
+      }
+    }
+    if (stream.match(/<[^>\s]+>/)) return "variableName";
+    if (stream.match(/"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'/)) {
+      return "string";
+    }
+    stream.next();
+    return null;
+  },
+};
+
 // Keep this list focused on common Markdown documentation and engineering
 // snippets. Diff highlighting registers the same names and aliases separately.
 export const codeLanguages = [
@@ -122,6 +156,14 @@ export const codeLanguages = [
     extensions: ["md", "markdown"],
     support: markdownLanguage(),
   }),
+  legacyCodeLanguage(
+    {
+      name: "Gherkin",
+      alias: ["gherkin", "feature", "cucumber"],
+      extensions: ["feature"],
+    },
+    gherkinMode,
+  ),
   codeLanguage({
     name: "Python",
     alias: ["py", "python"],
