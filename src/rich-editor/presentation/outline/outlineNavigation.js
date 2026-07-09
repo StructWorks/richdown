@@ -1,4 +1,8 @@
 import { EditorView } from "@codemirror/view";
+import {
+  isMatchingMarkdownCodeFenceClosing,
+  parseMarkdownCodeFenceOpening,
+} from "../../domain/markdownBlocks.js";
 
 export function createOutlineNavigation() {
   let outlineRoot = null;
@@ -184,14 +188,13 @@ function collectDocumentHeadings(doc) {
 
   for (let lineNumber = 1; lineNumber <= doc.lines; lineNumber += 1) {
     const line = doc.line(lineNumber);
-    const fence = line.text.match(/^\s{0,3}(`{3,}|~{3,})/);
-    if (fence) {
-      const marker = fence[1];
-      if (!inFence) {
-        inFence = true;
-        fenceChar = marker[0];
-        fenceLength = marker.length;
-      } else if (marker[0] === fenceChar && marker.length >= fenceLength) {
+    if (inFence) {
+      if (
+        isMatchingMarkdownCodeFenceClosing(line.text, {
+          char: fenceChar,
+          length: fenceLength,
+        })
+      ) {
         inFence = false;
         fenceChar = "";
         fenceLength = 0;
@@ -199,7 +202,11 @@ function collectDocumentHeadings(doc) {
       continue;
     }
 
-    if (inFence) {
+    const fence = parseMarkdownCodeFenceOpening(line.text);
+    if (fence) {
+      inFence = true;
+      fenceChar = fence.char;
+      fenceLength = fence.length;
       continue;
     }
 

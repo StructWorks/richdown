@@ -132,6 +132,9 @@ export function createDetailsPreviewWidgetClass({
     }
   
     focusSource(view, sourceFrom = this.detailsBlock.from) {
+      if (view.state.readOnly) {
+        return;
+      }
       view.dispatch({
         effects: setActiveDetailsEdit.of({
           from: this.detailsBlock.from,

@@ -1,6 +1,13 @@
 const vscode = require('vscode');
 const path = require('path');
 const fs = require('fs');
+const os = require('os');
+const {
+  containsMermaidBlocks,
+  createExportImageMap,
+  createHtmlExport,
+  writePdfExport
+} = require('./src/export/markdownExport');
 
 const richEditorViewType = 'richdown.richEditor';
 const legacyMarkdownEditorAssociationPatterns = ['*.md', '*.markdown'];
@@ -16,6 +23,8 @@ function activate(context) {
   context.subscriptions.push(vscode.commands.registerCommand('richdown.toggle', toggleMarkdownOpenMode));
   context.subscriptions.push(vscode.commands.registerCommand('richdown.openGitDiff', openGitDiff));
   context.subscriptions.push(vscode.commands.registerCommand('richdown.openRichDiff', resource => openRichDiff(context, resource)));
+  context.subscriptions.push(vscode.commands.registerCommand('richdown.exportHtml', resource => exportMarkdown(context, resource, 'html')));
+  context.subscriptions.push(vscode.commands.registerCommand('richdown.exportPdf', resource => exportMarkdown(context, resource, 'pdf')));
   context.subscriptions.push(vscode.window.registerCustomEditorProvider(
     richEditorViewType,
     new RichdownEditorProvider(context),
@@ -129,6 +138,179 @@ async function openRichDiff(context, resource) {
     leftLabel,
     rightLabel
   });
+}
+
+async function exportMarkdown(context, resource, format) {
+  const uri = getMarkdownResourceUri(resource);
+  const label = format === 'pdf' ? 'PDF' : 'HTML';
+  if (!uri) {
+    vscode.window.showWarningMessage(`Open a Markdown file to export ${label}.`);
+    return;
+  }
+  if (uri.scheme !== 'file') {
+    vscode.window.showWarningMessage(`Richdown ${label} export is only available for local Markdown files.`);
+    return;
+  }
+
+  const targetUri = await pickExportTargetUri(uri, format);
+  if (!targetUri) {
+    return;
+  }
+  if (targetUri.scheme !== 'file') {
+    vscode.window.showWarningMessage(`Richdown ${label} export can only write local files.`);
+    return;
+  }
+
+  try {
+    await vscode.window.withProgress(
+      {
+        location: vscode.ProgressLocation.Notification,
+        title: `Exporting ${path.basename(uri.fsPath)} to ${label}...`,
+        cancellable: false
+      },
+      async () => {
+        const markdown = await readMarkdownTextForExport(uri);
+        const title = getExportTitle(markdown, path.basename(uri.fsPath, path.extname(uri.fsPath)));
+        const allowedRoots = getExportAllowedRoots(uri);
+        const settings = getExportRichEditorSettings();
+        const imageMap = await createExportImageMap({
+          markdown,
+          sourcePath: uri.fsPath,
+          allowedRoots
+        });
+        const includeMermaid = containsMermaidBlocks(markdown);
+
+        if (format === 'html') {
+          const assets = await copyRichdownExportAssets(context, targetUri, { includeMermaid });
+          const html = createHtmlExport({
+            markdown,
+            title,
+            settings,
+            richEditorScriptHref: assets.richEditorScriptHref,
+            mermaidScriptHref: assets.mermaidScriptHref,
+            imageMap,
+            colorThemeKind: 'light'
+          });
+          await vscode.workspace.fs.writeFile(targetUri, Buffer.from(html, 'utf8'));
+        } else {
+          const tempDirectory = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'richdown-export-'));
+          try {
+            const tempHtmlPath = path.join(tempDirectory, `${sanitizeExportAssetName(title)}.html`);
+            const tempHtmlUri = vscode.Uri.file(tempHtmlPath);
+            const assets = await copyRichdownExportAssets(context, tempHtmlUri, { includeMermaid });
+            const html = createHtmlExport({
+              markdown,
+              title,
+              settings,
+              richEditorScriptHref: assets.richEditorScriptHref,
+              mermaidScriptHref: assets.mermaidScriptHref,
+              imageMap,
+              colorThemeKind: 'light'
+            });
+            await fs.promises.writeFile(tempHtmlPath, html, 'utf8');
+            await writePdfExport({
+              htmlPath: tempHtmlPath,
+              outputPath: targetUri.fsPath
+            });
+          } finally {
+            await fs.promises.rm(tempDirectory, { recursive: true, force: true });
+          }
+        }
+      }
+    );
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    vscode.window.showErrorMessage(`Richdown ${label} export failed: ${message}`);
+    return;
+  }
+
+  const openAction = await vscode.window.showInformationMessage(
+    `Exported ${label}: ${path.basename(targetUri.fsPath)}`,
+    'Open'
+  );
+  if (openAction === 'Open') {
+    await vscode.commands.executeCommand('vscode.open', targetUri);
+  }
+}
+
+async function pickExportTargetUri(sourceUri, format) {
+  const extension = format === 'pdf' ? 'pdf' : 'html';
+  const label = format === 'pdf' ? 'PDF' : 'HTML';
+  const baseName = path.basename(sourceUri.fsPath, path.extname(sourceUri.fsPath));
+  return vscode.window.showSaveDialog({
+    defaultUri: vscode.Uri.file(path.join(path.dirname(sourceUri.fsPath), `${baseName}.${extension}`)),
+    filters: {
+      [label]: [extension]
+    },
+    saveLabel: `Export ${label}`
+  });
+}
+
+async function readMarkdownTextForExport(uri) {
+  const openDocument = vscode.workspace.textDocuments.find(document =>
+    document.uri.toString() === uri.toString()
+  );
+  if (openDocument) {
+    return openDocument.getText();
+  }
+  return readUriText(uri);
+}
+
+function getExportTitle(markdown, fallback) {
+  const heading = String(markdown || "").match(/^\s{0,3}#\s+(.+)$/m);
+  return heading ? heading[1].trim() : fallback;
+}
+
+function getExportAllowedRoots(uri) {
+  const roots = new Set([path.dirname(uri.fsPath)]);
+  for (const folder of vscode.workspace.workspaceFolders || []) {
+    if (folder?.uri?.fsPath) {
+      roots.add(folder.uri.fsPath);
+    }
+  }
+  return [...roots];
+}
+
+function getExportRichEditorSettings() {
+  return {
+    ...getRichEditorSettings(),
+    richTheme: 'paper'
+  };
+}
+
+async function copyRichdownExportAssets(context, targetUri, { includeMermaid }) {
+  const assetDirectoryName = `${sanitizeExportAssetName(
+    path.basename(targetUri.fsPath, path.extname(targetUri.fsPath))
+  )}_assets`;
+  const assetDirectory = path.join(path.dirname(targetUri.fsPath), assetDirectoryName);
+  await fs.promises.mkdir(assetDirectory, { recursive: true });
+
+  await fs.promises.copyFile(
+    path.join(context.extensionPath, 'media', 'richEditor.js'),
+    path.join(assetDirectory, 'richEditor.js')
+  );
+
+  let mermaidScriptHref = '';
+  if (includeMermaid) {
+    await fs.promises.copyFile(
+      path.join(context.extensionPath, 'media', 'mermaid.js'),
+      path.join(assetDirectory, 'mermaid.js')
+    );
+    mermaidScriptHref = `${encodeURIComponent(assetDirectoryName)}/mermaid.js`;
+  }
+
+  return {
+    richEditorScriptHref: `${encodeURIComponent(assetDirectoryName)}/richEditor.js`,
+    mermaidScriptHref
+  };
+}
+
+function sanitizeExportAssetName(name) {
+  return String(name || 'richdown-export')
+    .replace(/[<>:"/\\|?*\x00-\x1f]/g, '-')
+    .replace(/\s+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    || 'richdown-export';
 }
 
 function createGitHeadUri(uri) {
@@ -547,7 +729,6 @@ class RichdownEditorProvider {
         updateTheme();
       }
       if (
-        event.affectsConfiguration('richdown.showEmptyLineHint') ||
         event.affectsConfiguration('richdown.richTablePreview') ||
         event.affectsConfiguration('richdown.mermaidPreview') ||
         event.affectsConfiguration('richdown.mermaidColorized') ||
@@ -624,16 +805,6 @@ class RichdownEditorProvider {
         return;
       }
 
-      if (event.type === 'setShowEmptyLineHint') {
-        if (typeof event.value !== 'boolean') {
-          return;
-        }
-        await vscode.workspace
-          .getConfiguration('richdown')
-          .update('showEmptyLineHint', event.value, vscode.ConfigurationTarget.Global);
-        return;
-      }
-
       if (event.type === 'setRichTablePreview') {
         if (typeof event.value !== 'boolean') {
           return;
@@ -706,7 +877,6 @@ function getRichEditorSettings() {
   const config = vscode.workspace.getConfiguration('richdown');
   return {
     richTheme: config.get('richTheme', 'default'),
-    showEmptyLineHint: config.get('showEmptyLineHint', true),
     richTablePreview: config.get('richTablePreview', true),
     mermaidPreview: config.get('mermaidPreview', true),
     mermaidColorized: config.get('mermaidColorized', true),

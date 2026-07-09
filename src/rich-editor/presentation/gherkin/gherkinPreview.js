@@ -136,6 +136,9 @@ export function createGherkinPreviewWidgetClass({
     }
 
     focusSource(view) {
+      if (view.state.readOnly) {
+        return;
+      }
       const openingLine = view.state.doc.lineAt(this.gherkinBlock.from);
       const anchor = Math.min(view.state.doc.length, openingLine.to + 1);
       view.dispatch({

@@ -149,6 +149,9 @@ export function createMermaidPreviewWidgetClass({
     }
   
     focusSource(view) {
+      if (view.state.readOnly) {
+        return;
+      }
       const openingLine = view.state.doc.lineAt(this.mermaidBlock.from);
       const anchor = Math.min(
         view.state.doc.length,

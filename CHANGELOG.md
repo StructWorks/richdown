@@ -2,6 +2,11 @@
 
 All notable changes to Richdown will be documented in this file.
 
+## 0.7.0 - 2026-07-09
+
+- Added HTML export for local Markdown files as a standalone Richdown preview using the same rich table, Mermaid, Gherkin, image, task, code, and theme UI as the editor.
+- Added PDF export for local Markdown files by printing the standalone Richdown preview through an installed Chromium-based browser.
+
 ## 0.6.0 - 2026-07-08
 
 - Added clearer colorized Mermaid rendering for inline diagram previews.

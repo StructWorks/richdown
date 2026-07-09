@@ -1,8 +1,8 @@
 {
   "name": "richdown",
   "displayName": "Richdown",
-  "description": "Edit Markdown with a rich inline preview, editable tables, colored Mermaid diagrams, Gherkin boards, Richdown diffs, and a focused writing flow in VS Code.",
-  "version": "0.6.0",
+  "description": "Edit Markdown with a rich inline preview, editable tables, colored Mermaid diagrams, Gherkin boards, HTML/PDF export, Richdown diffs, and a focused writing flow in VS Code.",
+  "version": "0.7.0",
   "publisher": "mytooyodev",
   "license": "SEE LICENSE IN LICENSE",
   "repository": {
@@ -43,6 +43,8 @@
     "onStartupFinished",
     "onCommand:richdown.toggle",
     "onCommand:richdown.openRichDiff",
+    "onCommand:richdown.exportHtml",
+    "onCommand:richdown.exportPdf",
     "onCustomEditor:richdown.richEditor"
   ],
   "main": "./extension.js",
@@ -79,6 +81,18 @@
         "title": "Richdown: Open Rich Diff",
         "shortTitle": "Open Rich Diff",
         "icon": "$(diff)"
+      },
+      {
+        "command": "richdown.exportHtml",
+        "title": "Richdown: Export HTML",
+        "shortTitle": "Export HTML",
+        "icon": "$(file-code)"
+      },
+      {
+        "command": "richdown.exportPdf",
+        "title": "Richdown: Export PDF",
+        "shortTitle": "Export PDF",
+        "icon": "$(file-pdf)"
       }
     ],
     "customEditors": [
@@ -126,11 +140,6 @@
             "Soft warm light theme."
           ],
           "description": "Theme used inside the Rich Editor."
-        },
-        "richdown.showEmptyLineHint": {
-          "type": "boolean",
-          "default": true,
-          "description": "Show the Click to write hint for empty lines in the Rich Editor."
         },
         "richdown.richTablePreview": {
           "type": "boolean",
@@ -198,6 +207,16 @@
           "command": "richdown.toggle",
           "when": "resourceExtname == .md || resourceExtname == .markdown",
           "group": "navigation@3"
+        },
+        {
+          "command": "richdown.exportHtml",
+          "when": "resourceExtname == .md || resourceExtname == .markdown",
+          "group": "navigation@4"
+        },
+        {
+          "command": "richdown.exportPdf",
+          "when": "resourceExtname == .md || resourceExtname == .markdown",
+          "group": "navigation@5"
         }
       ],
       "scm/resourceState/context": [
@@ -213,6 +232,12 @@
         },
         {
           "command": "richdown.openGitDiff"
+        },
+        {
+          "command": "richdown.exportHtml"
+        },
+        {
+          "command": "richdown.exportPdf"
         },
         {
           "command": "richdown.toggle"

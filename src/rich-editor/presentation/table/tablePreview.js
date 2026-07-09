@@ -122,6 +122,7 @@ export function createTablePreviewWidgetClass({
       wrapper.setAttribute("tabindex", "0");
       wrapper.title = "Edit table cells";
       wrapper.dataset.dirty = "false";
+      const readOnly = view.state.readOnly;
   
       const scroll = document.createElement("div");
       scroll.className = "cm-rich-table-scroll";
@@ -149,34 +150,42 @@ export function createTablePreviewWidgetClass({
       scroll.appendChild(table);
       wrapper.appendChild(scroll);
   
-      const toolbar = document.createElement("div");
-      toolbar.className = "cm-rich-table-toolbar";
-  
-      const addRowButton = document.createElement("button");
-      addRowButton.type = "button";
-      addRowButton.className = "cm-rich-table-action";
-      addRowButton.title = "Add row";
-      addRowButton.innerHTML =
-        '<span class="cm-rich-table-action-icon">+</span><span>Row</span>';
-      addRowButton.addEventListener("mousedown", (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-      });
-      addRowButton.addEventListener("click", (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        this.addRowFromPreview(view, wrapper);
-      });
-  
-      toolbar.appendChild(addRowButton);
-      wrapper.appendChild(toolbar);
+      if (!readOnly) {
+        const toolbar = document.createElement("div");
+        toolbar.className = "cm-rich-table-toolbar";
+
+        const addRowButton = document.createElement("button");
+        addRowButton.type = "button";
+        addRowButton.className = "cm-rich-table-action";
+        addRowButton.title = "Add row";
+        addRowButton.innerHTML =
+          '<span class="cm-rich-table-action-icon">+</span><span>Row</span>';
+        addRowButton.addEventListener("mousedown", (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+        });
+        addRowButton.addEventListener("click", (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          this.addRowFromPreview(view, wrapper);
+        });
+
+        toolbar.appendChild(addRowButton);
+        wrapper.appendChild(toolbar);
+      }
   
       wrapper.addEventListener("input", (event) => {
+        if (readOnly) {
+          return;
+        }
         if (event.target.closest(".cm-rich-table-cell-editor")) {
           wrapper.dataset.dirty = "true";
         }
       });
       wrapper.addEventListener("contextmenu", (event) => {
+        if (readOnly) {
+          return;
+        }
         const cell = event.target.closest(".cm-rich-table-cell");
         if (!cell || !wrapper.contains(cell)) {
           return;
@@ -204,6 +213,9 @@ export function createTablePreviewWidgetClass({
         });
       });
       wrapper.addEventListener("focusout", () => {
+        if (readOnly) {
+          return;
+        }
         window.setTimeout(() => {
           if (!wrapper.contains(document.activeElement)) {
             this.commitTableEdits(view, wrapper);
@@ -313,6 +325,9 @@ export function createTablePreviewWidgetClass({
     }
   
     focusSource(view, sourceFrom) {
+      if (view.state.readOnly) {
+        return;
+      }
       const fallbackCell = this.tableBlock.rows
         .flatMap((row) => row.cells)
         .find((cell) => cell.from !== null);
@@ -333,6 +348,9 @@ export function createTablePreviewWidgetClass({
     }
   
     addRow(view) {
+      if (view.state.readOnly) {
+        return;
+      }
       const rowText = buildEmptyTableRow(this.tableBlock);
       const insertText = `\n${rowText}`;
       const anchor = this.tableBlock.to + insertText.length;
@@ -349,12 +367,18 @@ export function createTablePreviewWidgetClass({
     }
   
     addRowFromPreview(view, wrapper) {
+      if (view.state.readOnly) {
+        return;
+      }
       const rows = collectEditableTableRows(wrapper, this.tableBlock);
       rows.push(Array.from({ length: this.tableBlock.columnCount }, () => ""));
       this.replaceTable(view, rows);
     }
   
     applyTableContextAction(view, wrapper, rowIndex, columnIndex, action) {
+      if (view.state.readOnly) {
+        return;
+      }
       const rows = collectEditableTableRows(wrapper, this.tableBlock);
       const alignments = [...this.tableBlock.alignments];
       const columnCount = Math.max(1, this.tableBlock.columnCount);
@@ -402,6 +426,9 @@ export function createTablePreviewWidgetClass({
     }
   
     commitTableEdits(view, wrapper) {
+      if (view.state.readOnly) {
+        return;
+      }
       if (wrapper.dataset.dirty !== "true") {
         return;
       }
@@ -410,6 +437,9 @@ export function createTablePreviewWidgetClass({
     }
   
     replaceTable(view, rows, alignments = this.tableBlock.alignments) {
+      if (view.state.readOnly) {
+        return;
+      }
       const nextText = serializeMarkdownTable(this.tableBlock, rows, alignments);
       const currentText = view.state.doc.sliceString(
         this.tableBlock.from,

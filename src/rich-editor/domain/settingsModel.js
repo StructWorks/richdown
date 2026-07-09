@@ -4,7 +4,6 @@ export const previewWidths = ["default", "wide"];
 export function normalizeRichEditorSettings(nextSettings = {}) {
   return {
     richTheme: nextSettings.richTheme || "default",
-    showEmptyLineHint: nextSettings.showEmptyLineHint !== false,
     richTablePreview: nextSettings.richTablePreview !== false,
     mermaidPreview: nextSettings.mermaidPreview !== false,
     mermaidColorized: nextSettings.mermaidColorized !== false,

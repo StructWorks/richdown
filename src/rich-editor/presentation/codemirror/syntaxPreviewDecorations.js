@@ -7,6 +7,7 @@ import { syntaxTree } from "@codemirror/language";
 import { EditorState, RangeSetBuilder } from "@codemirror/state";
 import { Decoration, ViewPlugin } from "@codemirror/view";
 import {
+  findMermaidFenceBlocks,
   isThematicBreakLine,
   parseListMarker,
   rangeIntersectsRanges,
@@ -253,7 +254,68 @@ export function createSyntaxPreviewDecorations({
         },
       });
     }
+    collectMermaidColonFenceLineSpecs(view, lineSpecs, tabSize);
     return lineSpecs;
+  }
+
+  function collectMermaidColonFenceLineSpecs(view, lineSpecs, tabSize) {
+    const doc = view.state.doc;
+    const mermaidBlocks = findMermaidFenceBlocks(doc, { includeUnclosed: true });
+    for (const block of mermaidBlocks) {
+      if (block.fenceChar !== ":" || !rangeIntersectsVisibleRanges(view, block.from, block.to)) {
+        continue;
+      }
+
+      const firstLineNumber = doc.lineAt(block.from).number;
+      const lastLineNumber = doc.lineAt(Math.max(block.from, block.to - 1)).number;
+      const blockFocused = isCodeBlockFocused(view.state, block);
+      const codeLineRange = blockFocused
+        ? getMermaidFenceContentLineRange(doc, block)
+        : null;
+      const indentUnit = codeLineRange
+        ? inferCodeBlockIndentUnit(doc, codeLineRange, tabSize)
+        : tabSize;
+      const indentColumnsByLineNumber = codeLineRange
+        ? getCodeBlockIndentColumnsByLine(doc, codeLineRange, tabSize)
+        : new Map();
+
+      for (
+        let lineNumber = firstLineNumber;
+        lineNumber <= lastLineNumber;
+        lineNumber += 1
+      ) {
+        const line = doc.line(lineNumber);
+        const classes = ["cm-codeblock-line"];
+        if (line.number === firstLineNumber) {
+          classes.push("cm-codeblock-first");
+        }
+        if (line.number === lastLineNumber) {
+          classes.push("cm-codeblock-last");
+        }
+        const style =
+          codeLineRange &&
+          line.number >= codeLineRange.fromLineNumber &&
+          line.number <= codeLineRange.toLineNumber
+            ? getIndentGuideLineStyle(
+                indentColumnsByLineNumber.get(line.number) || 0,
+                indentUnit,
+              )
+            : "";
+        if (style) {
+          classes.push("cm-code-indent-guides-line");
+        }
+        lineSpecs.set(line.from, {
+          className: classes.join(" "),
+          style,
+        });
+      }
+    }
+  }
+
+  function rangeIntersectsVisibleRanges(view, from, to) {
+    return view.visibleRanges.some((range) =>
+      rangeIntersectsRanges(from, to, [range]),
+    );
   }
   
   function buildCodeBlockCopyButtons(view) {
@@ -292,6 +354,27 @@ export function createSyntaxPreviewDecorations({
             }),
           });
         },
+      });
+    }
+    for (const block of findMermaidFenceBlocks(doc, { includeUnclosed: true })) {
+      if (
+        block.fenceChar !== ":" ||
+        seenBlocks.has(`${block.from}:${block.to}`) ||
+        !rangeIntersectsVisibleRanges(view, block.from, block.to) ||
+        rangeIntersectsRanges(block.from, block.to, previewedDetailsRanges) ||
+        !block.code
+      ) {
+        continue;
+      }
+      seenBlocks.add(`${block.from}:${block.to}`);
+      ranges.push({
+        from: doc.lineAt(block.from).to,
+        decoration: Decoration.widget({
+          side: 1,
+          widget: new CodeCopyButtonWidget(block.code, (message) =>
+            postMessage(message),
+          ),
+        }),
       });
     }
   
@@ -380,6 +463,16 @@ export function createSyntaxPreviewDecorations({
       fromLineNumber: openingLine.number,
       toLineNumber: doc.lineAt(Math.max(block.from, block.to - 1)).number,
     };
+  }
+
+  function getMermaidFenceContentLineRange(doc, block) {
+    const openingLine = doc.lineAt(block.from);
+    const endLine = doc.lineAt(Math.max(block.from, block.to - 1));
+    const fromLineNumber = openingLine.number + 1;
+    const toLineNumber = block.closed ? endLine.number - 1 : endLine.number;
+    return toLineNumber >= fromLineNumber
+      ? { fromLineNumber, toLineNumber }
+      : null;
   }
 
   function inferCodeBlockIndentUnit(doc, lineRange, tabSize) {
