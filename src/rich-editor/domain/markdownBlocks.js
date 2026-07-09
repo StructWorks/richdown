@@ -37,6 +37,10 @@ export function findMermaidBlocks(doc) {
   return memoizeBlocks(mermaidBlocksCache, doc, computeMermaidBlocks);
 }
 
+export function findMermaidFenceBlocks(doc, options = {}) {
+  return computeMermaidBlocks(doc, options);
+}
+
 export function findGherkinBlocks(doc) {
   return memoizeBlocks(gherkinBlocksCache, doc, computeGherkinBlocks);
 }
@@ -265,7 +269,8 @@ export function splitTableCells(text) {
   return text.trim().replace(/^\|/, "").replace(/\|$/, "").split("|");
 }
 
-function computeMermaidBlocks(doc) {
+function computeMermaidBlocks(doc, options = {}) {
+  const includeUnclosed = options.includeUnclosed === true;
   const blocks = [];
   for (let lineNumber = 1; lineNumber <= doc.lines; lineNumber += 1) {
     const openingLine = doc.line(lineNumber);
@@ -293,23 +298,28 @@ function computeMermaidBlocks(doc) {
       codeLines.push(nextLine.text);
     }
 
-    if (!closingLine) {
+    if (!closingLine && !includeUnclosed) {
       continue;
+    }
+
+    const endLine = closingLine || doc.line(doc.lines);
+    const signatureLines = [openingLine.text, ...codeLines];
+    if (closingLine) {
+      signatureLines.push(closingLine.text);
     }
 
     blocks.push({
       from: openingLine.from,
-      to: closingLine.to,
-      sourceTo: closingLine.to,
-      sourceLineCount: closingLine.number - openingLine.number + 1,
+      to: endLine.to,
+      sourceTo: endLine.to,
+      sourceLineCount: endLine.number - openingLine.number + 1,
       code: codeLines.join("\n").trim(),
-      signature: [
-        openingLine.text,
-        ...codeLines,
-        closingLine.text,
-      ].join("\n"),
+      signature: signatureLines.join("\n"),
+      fenceChar: opening.char,
+      fenceLength: opening.length,
+      closed: Boolean(closingLine),
     });
-    lineNumber = closingLine.number;
+    lineNumber = endLine.number;
   }
   return blocks;
 }
@@ -335,6 +345,23 @@ function isMatchingClosingFence(text, opening) {
       closing[1][0] === opening.char &&
       closing[1].length >= opening.length,
   );
+}
+
+export function parseMarkdownCodeFenceOpening(text) {
+  const standardFence = text.match(/^\s{0,3}((?:`{3,})|(?:~{3,}))/);
+  if (standardFence) {
+    return {
+      marker: standardFence[1],
+      char: standardFence[1][0],
+      length: standardFence[1].length,
+    };
+  }
+
+  return parseMermaidOpeningFence(text);
+}
+
+export function isMatchingMarkdownCodeFenceClosing(text, opening) {
+  return isMatchingClosingFence(text, opening);
 }
 
 export function isEditingMermaidBlock(mermaidBlock, activeEdit, selection) {
@@ -422,14 +449,20 @@ function computeTableBlocks(doc) {
 
   for (let lineNumber = 1; lineNumber <= doc.lines; lineNumber += 1) {
     const line = doc.line(lineNumber);
-    const fence = line.text.match(/^\s{0,3}(`{3,}|~{3,})/);
-    if (fence) {
-      const marker = fence[1];
-      if (!inFence) {
-        inFence = true;
-        fenceChar = marker[0];
-        fenceLength = marker.length;
-      } else if (marker[0] === fenceChar && marker.length >= fenceLength) {
+    const fence = parseMarkdownCodeFenceOpening(line.text);
+    if (!inFence && fence) {
+      inFence = true;
+      fenceChar = fence.char;
+      fenceLength = fence.length;
+      continue;
+    }
+
+    if (inFence) {
+      const closing = isMatchingMarkdownCodeFenceClosing(line.text, {
+        char: fenceChar,
+        length: fenceLength,
+      });
+      if (closing) {
         inFence = false;
         fenceChar = "";
         fenceLength = 0;

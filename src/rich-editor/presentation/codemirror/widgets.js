@@ -97,6 +97,9 @@ export class CheckboxWidget extends WidgetType {
     checkbox.addEventListener("mousedown", (event) => event.preventDefault());
     checkbox.addEventListener("click", (event) => {
       event.preventDefault();
+      if (view.state.readOnly) {
+        return;
+      }
       view.dispatch({
         changes: {
           from: this.from + 1,

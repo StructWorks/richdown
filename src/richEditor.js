@@ -53,21 +53,19 @@ import { createEditorThemeExtension } from "./rich-editor/presentation/styles/ed
 import { injectStyles } from "./rich-editor/presentation/styles/globalStyles.js";
 import { closeTableContextMenu } from "./rich-editor/presentation/table/tablePreview.js";
 
-const vscode = acquireVsCodeApi();
+const initialRuntime = readJsonScript("initial-runtime", {});
+const exportMode = initialRuntime.exportMode === true;
+const vscode =
+  typeof acquireVsCodeApi === "function" && !exportMode
+    ? acquireVsCodeApi()
+    : null;
 const vscodePort = createVsCodeWebviewPort(vscode);
 const root = document.querySelector("#editor");
-const initialDocument = JSON.parse(
-  document.querySelector("#initial-document").textContent,
-);
-const initialSettings = JSON.parse(
-  document.querySelector("#initial-settings").textContent,
-);
-const mermaidScriptUri = JSON.parse(
-  document.querySelector("#mermaid-script-uri").textContent,
-);
-const initialGitDiffChanges = JSON.parse(
-  document.querySelector("#initial-git-diff")?.textContent || "[]",
-);
+const initialDocument = readJsonScript("initial-document", "");
+const initialSettings = readJsonScript("initial-settings", {});
+const mermaidScriptUri = readJsonScript("mermaid-script-uri", "");
+const initialGitDiffChanges = readJsonScript("initial-git-diff", []);
+const exportImageMap = readJsonScript("initial-image-map", {});
 
 let applyingExternalUpdate = false;
 let settings = normalizeRichEditorSettings(initialSettings);
@@ -87,6 +85,7 @@ const settingsMenu = createSettingsMenuController({
 const inlineMarkdown = createInlineMarkdownSupport({
   postMessage: (message) => vscodePort.postMessage(message),
   requestEditorMeasure,
+  resolveImageSource: exportMode ? resolveExportImageSource : undefined,
 });
 const {
   appendInlineMarkdown,
@@ -111,6 +110,39 @@ const previewExtensions = createPreviewExtensions({
 applyTheme(settings.richTheme);
 applyPreviewWidth(settings.previewWidth);
 injectStyles();
+if (exportMode) {
+  document.documentElement.dataset.richdownExport = "true";
+}
+
+function readJsonScript(id, fallback) {
+  const element = document.querySelector(`#${id}`);
+  if (!element) {
+    return fallback;
+  }
+  try {
+    return JSON.parse(element.textContent || "null") ?? fallback;
+  } catch (error) {
+    return fallback;
+  }
+}
+
+function resolveExportImageSource(src) {
+  if (/^(https?:|data:|blob:|file:)/i.test(src)) {
+    return Promise.resolve(src);
+  }
+  if (Object.prototype.hasOwnProperty.call(exportImageMap, src)) {
+    return Promise.resolve(exportImageMap[src]);
+  }
+  try {
+    const decoded = decodeURI(src);
+    if (Object.prototype.hasOwnProperty.call(exportImageMap, decoded)) {
+      return Promise.resolve(exportImageMap[decoded]);
+    }
+  } catch (error) {
+    // Keep the original source when it is not valid URI text.
+  }
+  return Promise.reject(new Error("Image could not be resolved."));
+}
 
 function reportRichdownError(context, error) {
   const message = error instanceof Error ? error.message : String(error);
@@ -132,11 +164,13 @@ function requestEditorMeasure(view) {
 
 let view;
 
-installSearchShortcut({
-  getView: () => view,
-  closeSlashCommandMenu: slashCommands.close,
-  closeTableContextMenu,
-});
+if (!exportMode) {
+  installSearchShortcut({
+    getView: () => view,
+    closeSlashCommandMenu: slashCommands.close,
+    closeTableContextMenu,
+  });
+}
 
 queueMicrotask(() => {
   try {
@@ -145,12 +179,19 @@ queueMicrotask(() => {
       state: EditorState.create({
         doc: initialDocument,
         extensions: [
-          gitDiffGutter.extension,
-          lineNumbers(),
-          history(),
-          highlightActiveLine(),
-          highlightActiveLineGutter(),
-          ...createSearchExtensions(),
+          ...(exportMode
+            ? [
+                EditorState.readOnly.of(true),
+                EditorView.editable.of(false),
+              ]
+            : [
+                gitDiffGutter.extension,
+                lineNumbers(),
+                history(),
+                highlightActiveLine(),
+                highlightActiveLineGutter(),
+                ...createSearchExtensions(),
+              ]),
           syntaxHighlighting(markdownHighlightStyle),
           markdown({
             extensions: GFM,
@@ -201,18 +242,22 @@ queueMicrotask(() => {
               return true;
             },
           }),
-          keymap.of([
-            indentWithTab,
-            ...slashCommands.keymap,
-            ...getSearchKeymap(),
-            ...defaultKeymap,
-            ...historyKeymap,
-          ]),
+          ...(exportMode
+            ? []
+            : [
+                keymap.of([
+                  indentWithTab,
+                  ...slashCommands.keymap,
+                  ...getSearchKeymap(),
+                  ...defaultKeymap,
+                  ...historyKeymap,
+                ]),
+              ]),
           EditorView.lineWrapping,
           EditorView.updateListener.of((update) => {
             slashCommands.sync(update);
             outlineNavigation.sync(update);
-            if (!update.docChanged || applyingExternalUpdate) {
+            if (exportMode || !update.docChanged || applyingExternalUpdate) {
               return;
             }
             vscodePort.postMessage({
@@ -224,9 +269,11 @@ queueMicrotask(() => {
         ],
       }),
     });
-    settingsMenu.render();
-    outlineNavigation.render(view);
-    gitDiffGutter.update(view, latestGitDiffChanges);
+    if (!exportMode) {
+      settingsMenu.render();
+      outlineNavigation.render(view);
+      gitDiffGutter.update(view, latestGitDiffChanges);
+    }
     vscodePort.postMessage({ type: "ready" });
   } catch (error) {
     reportRichdownError("editor-startup", error);

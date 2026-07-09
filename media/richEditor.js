@@ -25716,7 +25716,13 @@
   function createVsCodeWebviewPort(vscode2) {
     return {
       postMessage(message) {
-        vscode2.postMessage(message);
+        if (vscode2 && typeof vscode2.postMessage === "function") {
+          vscode2.postMessage(message);
+          return;
+        }
+        if (message?.type === "openLink" && message.href) {
+          window.open(message.href, "_blank", "noopener,noreferrer");
+        }
       }
     };
   }
@@ -25727,7 +25733,6 @@
   function normalizeRichEditorSettings(nextSettings = {}) {
     return {
       richTheme: nextSettings.richTheme || "default",
-      showEmptyLineHint: nextSettings.showEmptyLineHint !== false,
       richTablePreview: nextSettings.richTablePreview !== false,
       mermaidPreview: nextSettings.mermaidPreview !== false,
       mermaidColorized: nextSettings.mermaidColorized !== false,
@@ -44687,6 +44692,9 @@
   function findMermaidBlocks(doc2) {
     return memoizeBlocks(mermaidBlocksCache, doc2, computeMermaidBlocks);
   }
+  function findMermaidFenceBlocks(doc2, options = {}) {
+    return computeMermaidBlocks(doc2, options);
+  }
   function findGherkinBlocks(doc2) {
     return memoizeBlocks(gherkinBlocksCache, doc2, computeGherkinBlocks);
   }
@@ -44824,7 +44832,8 @@
   function splitTableCells(text2) {
     return text2.trim().replace(/^\|/, "").replace(/\|$/, "").split("|");
   }
-  function computeMermaidBlocks(doc2) {
+  function computeMermaidBlocks(doc2, options = {}) {
+    const includeUnclosed = options.includeUnclosed === true;
     const blocks = [];
     for (let lineNumber = 1; lineNumber <= doc2.lines; lineNumber += 1) {
       const openingLine = doc2.line(lineNumber);
@@ -44842,22 +44851,26 @@
         }
         codeLines.push(nextLine.text);
       }
-      if (!closingLine) {
+      if (!closingLine && !includeUnclosed) {
         continue;
+      }
+      const endLine = closingLine || doc2.line(doc2.lines);
+      const signatureLines = [openingLine.text, ...codeLines];
+      if (closingLine) {
+        signatureLines.push(closingLine.text);
       }
       blocks.push({
         from: openingLine.from,
-        to: closingLine.to,
-        sourceTo: closingLine.to,
-        sourceLineCount: closingLine.number - openingLine.number + 1,
+        to: endLine.to,
+        sourceTo: endLine.to,
+        sourceLineCount: endLine.number - openingLine.number + 1,
         code: codeLines.join("\n").trim(),
-        signature: [
-          openingLine.text,
-          ...codeLines,
-          closingLine.text
-        ].join("\n")
+        signature: signatureLines.join("\n"),
+        fenceChar: opening3.char,
+        fenceLength: opening3.length,
+        closed: Boolean(closingLine)
       });
-      lineNumber = closingLine.number;
+      lineNumber = endLine.number;
     }
     return blocks;
   }
@@ -44879,6 +44892,20 @@
     return Boolean(
       closing3 && closing3[1][0] === opening3.char && closing3[1].length >= opening3.length
     );
+  }
+  function parseMarkdownCodeFenceOpening(text2) {
+    const standardFence = text2.match(/^\s{0,3}((?:`{3,})|(?:~{3,}))/);
+    if (standardFence) {
+      return {
+        marker: standardFence[1],
+        char: standardFence[1][0],
+        length: standardFence[1].length
+      };
+    }
+    return parseMermaidOpeningFence(text2);
+  }
+  function isMatchingMarkdownCodeFenceClosing(text2, opening3) {
+    return isMatchingClosingFence(text2, opening3);
   }
   function isEditingMermaidBlock(mermaidBlock, activeEdit, selection) {
     if (!activeEdit || activeEdit.from !== mermaidBlock.from) {
@@ -44946,14 +44973,19 @@
     let fenceLength = 0;
     for (let lineNumber = 1; lineNumber <= doc2.lines; lineNumber += 1) {
       const line = doc2.line(lineNumber);
-      const fence = line.text.match(/^\s{0,3}(`{3,}|~{3,})/);
-      if (fence) {
-        const marker = fence[1];
-        if (!inFence) {
-          inFence = true;
-          fenceChar = marker[0];
-          fenceLength = marker.length;
-        } else if (marker[0] === fenceChar && marker.length >= fenceLength) {
+      const fence = parseMarkdownCodeFenceOpening(line.text);
+      if (!inFence && fence) {
+        inFence = true;
+        fenceChar = fence.char;
+        fenceLength = fence.length;
+        continue;
+      }
+      if (inFence) {
+        const closing3 = isMatchingMarkdownCodeFenceClosing(line.text, {
+          char: fenceChar,
+          length: fenceLength
+        });
+        if (closing3) {
           inFence = false;
           fenceChar = "";
           fenceLength = 0;
@@ -45196,6 +45228,9 @@
         return this.detailsBlock.from + lineIndex;
       }
       focusSource(view2, sourceFrom = this.detailsBlock.from) {
+        if (view2.state.readOnly) {
+          return;
+        }
         view2.dispatch({
           effects: setActiveDetailsEdit.of({
             from: this.detailsBlock.from,
@@ -45324,6 +45359,9 @@
         );
       }
       focusSource(view2) {
+        if (view2.state.readOnly) {
+          return;
+        }
         const openingLine = view2.state.doc.lineAt(this.gherkinBlock.from);
         const anchor = Math.min(view2.state.doc.length, openingLine.to + 1);
         view2.dispatch({
@@ -45969,6 +46007,9 @@
         }
       }
       focusSource(view2) {
+        if (view2.state.readOnly) {
+          return;
+        }
         const openingLine = view2.state.doc.lineAt(this.mermaidBlock.from);
         const anchor = Math.min(
           view2.state.doc.length,
@@ -46555,6 +46596,9 @@
       checkbox.addEventListener("mousedown", (event) => event.preventDefault());
       checkbox.addEventListener("click", (event) => {
         event.preventDefault();
+        if (view2.state.readOnly) {
+          return;
+        }
         view2.dispatch({
           changes: {
             from: this.from + 1,
@@ -46801,7 +46845,49 @@
           }
         });
       }
+      collectMermaidColonFenceLineSpecs(view2, lineSpecs, tabSize);
       return lineSpecs;
+    }
+    function collectMermaidColonFenceLineSpecs(view2, lineSpecs, tabSize) {
+      const doc2 = view2.state.doc;
+      const mermaidBlocks = findMermaidFenceBlocks(doc2, { includeUnclosed: true });
+      for (const block2 of mermaidBlocks) {
+        if (block2.fenceChar !== ":" || !rangeIntersectsVisibleRanges(view2, block2.from, block2.to)) {
+          continue;
+        }
+        const firstLineNumber = doc2.lineAt(block2.from).number;
+        const lastLineNumber = doc2.lineAt(Math.max(block2.from, block2.to - 1)).number;
+        const blockFocused = isCodeBlockFocused(view2.state, block2);
+        const codeLineRange = blockFocused ? getMermaidFenceContentLineRange(doc2, block2) : null;
+        const indentUnit2 = codeLineRange ? inferCodeBlockIndentUnit(doc2, codeLineRange, tabSize) : tabSize;
+        const indentColumnsByLineNumber = codeLineRange ? getCodeBlockIndentColumnsByLine(doc2, codeLineRange, tabSize) : /* @__PURE__ */ new Map();
+        for (let lineNumber = firstLineNumber; lineNumber <= lastLineNumber; lineNumber += 1) {
+          const line = doc2.line(lineNumber);
+          const classes = ["cm-codeblock-line"];
+          if (line.number === firstLineNumber) {
+            classes.push("cm-codeblock-first");
+          }
+          if (line.number === lastLineNumber) {
+            classes.push("cm-codeblock-last");
+          }
+          const style2 = codeLineRange && line.number >= codeLineRange.fromLineNumber && line.number <= codeLineRange.toLineNumber ? getIndentGuideLineStyle(
+            indentColumnsByLineNumber.get(line.number) || 0,
+            indentUnit2
+          ) : "";
+          if (style2) {
+            classes.push("cm-code-indent-guides-line");
+          }
+          lineSpecs.set(line.from, {
+            className: classes.join(" "),
+            style: style2
+          });
+        }
+      }
+    }
+    function rangeIntersectsVisibleRanges(view2, from3, to) {
+      return view2.visibleRanges.some(
+        (range) => rangeIntersectsRanges(from3, to, [range])
+      );
     }
     function buildCodeBlockCopyButtons(view2) {
       const ranges = [];
@@ -46836,6 +46922,22 @@
               })
             });
           }
+        });
+      }
+      for (const block2 of findMermaidFenceBlocks(doc2, { includeUnclosed: true })) {
+        if (block2.fenceChar !== ":" || seenBlocks.has(`${block2.from}:${block2.to}`) || !rangeIntersectsVisibleRanges(view2, block2.from, block2.to) || rangeIntersectsRanges(block2.from, block2.to, previewedDetailsRanges) || !block2.code) {
+          continue;
+        }
+        seenBlocks.add(`${block2.from}:${block2.to}`);
+        ranges.push({
+          from: doc2.lineAt(block2.from).to,
+          decoration: Decoration.widget({
+            side: 1,
+            widget: new CodeCopyButtonWidget(
+              block2.code,
+              (message) => postMessage(message)
+            )
+          })
         });
       }
       return Decoration.set(
@@ -46895,6 +46997,13 @@
         fromLineNumber: openingLine.number,
         toLineNumber: doc2.lineAt(Math.max(block2.from, block2.to - 1)).number
       };
+    }
+    function getMermaidFenceContentLineRange(doc2, block2) {
+      const openingLine = doc2.lineAt(block2.from);
+      const endLine = doc2.lineAt(Math.max(block2.from, block2.to - 1));
+      const fromLineNumber = openingLine.number + 1;
+      const toLineNumber = block2.closed ? endLine.number - 1 : endLine.number;
+      return toLineNumber >= fromLineNumber ? { fromLineNumber, toLineNumber } : null;
     }
     function inferCodeBlockIndentUnit(doc2, lineRange, tabSize) {
       let smallestIndent = Infinity;
@@ -47265,6 +47374,7 @@
         wrapper.setAttribute("tabindex", "0");
         wrapper.title = "Edit table cells";
         wrapper.dataset.dirty = "false";
+        const readOnly2 = view2.state.readOnly;
         const scroll = document.createElement("div");
         scroll.className = "cm-rich-table-scroll";
         const table = document.createElement("table");
@@ -47282,30 +47392,38 @@
         table.appendChild(tbody);
         scroll.appendChild(table);
         wrapper.appendChild(scroll);
-        const toolbar = document.createElement("div");
-        toolbar.className = "cm-rich-table-toolbar";
-        const addRowButton = document.createElement("button");
-        addRowButton.type = "button";
-        addRowButton.className = "cm-rich-table-action";
-        addRowButton.title = "Add row";
-        addRowButton.innerHTML = '<span class="cm-rich-table-action-icon">+</span><span>Row</span>';
-        addRowButton.addEventListener("mousedown", (event) => {
-          event.preventDefault();
-          event.stopPropagation();
-        });
-        addRowButton.addEventListener("click", (event) => {
-          event.preventDefault();
-          event.stopPropagation();
-          this.addRowFromPreview(view2, wrapper);
-        });
-        toolbar.appendChild(addRowButton);
-        wrapper.appendChild(toolbar);
+        if (!readOnly2) {
+          const toolbar = document.createElement("div");
+          toolbar.className = "cm-rich-table-toolbar";
+          const addRowButton = document.createElement("button");
+          addRowButton.type = "button";
+          addRowButton.className = "cm-rich-table-action";
+          addRowButton.title = "Add row";
+          addRowButton.innerHTML = '<span class="cm-rich-table-action-icon">+</span><span>Row</span>';
+          addRowButton.addEventListener("mousedown", (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+          });
+          addRowButton.addEventListener("click", (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            this.addRowFromPreview(view2, wrapper);
+          });
+          toolbar.appendChild(addRowButton);
+          wrapper.appendChild(toolbar);
+        }
         wrapper.addEventListener("input", (event) => {
+          if (readOnly2) {
+            return;
+          }
           if (event.target.closest(".cm-rich-table-cell-editor")) {
             wrapper.dataset.dirty = "true";
           }
         });
         wrapper.addEventListener("contextmenu", (event) => {
+          if (readOnly2) {
+            return;
+          }
           const cell = event.target.closest(".cm-rich-table-cell");
           if (!cell || !wrapper.contains(cell)) {
             return;
@@ -47332,6 +47450,9 @@
           });
         });
         wrapper.addEventListener("focusout", () => {
+          if (readOnly2) {
+            return;
+          }
           window.setTimeout(() => {
             if (!wrapper.contains(document.activeElement)) {
               this.commitTableEdits(view2, wrapper);
@@ -47426,6 +47547,9 @@
         activateRichTableCellEditor(nextEditor, { select: true });
       }
       focusSource(view2, sourceFrom) {
+        if (view2.state.readOnly) {
+          return;
+        }
         const fallbackCell = this.tableBlock.rows.flatMap((row) => row.cells).find((cell) => cell.from !== null);
         const target = sourceFrom === this.tableBlock.from && fallbackCell ? fallbackCell.from : sourceFrom;
         const anchor = Math.max(0, Math.min(target, view2.state.doc.length));
@@ -47440,6 +47564,9 @@
         view2.focus();
       }
       addRow(view2) {
+        if (view2.state.readOnly) {
+          return;
+        }
         const rowText = buildEmptyTableRow(this.tableBlock);
         const insertText = `
 ${rowText}`;
@@ -47456,11 +47583,17 @@ ${rowText}`;
         view2.focus();
       }
       addRowFromPreview(view2, wrapper) {
+        if (view2.state.readOnly) {
+          return;
+        }
         const rows = collectEditableTableRows(wrapper, this.tableBlock);
         rows.push(Array.from({ length: this.tableBlock.columnCount }, () => ""));
         this.replaceTable(view2, rows);
       }
       applyTableContextAction(view2, wrapper, rowIndex, columnIndex, action) {
+        if (view2.state.readOnly) {
+          return;
+        }
         const rows = collectEditableTableRows(wrapper, this.tableBlock);
         const alignments = [...this.tableBlock.alignments];
         const columnCount = Math.max(1, this.tableBlock.columnCount);
@@ -47496,6 +47629,9 @@ ${rowText}`;
         this.replaceTable(view2, rows, alignments);
       }
       commitTableEdits(view2, wrapper) {
+        if (view2.state.readOnly) {
+          return;
+        }
         if (wrapper.dataset.dirty !== "true") {
           return;
         }
@@ -47503,6 +47639,9 @@ ${rowText}`;
         this.replaceTable(view2, rows);
       }
       replaceTable(view2, rows, alignments = this.tableBlock.alignments) {
+        if (view2.state.readOnly) {
+          return;
+        }
         const nextText = serializeMarkdownTable(this.tableBlock, rows, alignments);
         const currentText = view2.state.doc.sliceString(
           this.tableBlock.from,
@@ -48336,7 +48475,11 @@ ${rowText}`;
   }
 
   // src/rich-editor/presentation/markdown/inlineMarkdown.js
-  function createInlineMarkdownSupport({ postMessage, requestEditorMeasure: requestEditorMeasure2 }) {
+  function createInlineMarkdownSupport({
+    postMessage,
+    requestEditorMeasure: requestEditorMeasure2,
+    resolveImageSource: customResolveImageSource
+  }) {
     let imageRequestId = 0;
     const pendingImageRequests = /* @__PURE__ */ new Map();
     function handleResolvedImage2(message) {
@@ -48524,6 +48667,9 @@ ${rowText}`;
         return wrapper;
       }
       focusSource(view2) {
+        if (view2.state.readOnly) {
+          return;
+        }
         view2.dispatch({
           selection: { anchor: Math.min(this.from, view2.state.doc.length) },
           scrollIntoView: true
@@ -48537,6 +48683,9 @@ ${rowText}`;
     function resolveImageSource(src) {
       if (/^(https?:|data:|blob:)/i.test(src)) {
         return Promise.resolve(src);
+      }
+      if (typeof customResolveImageSource === "function") {
+        return customResolveImageSource(src);
       }
       const requestId = String(imageRequestId += 1);
       postMessage({ type: "resolveImage", requestId, src });
@@ -48721,21 +48870,22 @@ ${rowText}`;
     let fenceLength = 0;
     for (let lineNumber = 1; lineNumber <= doc2.lines; lineNumber += 1) {
       const line = doc2.line(lineNumber);
-      const fence = line.text.match(/^\s{0,3}(`{3,}|~{3,})/);
-      if (fence) {
-        const marker = fence[1];
-        if (!inFence) {
-          inFence = true;
-          fenceChar = marker[0];
-          fenceLength = marker.length;
-        } else if (marker[0] === fenceChar && marker.length >= fenceLength) {
+      if (inFence) {
+        if (isMatchingMarkdownCodeFenceClosing(line.text, {
+          char: fenceChar,
+          length: fenceLength
+        })) {
           inFence = false;
           fenceChar = "";
           fenceLength = 0;
         }
         continue;
       }
-      if (inFence) {
+      const fence = parseMarkdownCodeFenceOpening(line.text);
+      if (fence) {
+        inFence = true;
+        fenceChar = fence.char;
+        fenceLength = fence.length;
         continue;
       }
       const heading2 = line.text.match(/^\s{0,3}(#{2,3})\s+(.+?)\s*#*\s*$/);
@@ -50216,15 +50366,6 @@ ${rowText}`;
         menu.hidden = true;
         return;
       }
-      if (item.dataset.toggleEmptyHint !== void 0) {
-        settings2.showEmptyLineHint = !settings2.showEmptyLineHint;
-        update();
-        postMessage({
-          type: "setShowEmptyLineHint",
-          value: settings2.showEmptyLineHint
-        });
-        return;
-      }
       if (item.dataset.toggleTablePreview !== void 0) {
         settings2.richTablePreview = !settings2.richTablePreview;
         update();
@@ -50309,10 +50450,6 @@ ${rowText}`;
       ).join("")}
       </div>
       <div class="cm-settings-section">
-        <div class="cm-settings-menu-title">Editor</div>
-        <button type="button" class="cm-settings-menu-item" data-toggle-empty-hint="true"><span>Empty line hint</span><span>${settings2.showEmptyLineHint ? "On" : "Off"}</span></button>
-      </div>
-      <div class="cm-settings-section">
         <div class="cm-settings-menu-title">Preview</div>
         <button type="button" class="cm-settings-menu-item" data-toggle-table-preview="true"><span>Rich tables</span><span>${settings2.richTablePreview ? "On" : "Off"}</span></button>
         <button type="button" class="cm-settings-menu-item" data-toggle-gherkin-preview="true"><span>Gherkin boards</span><span>${settings2.gherkinPreview ? "On" : "Off"}</span></button>
@@ -50333,7 +50470,6 @@ ${rowText}`;
   }
   function getActionKey(item) {
     if (item.dataset.theme !== void 0) return `theme:${item.dataset.theme}`;
-    if (item.dataset.toggleEmptyHint !== void 0) return "empty-hint";
     if (item.dataset.toggleTablePreview !== void 0) return "table-preview";
     if (item.dataset.previewWidth !== void 0) {
       return `preview-width:${item.dataset.previewWidth}`;
@@ -51449,22 +51585,32 @@ ${rowText}`;
         display: "inline-grid",
         placeItems: "center",
         margin: "0 0.36em 0 0.08em",
+        padding: "0",
         border: "1.5px solid var(--rip-border)",
         borderRadius: "4px",
         color: "var(--rip-button-fg)",
         backgroundColor: "var(--rip-input-bg)",
         verticalAlign: "-0.16em",
-        cursor: "pointer"
+        lineHeight: "1",
+        appearance: "none",
+        cursor: "pointer",
+        position: "relative"
       },
       ".cm-task-checkbox.is-checked": {
         borderColor: "var(--rip-accent)",
         backgroundColor: "var(--rip-accent)"
       },
       ".cm-task-checkbox.is-checked::after": {
-        content: '"\u2713"',
-        color: "var(--rip-button-fg)",
-        fontSize: "0.82em",
-        lineHeight: "1"
+        content: '""',
+        position: "absolute",
+        left: "50%",
+        top: "47%",
+        width: "0.32em",
+        height: "0.58em",
+        border: "solid currentColor",
+        borderWidth: "0 0.14em 0.14em 0",
+        transform: "translate(-50%, -55%) rotate(45deg)",
+        transformOrigin: "center"
       },
       ".cm-settings-root": {
         position: "fixed",
@@ -52020,21 +52166,16 @@ ${rowText}`;
   }
 
   // src/richEditor.js
-  var vscode = acquireVsCodeApi();
+  var initialRuntime = readJsonScript("initial-runtime", {});
+  var exportMode = initialRuntime.exportMode === true;
+  var vscode = typeof acquireVsCodeApi === "function" && !exportMode ? acquireVsCodeApi() : null;
   var vscodePort = createVsCodeWebviewPort(vscode);
   var root = document.querySelector("#editor");
-  var initialDocument = JSON.parse(
-    document.querySelector("#initial-document").textContent
-  );
-  var initialSettings = JSON.parse(
-    document.querySelector("#initial-settings").textContent
-  );
-  var mermaidScriptUri = JSON.parse(
-    document.querySelector("#mermaid-script-uri").textContent
-  );
-  var initialGitDiffChanges = JSON.parse(
-    document.querySelector("#initial-git-diff")?.textContent || "[]"
-  );
+  var initialDocument = readJsonScript("initial-document", "");
+  var initialSettings = readJsonScript("initial-settings", {});
+  var mermaidScriptUri = readJsonScript("mermaid-script-uri", "");
+  var initialGitDiffChanges = readJsonScript("initial-git-diff", []);
+  var exportImageMap = readJsonScript("initial-image-map", {});
   var applyingExternalUpdate = false;
   var settings = normalizeRichEditorSettings(initialSettings);
   var latestGitDiffChanges = initialGitDiffChanges;
@@ -52052,7 +52193,8 @@ ${rowText}`;
   });
   var inlineMarkdown = createInlineMarkdownSupport({
     postMessage: (message) => vscodePort.postMessage(message),
-    requestEditorMeasure
+    requestEditorMeasure,
+    resolveImageSource: exportMode ? resolveExportImageSource : void 0
   });
   var {
     appendInlineMarkdown,
@@ -52075,6 +52217,36 @@ ${rowText}`;
   applyTheme(settings.richTheme);
   applyPreviewWidth(settings.previewWidth);
   injectStyles();
+  if (exportMode) {
+    document.documentElement.dataset.richdownExport = "true";
+  }
+  function readJsonScript(id3, fallback2) {
+    const element = document.querySelector(`#${id3}`);
+    if (!element) {
+      return fallback2;
+    }
+    try {
+      return JSON.parse(element.textContent || "null") ?? fallback2;
+    } catch (error) {
+      return fallback2;
+    }
+  }
+  function resolveExportImageSource(src) {
+    if (/^(https?:|data:|blob:|file:)/i.test(src)) {
+      return Promise.resolve(src);
+    }
+    if (Object.prototype.hasOwnProperty.call(exportImageMap, src)) {
+      return Promise.resolve(exportImageMap[src]);
+    }
+    try {
+      const decoded = decodeURI(src);
+      if (Object.prototype.hasOwnProperty.call(exportImageMap, decoded)) {
+        return Promise.resolve(exportImageMap[decoded]);
+      }
+    } catch (error) {
+    }
+    return Promise.reject(new Error("Image could not be resolved."));
+  }
   function reportRichdownError(context, error) {
     const message = error instanceof Error ? error.message : String(error);
     const stack = error instanceof Error ? error.stack : "";
@@ -52092,11 +52264,13 @@ ${rowText}`;
     }
   }
   var view;
-  installSearchShortcut({
-    getView: () => view,
-    closeSlashCommandMenu: slashCommands2.close,
-    closeTableContextMenu
-  });
+  if (!exportMode) {
+    installSearchShortcut({
+      getView: () => view,
+      closeSlashCommandMenu: slashCommands2.close,
+      closeTableContextMenu
+    });
+  }
   queueMicrotask(() => {
     try {
       view = new EditorView({
@@ -52104,12 +52278,17 @@ ${rowText}`;
         state: EditorState.create({
           doc: initialDocument,
           extensions: [
-            gitDiffGutter.extension,
-            lineNumbers(),
-            history(),
-            highlightActiveLine(),
-            highlightActiveLineGutter(),
-            ...createSearchExtensions(),
+            ...exportMode ? [
+              EditorState.readOnly.of(true),
+              EditorView.editable.of(false)
+            ] : [
+              gitDiffGutter.extension,
+              lineNumbers(),
+              history(),
+              highlightActiveLine(),
+              highlightActiveLineGutter(),
+              ...createSearchExtensions()
+            ],
             syntaxHighlighting(markdownHighlightStyle),
             markdown({
               extensions: GFM,
@@ -52158,18 +52337,20 @@ ${rowText}`;
                 return true;
               }
             }),
-            keymap.of([
-              indentWithTab,
-              ...slashCommands2.keymap,
-              ...getSearchKeymap(),
-              ...defaultKeymap,
-              ...historyKeymap
-            ]),
+            ...exportMode ? [] : [
+              keymap.of([
+                indentWithTab,
+                ...slashCommands2.keymap,
+                ...getSearchKeymap(),
+                ...defaultKeymap,
+                ...historyKeymap
+              ])
+            ],
             EditorView.lineWrapping,
             EditorView.updateListener.of((update) => {
               slashCommands2.sync(update);
               outlineNavigation.sync(update);
-              if (!update.docChanged || applyingExternalUpdate) {
+              if (exportMode || !update.docChanged || applyingExternalUpdate) {
                 return;
               }
               vscodePort.postMessage({
@@ -52181,9 +52362,11 @@ ${rowText}`;
           ]
         })
       });
-      settingsMenu.render();
-      outlineNavigation.render(view);
-      gitDiffGutter.update(view, latestGitDiffChanges);
+      if (!exportMode) {
+        settingsMenu.render();
+        outlineNavigation.render(view);
+        gitDiffGutter.update(view, latestGitDiffChanges);
+      }
       vscodePort.postMessage({ type: "ready" });
     } catch (error) {
       reportRichdownError("editor-startup", error);

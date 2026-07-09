@@ -5,7 +5,11 @@
 // practical subset of Markdown rather than acting as a full parser.
 import { WidgetType } from "@codemirror/view";
 
-export function createInlineMarkdownSupport({ postMessage, requestEditorMeasure }) {
+export function createInlineMarkdownSupport({
+  postMessage,
+  requestEditorMeasure,
+  resolveImageSource: customResolveImageSource,
+}) {
   let imageRequestId = 0;
   const pendingImageRequests = new Map();
 
@@ -241,6 +245,9 @@ export function createInlineMarkdownSupport({ postMessage, requestEditorMeasure 
     }
   
     focusSource(view) {
+      if (view.state.readOnly) {
+        return;
+      }
       view.dispatch({
         selection: { anchor: Math.min(this.from, view.state.doc.length) },
         scrollIntoView: true,
@@ -256,6 +263,10 @@ export function createInlineMarkdownSupport({ postMessage, requestEditorMeasure 
   function resolveImageSource(src) {
     if (/^(https?:|data:|blob:)/i.test(src)) {
       return Promise.resolve(src);
+    }
+
+    if (typeof customResolveImageSource === "function") {
+      return customResolveImageSource(src);
     }
   
     const requestId = String((imageRequestId += 1));

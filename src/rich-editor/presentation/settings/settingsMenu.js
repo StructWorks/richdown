@@ -101,16 +101,6 @@ export function createSettingsMenuController({
       return;
     }
 
-    if (item.dataset.toggleEmptyHint !== undefined) {
-      settings.showEmptyLineHint = !settings.showEmptyLineHint;
-      update();
-      postMessage({
-        type: "setShowEmptyLineHint",
-        value: settings.showEmptyLineHint,
-      });
-      return;
-    }
-
     if (item.dataset.toggleTablePreview !== undefined) {
       settings.richTablePreview = !settings.richTablePreview;
       update();
@@ -208,10 +198,6 @@ export function createSettingsMenuController({
           .join("")}
       </div>
       <div class="cm-settings-section">
-        <div class="cm-settings-menu-title">Editor</div>
-        <button type="button" class="cm-settings-menu-item" data-toggle-empty-hint="true"><span>Empty line hint</span><span>${settings.showEmptyLineHint ? "On" : "Off"}</span></button>
-      </div>
-      <div class="cm-settings-section">
         <div class="cm-settings-menu-title">Preview</div>
         <button type="button" class="cm-settings-menu-item" data-toggle-table-preview="true"><span>Rich tables</span><span>${settings.richTablePreview ? "On" : "Off"}</span></button>
         <button type="button" class="cm-settings-menu-item" data-toggle-gherkin-preview="true"><span>Gherkin boards</span><span>${settings.gherkinPreview ? "On" : "Off"}</span></button>
@@ -237,7 +223,6 @@ export function createSettingsMenuController({
 
 function getActionKey(item) {
   if (item.dataset.theme !== undefined) return `theme:${item.dataset.theme}`;
-  if (item.dataset.toggleEmptyHint !== undefined) return "empty-hint";
   if (item.dataset.toggleTablePreview !== undefined) return "table-preview";
   if (item.dataset.previewWidth !== undefined) {
     return `preview-width:${item.dataset.previewWidth}`;

@@ -1,6 +1,6 @@
 # Richdown
 
-Richdown is a VS Code Markdown editor that keeps writing, previewing, and reviewing changes in one place. It opens Markdown files in a CodeMirror-based rich editor with inline Markdown previews, editable rich tables, colored Mermaid diagrams, Gherkin BDD boards, syntax-highlighted code blocks, inline color swatches, images, links, task checkboxes, Git change markers, Richdown Diff, and configurable writing themes.
+Richdown is a VS Code Markdown editor that keeps writing, previewing, reviewing, and exporting changes in one place. It opens Markdown files in a CodeMirror-based rich editor with inline Markdown previews, editable rich tables, colored Mermaid diagrams, Gherkin BDD boards, syntax-highlighted code blocks, inline color swatches, images, links, task checkboxes, Git change markers, HTML/PDF export, Richdown Diff, and configurable writing themes.
 
 ## Screenshots
 
@@ -22,6 +22,7 @@ Richdown Diff gives Markdown changes a rendered side-by-side review view while k
 - Toggle between Richdown and the standard VS Code text editor from the editor title button or the command palette.
 - Open the VS Code Git diff for the current Markdown file from the editor title button or the command palette.
 - Open a Richdown Diff view for Markdown changes, including rendered headings, lists, tables, images, links, and highlighted code blocks.
+- Export local Markdown files to Richdown-styled HTML or PDF from the editor title button or the command palette.
 - Preview headings, emphasis, inline code, links, images, blockquotes, task checkboxes, thematic breaks, code blocks, tables, details blocks, Mermaid diagrams, and Gherkin scenarios while editing.
 - Show a color swatch after inline code color values such as `#ff0066`, and mark added, changed, and deleted Git lines beside the line numbers.
 - Highlight matches for the active Richdown search query using VS Code find-match colors.
@@ -36,12 +37,13 @@ Richdown Diff gives Markdown changes a rendered side-by-side review view while k
 - `Richdown: Toggle Markdown Open Mode`: Switch whether Markdown files open with Richdown or the standard VS Code text editor.
 - `Richdown: Open Rich Diff`: Open a Richdown-rendered Markdown diff against `HEAD`.
 - `Richdown: Open Git Diff`: Open the VS Code Git diff for the current Markdown file.
+- `Richdown: Export HTML`: Export the current local Markdown file as a standalone Richdown preview. The HTML uses the same rich table, Mermaid, Gherkin, image, task, code, and theme UI as the editor.
+- `Richdown: Export PDF`: Export the current local Markdown file by printing the standalone Richdown preview through an installed Chromium-based browser.
 
 ## Settings
 
 - `richdown.openMarkdownAsRichEditor`: Open regular local Markdown files with Richdown by default while keeping Source Control diffs in VS Code's native diff editor.
 - `richdown.richTheme`: Select the Richdown editor theme. `default` follows the active VS Code theme.
-- `richdown.showEmptyLineHint`: Show the `Click to write` hint for empty lines.
 - `richdown.richTablePreview`: Render Markdown tables as editable rich tables.
 - `richdown.mermaidPreview`: Render Mermaid code blocks as diagrams.
 - `richdown.mermaidColorized`: Apply Richdown's clearer color palette to Mermaid diagrams.
@@ -80,7 +82,7 @@ Install locally from VSIX:
 1. Run `npm run package:vsix`.
 2. In Cursor, open the command palette.
 3. Run `Extensions: Install from VSIX...`.
-4. Select `richdown-0.6.0.vsix`.
+4. Select `richdown-0.7.0.vsix`.
 
 Publish to Open VSX:
 
