@@ -6,6 +6,8 @@
 .gitignore
 node_modules/**
 src/**
+!src/export/
+!src/export/**
 articles/**
 examples/**
 *.vsix

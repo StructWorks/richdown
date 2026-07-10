@@ -2,6 +2,10 @@
 
 All notable changes to Richdown will be documented in this file.
 
+## 0.7.1 - 2026-07-10
+
+- Fixed packaged VSIX builds so the export runtime is included and Richdown commands register correctly after activation.
+
 ## 0.7.0 - 2026-07-09
 
 - Added HTML export for local Markdown files as a standalone Richdown preview using the same rich table, Mermaid, Gherkin, image, task, code, and theme UI as the editor.
