@@ -3,6 +3,7 @@
 // The preview gives details blocks an interactive disclosure UI while preserving
 // a direct path back to the original Markdown source for editing.
 import { WidgetType } from "@codemirror/view";
+import { splitMarkdownTableCells } from "../../../markdown/tableCells.js";
 import { getDetailsBodyLineText } from "../../domain/markdownBlocks.js";
 import { highlightCodeElement } from "../codemirror/language.js";
 
@@ -356,10 +357,5 @@ function isTableDelimiterLine(text) {
 }
 
 function splitTableCells(text) {
-  return text
-    .trim()
-    .replace(/^\|/, "")
-    .replace(/\|$/, "")
-    .split(/(?<!\\)\|/)
-    .map((cell) => cell.replace(/\\\|/g, "|").trim());
+  return splitMarkdownTableCells(text, { unescapePipes: true });
 }

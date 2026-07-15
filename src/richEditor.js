@@ -396,7 +396,10 @@ window.addEventListener("blur", () => {
 window.addEventListener(
   "keydown",
   (event) => {
-    if (event.key === "Escape" && closeTableContextMenu()) {
+    if (
+      event.key === "Escape" &&
+      closeTableContextMenu({ restoreFocus: true })
+    ) {
       event.preventDefault();
       event.stopPropagation();
     }

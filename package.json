@@ -55,6 +55,7 @@
     "build:diff": "esbuild src/richDiff.js --bundle --format=iife --outfile=media/richDiff.js",
     "build:all": "npm run build && npm run build:mermaid && npm run build:diff",
     "package:vsix": "vsce package",
+    "test:table": "node scripts/test-table-cells.cjs",
     "publish:marketplace": "vsce publish",
     "publish:openvsx": "ovsx publish",
     "watch": "esbuild src/richEditor.js --bundle --format=iife --outfile=media/richEditor.js --watch"

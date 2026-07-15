@@ -11,6 +11,11 @@
 // instance collapses those repeated O(n) full-document scans for a given
 // document version into a single pass. Each edit produces a new `Text`, so the
 // WeakMap holds at most the live document(s); older entries are GC'd.
+import {
+  scanMarkdownTableRow,
+  splitMarkdownTableCells,
+} from "../../markdown/tableCells.js";
+
 const detailsBlocksCache = new WeakMap();
 const tableBlocksCache = new WeakMap();
 const mermaidBlocksCache = new WeakMap();
@@ -273,7 +278,7 @@ export function isTableDelimiterLine(text) {
 }
 
 export function splitTableCells(text) {
-  return text.trim().replace(/^\|/, "").replace(/\|$/, "").split("|");
+  return splitMarkdownTableCells(text);
 }
 
 function computeMermaidBlocks(doc, options = {}) {
@@ -510,6 +515,7 @@ function computeTableBlocks(doc) {
 }
 
 export function createTableBlock(doc, headerLine, delimiterLine, bodyLines, lastLine) {
+  const headerRow = scanMarkdownTableRow(headerLine.text);
   const headerCells = parseTableCells(headerLine);
   const delimiterCells = parseTableCells(delimiterLine);
   const bodyRows = bodyLines.map((line) => ({
@@ -548,8 +554,9 @@ export function createTableBlock(doc, headerLine, delimiterLine, bodyLines, last
     ].join("\n"),
     columnCount,
     alignments,
-    usesLeadingPipe: headerLine.text.trimStart().startsWith("|"),
-    usesTrailingPipe: headerLine.text.trimEnd().endsWith("|"),
+    indent: headerRow.indent,
+    usesLeadingPipe: headerRow.usesLeadingPipe,
+    usesTrailingPipe: headerRow.usesTrailingPipe,
     rows,
     sourceRows: [
       { role: "header", line: headerLine },
@@ -560,35 +567,20 @@ export function createTableBlock(doc, headerLine, delimiterLine, bodyLines, last
 }
 
 export function parseTableCells(line) {
-  const text = line.text;
-  let start = 0;
-  let end = text.length;
-  if (text[start] === "|") start += 1;
-  if (text[end - 1] === "|") end -= 1;
-
-  const cells = [];
-  let cellStart = start;
-  for (let index = start; index <= end; index += 1) {
-    if (index !== end && text[index] !== "|") {
-      continue;
-    }
-
-    const raw = text.slice(cellStart, index);
+  return scanMarkdownTableRow(line.text).cells.map((cell) => {
+    const raw = line.text.slice(cell.from, cell.to);
     const leadingLength = raw.match(/^\s*/)[0].length;
     const trailingLength = raw.match(/\s*$/)[0].length;
     // Keep both trimmed text and source offsets so rich cell editors can focus
     // back to the exact Markdown cell they represent.
-    const contentFrom = line.from + cellStart + leadingLength;
-    const contentTo = line.from + index - trailingLength;
-    cells.push({
-      text: raw.trim(),
+    const contentFrom = line.from + cell.from + leadingLength;
+    const contentTo = line.from + cell.to - trailingLength;
+    return {
+      text: cell.text,
       from: Math.min(contentFrom, contentTo),
       to: Math.max(contentFrom, contentTo),
-    });
-    cellStart = index + 1;
-  }
-
-  return cells;
+    };
+  });
 }
 
 export function normalizeTableCells(cells, columnCount) {

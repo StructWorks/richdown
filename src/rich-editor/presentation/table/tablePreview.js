@@ -4,6 +4,10 @@
 // edit back to normal Markdown. Keeping this in one presenter keeps the table UI
 // independent from CodeMirror state-field wiring.
 import { WidgetType } from "@codemirror/view";
+import {
+  escapeMarkdownTableCellPipes,
+  unescapeMarkdownTableCellPipes,
+} from "../../../markdown/tableCells.js";
 
 let tableContextMenu = null;
 let tableContextMenuAnchor = null;
@@ -78,6 +82,7 @@ function showTableContextMenu({
     if (event.key === "Escape") {
       event.preventDefault();
       event.stopPropagation();
+      event.stopImmediatePropagation();
       closeTableContextMenu({ restoreFocus: true });
       return;
     }
@@ -114,28 +119,79 @@ function positionFixedMenu(menu, x, y) {
   menu.style.top = `${top}px`;
 }
 
+function setRovingTableCell(wrapper, target) {
+  if (!wrapper || !target) {
+    return;
+  }
+  for (const preview of wrapper.querySelectorAll(
+    ".cm-rich-table-cell-preview[tabindex]",
+  )) {
+    preview.tabIndex = preview === target ? 0 : -1;
+  }
+}
+
+function scheduleTableCellFocus(focusTarget) {
+  const restore = () => {
+    const selector =
+      `.cm-rich-table-preview[data-source-from="${focusTarget.sourceFrom}"] ` +
+      `.cm-rich-table-cell-preview[data-row-index="${focusTarget.rowIndex}"]` +
+      `[data-column-index="${focusTarget.columnIndex}"]`;
+    const currentTarget =
+      document.querySelector(selector) ||
+      (focusTarget.element?.isConnected ? focusTarget.element : null);
+    if (!currentTarget) {
+      return;
+    }
+    setRovingTableCell(
+      currentTarget.closest(".cm-rich-table-preview"),
+      currentTarget,
+    );
+    currentTarget.focus({ preventScroll: true });
+  };
+  window.requestAnimationFrame(() => {
+    window.requestAnimationFrame(() => {
+      restore();
+    });
+  });
+  window.setTimeout(restore, 100);
+}
+
+function focusOutsideTable(wrapper, reverse = false) {
+  const candidates = [
+    ...document.querySelectorAll(
+      'a[href], button:not([disabled]), input:not([disabled]), ' +
+        'select:not([disabled]), textarea:not([disabled]), ' +
+        '[contenteditable="true"], [contenteditable="plaintext-only"], ' +
+        '[tabindex]:not([tabindex="-1"])',
+    ),
+  ].filter(
+    (element) =>
+      !wrapper.contains(element) &&
+      !element.hidden &&
+      element.getAttribute("aria-hidden") !== "true" &&
+      element.getClientRects().length > 0,
+  );
+  const ordered = reverse ? candidates.reverse() : candidates;
+  const position = reverse
+    ? Node.DOCUMENT_POSITION_PRECEDING
+    : Node.DOCUMENT_POSITION_FOLLOWING;
+  const target = ordered.find(
+    (element) => wrapper.compareDocumentPosition(element) & position,
+  );
+  target?.focus({ preventScroll: true });
+  return Boolean(target);
+}
+
 export function closeTableContextMenu({ restoreFocus = false } = {}) {
   if (!tableContextMenu) {
     return false;
   }
   const focusTarget = restoreFocus ? tableContextMenuAnchor : null;
-  if (focusTarget?.element.isConnected) {
-    focusTarget.element.focus({ preventScroll: true });
-  }
   tableContextMenu.remove();
   tableContextMenu = null;
   tableContextMenuAnchor = null;
   if (focusTarget) {
-    window.setTimeout(() => {
-      const currentTarget = focusTarget.element.isConnected
-        ? focusTarget.element
-        : document.querySelector(
-            `.cm-rich-table-preview[data-source-from="${focusTarget.sourceFrom}"] ` +
-              `.cm-rich-table-cell-preview[data-row-index="${focusTarget.rowIndex}"]` +
-              `[data-column-index="${focusTarget.columnIndex}"]`,
-          );
-      currentTarget?.focus({ preventScroll: true });
-    }, 0);
+    scheduleTableCellFocus(focusTarget);
   }
   return true;
 }
@@ -171,12 +227,17 @@ export function createTablePreviewWidgetClass({
       const wrapper = document.createElement("div");
       wrapper.className = "cm-rich-table-preview";
       wrapper.setAttribute("role", "region");
-      wrapper.setAttribute("tabindex", "0");
-      wrapper.title = "Edit table cells";
       wrapper.dataset.sourceFrom = String(this.tableBlock.from);
       wrapper.dataset.dirty = "false";
       const readOnly = view.state.readOnly;
       wrapper.classList.toggle("is-read-only", readOnly);
+      wrapper.setAttribute(
+        "aria-label",
+        readOnly ? "Markdown table" : "Editable Markdown table",
+      );
+      if (!readOnly) {
+        wrapper.title = "Edit table cells";
+      }
   
       const scroll = document.createElement("div");
       scroll.className = "cm-rich-table-scroll";
@@ -329,7 +390,7 @@ export function createTablePreviewWidgetClass({
         const preview = document.createElement("div");
         preview.className = "cm-rich-table-cell-preview";
         if (!view.state.readOnly) {
-          preview.tabIndex = 0;
+          preview.tabIndex = rowIndex === 0 && columnIndex === 0 ? 0 : -1;
           preview.setAttribute("role", "button");
         }
         preview.dataset.rowIndex = String(rowIndex);
@@ -337,12 +398,15 @@ export function createTablePreviewWidgetClass({
         const headerText =
           this.tableBlock.rows[0]?.cells[columnIndex]?.text || `Column ${columnIndex + 1}`;
         const cellLabel = `${rowIndex === 0 ? "Header" : `Row ${rowIndex}`}, ${headerText}: ${sourceCell.text || "Empty cell"}`;
-        preview.setAttribute("aria-label", `Edit ${cellLabel}`);
+        preview.setAttribute(
+          "aria-label",
+          view.state.readOnly ? cellLabel : `Edit ${cellLabel}`,
+        );
         renderRichTableCellPreview(preview, sourceCell.text, view);
   
         const editor = document.createElement("div");
         editor.className = "cm-rich-table-cell-editor";
-        editor.contentEditable = "plaintext-only";
+        editor.contentEditable = view.state.readOnly ? "false" : "plaintext-only";
         editor.spellcheck = true;
         editor.dataset.rowIndex = String(rowIndex);
         editor.dataset.columnIndex = String(columnIndex);
@@ -360,6 +424,7 @@ export function createTablePreviewWidgetClass({
           this.handleCellPreviewKeydown(event, editor, view, wrapper);
         });
         editor.addEventListener("focus", () => {
+          setRovingTableCell(wrapper, preview);
           editor.dataset.editStartValue = editor.textContent || "";
           editor.dataset.editStartDirty = wrapper.dataset.dirty || "false";
           activateRichTableCellEditor(editor, { focus: false });
@@ -447,8 +512,14 @@ export function createTablePreviewWidgetClass({
           ?.querySelector(".cm-rich-table-cell-preview");
         renderRichTableCellPreview(preview, editor.textContent, view);
         wrapper.dataset.dirty = editor.dataset.editStartDirty || "false";
+        const focusTarget = {
+          element: preview,
+          sourceFrom: wrapper.dataset.sourceFrom,
+          rowIndex: editor.dataset.rowIndex,
+          columnIndex: editor.dataset.columnIndex,
+        };
         editor.blur();
-        preview?.focus({ preventScroll: true });
+        scheduleTableCellFocus(focusTarget);
         return;
       }
       if (event.key === "Enter" && !event.shiftKey) {
@@ -477,10 +548,15 @@ export function createTablePreviewWidgetClass({
         return;
       }
   
-      event.preventDefault();
       const delta = event.shiftKey ? -1 : 1;
-      const nextEditor =
-        editors[(currentIndex + delta + editors.length) % editors.length];
+      const nextIndex = currentIndex + delta;
+      if (nextIndex < 0 || nextIndex >= editors.length) {
+        event.preventDefault();
+        focusOutsideTable(wrapper, event.shiftKey);
+        return;
+      }
+      event.preventDefault();
+      const nextEditor = editors[nextIndex];
       activateRichTableCellEditor(nextEditor, { select: true });
     }
 
@@ -501,6 +577,7 @@ export function createTablePreviewWidgetClass({
       if (options.activate) {
         activateRichTableCellEditor(next, { select: true });
       } else {
+        setRovingTableCell(wrapper, next);
         next.focus({ preventScroll: true });
       }
       return true;
@@ -715,7 +792,7 @@ export function createTablePreviewWidgetClass({
       return;
     }
     preview.replaceChildren();
-    appendInlineMarkdown(preview, text, {
+    appendInlineMarkdown(preview, unescapeMarkdownTableCellPipes(text), {
       renderImages: true,
       onImageReady: () => requestEditorMeasure(view),
     });
@@ -764,10 +841,7 @@ export function createTablePreviewWidgetClass({
   
   function buildEmptyTableRow(tableBlock) {
     const cells = Array.from({ length: tableBlock.columnCount }, () => "");
-    if (tableBlock.usesLeadingPipe || tableBlock.usesTrailingPipe) {
-      return `| ${cells.join(" | ")} |`;
-    }
-    return cells.map(() => " ").join(" | ");
+    return formatMarkdownTableRow(tableBlock, cells);
   }
   
   function collectEditableTableRows(wrapper, tableBlock) {
@@ -776,7 +850,7 @@ export function createTablePreviewWidgetClass({
         const editor = wrapper.querySelector(
           `.cm-rich-table-cell-editor[data-row-index="${rowIndex}"][data-column-index="${columnIndex}"]`,
         );
-        return normalizeEditedTableCellText(editor?.textContent || "");
+        return sanitizeEditedTableCellText(editor?.textContent || "");
       }),
     );
   }
@@ -820,22 +894,24 @@ export function createTablePreviewWidgetClass({
   }
   
   function formatMarkdownTableRow(tableBlock, cells) {
-    const segments = cells.map((cell) => ` ${normalizeEditedTableCellText(cell)} `);
+    const segments = cells.map(
+      (cell) =>
+        ` ${escapeMarkdownTableCellPipes(sanitizeEditedTableCellText(cell))} `,
+    );
     const row = segments.join("|");
-    if (tableBlock.usesLeadingPipe || tableBlock.usesTrailingPipe) {
-      return `|${row}|`;
-    }
-    return row;
+    const prefix =
+      `${tableBlock.indent || ""}` +
+      `${tableBlock.usesLeadingPipe ? "|" : ""}`;
+    const suffix = tableBlock.usesTrailingPipe ? "|" : "";
+    return `${prefix}${row}${suffix}`;
   }
   
-  function normalizeEditedTableCellText(text) {
+  function sanitizeEditedTableCellText(text) {
     return text
       .replace(/\r?\n/g, " ")
-      .replace(/\|/g, "\\|")
-      .replace(/\s+/g, " ")
       .trim();
   }
-  
+
   function selectEditableText(element) {
     const selection = window.getSelection();
     if (!selection) {

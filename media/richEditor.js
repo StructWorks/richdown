@@ -44704,6 +44704,142 @@
     }
   };
 
+  // src/markdown/tableCells.js
+  function scanMarkdownTableRow(text2) {
+    const indent4 = text2.match(/^[\t ]*/)?.[0] || "";
+    let contentEnd = text2.length;
+    while (contentEnd > indent4.length && /\s/.test(text2[contentEnd - 1])) {
+      contentEnd -= 1;
+    }
+    const usesLeadingPipe = text2[indent4.length] === "|";
+    const contentStart = usesLeadingPipe ? indent4.length + 1 : indent4.length;
+    const delimiterIndexes = findTableDelimiterPipes(text2, contentStart, contentEnd);
+    const usesTrailingPipe = delimiterIndexes.at(-1) === contentEnd - 1;
+    const cells = [];
+    let cellStart = contentStart;
+    for (const delimiterIndex of delimiterIndexes) {
+      cells.push({
+        from: cellStart,
+        to: delimiterIndex,
+        text: text2.slice(cellStart, delimiterIndex).trim()
+      });
+      cellStart = delimiterIndex + 1;
+    }
+    if (!usesTrailingPipe) {
+      cells.push({
+        from: cellStart,
+        to: contentEnd,
+        text: text2.slice(cellStart, contentEnd).trim()
+      });
+    }
+    return {
+      indent: indent4,
+      usesLeadingPipe,
+      usesTrailingPipe,
+      cells
+    };
+  }
+  function splitMarkdownTableCells(text2, options = {}) {
+    return scanMarkdownTableRow(text2).cells.map(
+      (cell) => options.unescapePipes ? unescapeMarkdownTableCellPipes(cell.text) : cell.text
+    );
+  }
+  function unescapeMarkdownTableCellPipes(text2) {
+    let result = "";
+    let codeFenceLength = 0;
+    for (let index = 0; index < text2.length; index += 1) {
+      const character = text2[index];
+      if (character === "`" && !isEscapedCharacter(text2, index)) {
+        const runLength = countCharacterRun(text2, index, "`");
+        if (codeFenceLength === 0 && hasClosingBacktickRun(text2, index + runLength, runLength)) {
+          codeFenceLength = runLength;
+        } else if (runLength === codeFenceLength) {
+          codeFenceLength = 0;
+        }
+        result += text2.slice(index, index + runLength);
+        index += runLength - 1;
+        continue;
+      }
+      if (character === "|" && codeFenceLength === 0 && isEscapedCharacter(text2, index)) {
+        result = result.slice(0, -1);
+      }
+      result += character;
+    }
+    return result;
+  }
+  function escapeMarkdownTableCellPipes(text2) {
+    let result = "";
+    let codeFenceLength = 0;
+    for (let index = 0; index < text2.length; index += 1) {
+      const character = text2[index];
+      if (character === "`" && !isEscapedCharacter(text2, index)) {
+        const runLength = countCharacterRun(text2, index, "`");
+        if (codeFenceLength === 0 && hasClosingBacktickRun(text2, index + runLength, runLength)) {
+          codeFenceLength = runLength;
+        } else if (runLength === codeFenceLength) {
+          codeFenceLength = 0;
+        }
+        result += text2.slice(index, index + runLength);
+        index += runLength - 1;
+        continue;
+      }
+      if (character === "|" && codeFenceLength === 0 && !isEscapedCharacter(text2, index)) {
+        result += "\\|";
+        continue;
+      }
+      result += character;
+    }
+    return result;
+  }
+  function findTableDelimiterPipes(text2, start2, end) {
+    const indexes = [];
+    let codeFenceLength = 0;
+    for (let index = start2; index < end; index += 1) {
+      const character = text2[index];
+      if (character === "`" && !isEscapedCharacter(text2, index)) {
+        const runLength = countCharacterRun(text2, index, "`");
+        if (codeFenceLength === 0 && hasClosingBacktickRun(text2, index + runLength, runLength, end)) {
+          codeFenceLength = runLength;
+        } else if (runLength === codeFenceLength) {
+          codeFenceLength = 0;
+        }
+        index += runLength - 1;
+        continue;
+      }
+      if (character === "|" && codeFenceLength === 0 && !isEscapedCharacter(text2, index)) {
+        indexes.push(index);
+      }
+    }
+    return indexes;
+  }
+  function isEscapedCharacter(text2, index) {
+    let backslashCount = 0;
+    for (let cursor = index - 1; cursor >= 0 && text2[cursor] === "\\"; cursor -= 1) {
+      backslashCount += 1;
+    }
+    return backslashCount % 2 === 1;
+  }
+  function countCharacterRun(text2, start2, character) {
+    let end = start2 + 1;
+    while (end < text2.length && text2[end] === character) {
+      end += 1;
+    }
+    return end - start2;
+  }
+  function hasClosingBacktickRun(text2, start2, runLength, end = text2.length) {
+    for (let index = start2; index < end; index += 1) {
+      if (text2[index] !== "`" || isEscapedCharacter(text2, index)) {
+        continue;
+      }
+      const candidateLength = countCharacterRun(text2, index, "`");
+      if (candidateLength === runLength) {
+        return true;
+      }
+      index += candidateLength - 1;
+    }
+    return false;
+  }
+
   // src/rich-editor/domain/markdownBlocks.js
   var detailsBlocksCache = /* @__PURE__ */ new WeakMap();
   var tableBlocksCache = /* @__PURE__ */ new WeakMap();
@@ -44871,7 +45007,7 @@
     return /^\s*\|?\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)*\|?\s*$/.test(text2);
   }
   function splitTableCells(text2) {
-    return text2.trim().replace(/^\|/, "").replace(/\|$/, "").split("|");
+    return splitMarkdownTableCells(text2);
   }
   function computeMermaidBlocks(doc2, options = {}) {
     const includeUnclosed = options.includeUnclosed === true;
@@ -45060,6 +45196,7 @@
     return blocks;
   }
   function createTableBlock(doc2, headerLine, delimiterLine2, bodyLines, lastLine) {
+    const headerRow = scanMarkdownTableRow(headerLine.text);
     const headerCells = parseTableCells(headerLine);
     const delimiterCells = parseTableCells(delimiterLine2);
     const bodyRows = bodyLines.map((line) => ({
@@ -45098,8 +45235,9 @@
       ].join("\n"),
       columnCount,
       alignments,
-      usesLeadingPipe: headerLine.text.trimStart().startsWith("|"),
-      usesTrailingPipe: headerLine.text.trimEnd().endsWith("|"),
+      indent: headerRow.indent,
+      usesLeadingPipe: headerRow.usesLeadingPipe,
+      usesTrailingPipe: headerRow.usesTrailingPipe,
       rows,
       sourceRows: [
         { role: "header", line: headerLine },
@@ -45109,30 +45247,18 @@
     };
   }
   function parseTableCells(line) {
-    const text2 = line.text;
-    let start2 = 0;
-    let end = text2.length;
-    if (text2[start2] === "|") start2 += 1;
-    if (text2[end - 1] === "|") end -= 1;
-    const cells = [];
-    let cellStart = start2;
-    for (let index = start2; index <= end; index += 1) {
-      if (index !== end && text2[index] !== "|") {
-        continue;
-      }
-      const raw = text2.slice(cellStart, index);
+    return scanMarkdownTableRow(line.text).cells.map((cell) => {
+      const raw = line.text.slice(cell.from, cell.to);
       const leadingLength = raw.match(/^\s*/)[0].length;
       const trailingLength = raw.match(/\s*$/)[0].length;
-      const contentFrom = line.from + cellStart + leadingLength;
-      const contentTo = line.from + index - trailingLength;
-      cells.push({
-        text: raw.trim(),
+      const contentFrom = line.from + cell.from + leadingLength;
+      const contentTo = line.from + cell.to - trailingLength;
+      return {
+        text: cell.text,
         from: Math.min(contentFrom, contentTo),
         to: Math.max(contentFrom, contentTo)
-      });
-      cellStart = index + 1;
-    }
-    return cells;
+      };
+    });
   }
   function normalizeTableCells(cells, columnCount) {
     return Array.from(
@@ -45450,7 +45576,7 @@
     return /^\s*\|?\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)+\|?\s*$/.test(text2);
   }
   function splitTableCells2(text2) {
-    return text2.trim().replace(/^\|/, "").replace(/\|$/, "").split(/(?<!\\)\|/).map((cell) => cell.replace(/\\\|/g, "|").trim());
+    return splitMarkdownTableCells(text2, { unescapePipes: true });
   }
 
   // src/rich-editor/presentation/gherkin/gherkinPreview.js
@@ -47609,6 +47735,7 @@
       if (event.key === "Escape") {
         event.preventDefault();
         event.stopPropagation();
+        event.stopImmediatePropagation();
         closeTableContextMenu({ restoreFocus: true });
         return;
       }
@@ -47643,24 +47770,62 @@
     menu.style.left = `${left}px`;
     menu.style.top = `${top2}px`;
   }
+  function setRovingTableCell(wrapper, target) {
+    if (!wrapper || !target) {
+      return;
+    }
+    for (const preview of wrapper.querySelectorAll(
+      ".cm-rich-table-cell-preview[tabindex]"
+    )) {
+      preview.tabIndex = preview === target ? 0 : -1;
+    }
+  }
+  function scheduleTableCellFocus(focusTarget) {
+    const restore = () => {
+      const selector = `.cm-rich-table-preview[data-source-from="${focusTarget.sourceFrom}"] .cm-rich-table-cell-preview[data-row-index="${focusTarget.rowIndex}"][data-column-index="${focusTarget.columnIndex}"]`;
+      const currentTarget = document.querySelector(selector) || (focusTarget.element?.isConnected ? focusTarget.element : null);
+      if (!currentTarget) {
+        return;
+      }
+      setRovingTableCell(
+        currentTarget.closest(".cm-rich-table-preview"),
+        currentTarget
+      );
+      currentTarget.focus({ preventScroll: true });
+    };
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        restore();
+      });
+    });
+    window.setTimeout(restore, 100);
+  }
+  function focusOutsideTable(wrapper, reverse = false) {
+    const candidates = [
+      ...document.querySelectorAll(
+        'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [contenteditable="true"], [contenteditable="plaintext-only"], [tabindex]:not([tabindex="-1"])'
+      )
+    ].filter(
+      (element) => !wrapper.contains(element) && !element.hidden && element.getAttribute("aria-hidden") !== "true" && element.getClientRects().length > 0
+    );
+    const ordered = reverse ? candidates.reverse() : candidates;
+    const position = reverse ? Node.DOCUMENT_POSITION_PRECEDING : Node.DOCUMENT_POSITION_FOLLOWING;
+    const target = ordered.find(
+      (element) => wrapper.compareDocumentPosition(element) & position
+    );
+    target?.focus({ preventScroll: true });
+    return Boolean(target);
+  }
   function closeTableContextMenu({ restoreFocus = false } = {}) {
     if (!tableContextMenu) {
       return false;
     }
     const focusTarget = restoreFocus ? tableContextMenuAnchor : null;
-    if (focusTarget?.element.isConnected) {
-      focusTarget.element.focus({ preventScroll: true });
-    }
     tableContextMenu.remove();
     tableContextMenu = null;
     tableContextMenuAnchor = null;
     if (focusTarget) {
-      window.setTimeout(() => {
-        const currentTarget = focusTarget.element.isConnected ? focusTarget.element : document.querySelector(
-          `.cm-rich-table-preview[data-source-from="${focusTarget.sourceFrom}"] .cm-rich-table-cell-preview[data-row-index="${focusTarget.rowIndex}"][data-column-index="${focusTarget.columnIndex}"]`
-        );
-        currentTarget?.focus({ preventScroll: true });
-      }, 0);
+      scheduleTableCellFocus(focusTarget);
     }
     return true;
   }
@@ -47688,12 +47853,17 @@
         const wrapper = document.createElement("div");
         wrapper.className = "cm-rich-table-preview";
         wrapper.setAttribute("role", "region");
-        wrapper.setAttribute("tabindex", "0");
-        wrapper.title = "Edit table cells";
         wrapper.dataset.sourceFrom = String(this.tableBlock.from);
         wrapper.dataset.dirty = "false";
         const readOnly2 = view2.state.readOnly;
         wrapper.classList.toggle("is-read-only", readOnly2);
+        wrapper.setAttribute(
+          "aria-label",
+          readOnly2 ? "Markdown table" : "Editable Markdown table"
+        );
+        if (!readOnly2) {
+          wrapper.title = "Edit table cells";
+        }
         const scroll = document.createElement("div");
         scroll.className = "cm-rich-table-scroll";
         const table = document.createElement("table");
@@ -47821,18 +47991,21 @@
           const preview = document.createElement("div");
           preview.className = "cm-rich-table-cell-preview";
           if (!view2.state.readOnly) {
-            preview.tabIndex = 0;
+            preview.tabIndex = rowIndex === 0 && columnIndex === 0 ? 0 : -1;
             preview.setAttribute("role", "button");
           }
           preview.dataset.rowIndex = String(rowIndex);
           preview.dataset.columnIndex = String(columnIndex);
           const headerText = this.tableBlock.rows[0]?.cells[columnIndex]?.text || `Column ${columnIndex + 1}`;
           const cellLabel = `${rowIndex === 0 ? "Header" : `Row ${rowIndex}`}, ${headerText}: ${sourceCell.text || "Empty cell"}`;
-          preview.setAttribute("aria-label", `Edit ${cellLabel}`);
+          preview.setAttribute(
+            "aria-label",
+            view2.state.readOnly ? cellLabel : `Edit ${cellLabel}`
+          );
           renderRichTableCellPreview(preview, sourceCell.text, view2);
           const editor = document.createElement("div");
           editor.className = "cm-rich-table-cell-editor";
-          editor.contentEditable = "plaintext-only";
+          editor.contentEditable = view2.state.readOnly ? "false" : "plaintext-only";
           editor.spellcheck = true;
           editor.dataset.rowIndex = String(rowIndex);
           editor.dataset.columnIndex = String(columnIndex);
@@ -47850,6 +48023,7 @@
             this.handleCellPreviewKeydown(event, editor, view2, wrapper);
           });
           editor.addEventListener("focus", () => {
+            setRovingTableCell(wrapper, preview);
             editor.dataset.editStartValue = editor.textContent || "";
             editor.dataset.editStartDirty = wrapper.dataset.dirty || "false";
             activateRichTableCellEditor(editor, { focus: false });
@@ -47929,8 +48103,14 @@
           const preview = editor.closest(".cm-rich-table-cell")?.querySelector(".cm-rich-table-cell-preview");
           renderRichTableCellPreview(preview, editor.textContent, view2);
           wrapper.dataset.dirty = editor.dataset.editStartDirty || "false";
+          const focusTarget = {
+            element: preview,
+            sourceFrom: wrapper.dataset.sourceFrom,
+            rowIndex: editor.dataset.rowIndex,
+            columnIndex: editor.dataset.columnIndex
+          };
           editor.blur();
-          preview?.focus({ preventScroll: true });
+          scheduleTableCellFocus(focusTarget);
           return;
         }
         if (event.key === "Enter" && !event.shiftKey) {
@@ -47956,9 +48136,15 @@
         if (currentIndex === -1) {
           return;
         }
-        event.preventDefault();
         const delta = event.shiftKey ? -1 : 1;
-        const nextEditor = editors[(currentIndex + delta + editors.length) % editors.length];
+        const nextIndex = currentIndex + delta;
+        if (nextIndex < 0 || nextIndex >= editors.length) {
+          event.preventDefault();
+          focusOutsideTable(wrapper, event.shiftKey);
+          return;
+        }
+        event.preventDefault();
+        const nextEditor = editors[nextIndex];
         activateRichTableCellEditor(nextEditor, { select: true });
       }
       focusRelativeCell(wrapper, current, rowDelta, columnDelta, options = {}) {
@@ -47976,6 +48162,7 @@
         if (options.activate) {
           activateRichTableCellEditor(next2, { select: true });
         } else {
+          setRovingTableCell(wrapper, next2);
           next2.focus({ preventScroll: true });
         }
         return true;
@@ -48160,7 +48347,7 @@ ${rowText}`;
         return;
       }
       preview.replaceChildren();
-      appendInlineMarkdown2(preview, text2, {
+      appendInlineMarkdown2(preview, unescapeMarkdownTableCellPipes(text2), {
         renderImages: true,
         onImageReady: () => requestEditorMeasure2(view2)
       });
@@ -48204,10 +48391,7 @@ ${rowText}`;
     }
     function buildEmptyTableRow(tableBlock) {
       const cells = Array.from({ length: tableBlock.columnCount }, () => "");
-      if (tableBlock.usesLeadingPipe || tableBlock.usesTrailingPipe) {
-        return `| ${cells.join(" | ")} |`;
-      }
-      return cells.map(() => " ").join(" | ");
+      return formatMarkdownTableRow(tableBlock, cells);
     }
     function collectEditableTableRows(wrapper, tableBlock) {
       return tableBlock.rows.map(
@@ -48215,7 +48399,7 @@ ${rowText}`;
           const editor = wrapper.querySelector(
             `.cm-rich-table-cell-editor[data-row-index="${rowIndex}"][data-column-index="${columnIndex}"]`
           );
-          return normalizeEditedTableCellText(editor?.textContent || "");
+          return sanitizeEditedTableCellText(editor?.textContent || "");
         })
       );
     }
@@ -48251,15 +48435,16 @@ ${rowText}`;
       });
     }
     function formatMarkdownTableRow(tableBlock, cells) {
-      const segments = cells.map((cell) => ` ${normalizeEditedTableCellText(cell)} `);
+      const segments = cells.map(
+        (cell) => ` ${escapeMarkdownTableCellPipes(sanitizeEditedTableCellText(cell))} `
+      );
       const row = segments.join("|");
-      if (tableBlock.usesLeadingPipe || tableBlock.usesTrailingPipe) {
-        return `|${row}|`;
-      }
-      return row;
+      const prefix2 = `${tableBlock.indent || ""}${tableBlock.usesLeadingPipe ? "|" : ""}`;
+      const suffix2 = tableBlock.usesTrailingPipe ? "|" : "";
+      return `${prefix2}${row}${suffix2}`;
     }
-    function normalizeEditedTableCellText(text2) {
-      return text2.replace(/\r?\n/g, " ").replace(/\|/g, "\\|").replace(/\s+/g, " ").trim();
+    function sanitizeEditedTableCellText(text2) {
+      return text2.replace(/\r?\n/g, " ").trim();
     }
     function selectEditableText(element) {
       const selection = window.getSelection();
@@ -53107,7 +53292,7 @@ ${rowText}`;
   window.addEventListener(
     "keydown",
     (event) => {
-      if (event.key === "Escape" && closeTableContextMenu()) {
+      if (event.key === "Escape" && closeTableContextMenu({ restoreFocus: true })) {
         event.preventDefault();
         event.stopPropagation();
       }
