@@ -2,6 +2,10 @@
 
 All notable changes to Richdown will be documented in this file.
 
+## 0.7.2 - 2026-07-15
+
+- Added automatic refresh for Markdown files changed on disk by AI agents and other external tools while they are open in Richdown.
+
 ## 0.7.1 - 2026-07-10
 
 - Fixed packaged VSIX builds so the export runtime is included and Richdown commands register correctly after activation.

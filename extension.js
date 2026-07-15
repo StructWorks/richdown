@@ -617,6 +617,9 @@ class RichdownEditorProvider {
     let queuedWebviewText;
     let applyingWebviewEdit = false;
     const pendingWebviewEditSignatures = new Set();
+    let externalFileUpdateTimer;
+    let externalFileUpdateSequence = 0;
+    let hasDeferredExternalUpdate = false;
 
     const updateWebview = text => {
       webviewPanel.webview.postMessage({
@@ -710,12 +713,66 @@ class RichdownEditorProvider {
       }, delay);
     };
 
+    const refreshWebviewFromDisk = async () => {
+      const sequence = ++externalFileUpdateSequence;
+      try {
+        const diskText = await readUriText(document.uri);
+        if (sequence !== externalFileUpdateSequence || diskText === document.getText()) {
+          hasDeferredExternalUpdate = false;
+          return;
+        }
+
+        // VS Code normally reloads clean TextDocuments after an external write,
+        // which is then handled by onDidChangeTextDocument below. Some tools use
+        // atomic file replacement, however, and that notification can arrive late
+        // or be missed by a custom editor. Update the webview directly as a
+        // fallback. Never replace unsaved Richdown edits with the disk copy.
+        if (document.isDirty) {
+          hasDeferredExternalUpdate = true;
+          return;
+        }
+
+        hasDeferredExternalUpdate = false;
+        updateWebview(diskText);
+        scheduleGitDiffUpdate(diskText, 0);
+      } catch (error) {
+        // The file may be between rename and create during an atomic write. The
+        // create event (or the next focus change) will retry the read.
+      }
+    };
+    const scheduleExternalFileRefresh = (delay = 80) => {
+      if (externalFileUpdateTimer) {
+        clearTimeout(externalFileUpdateTimer);
+      }
+      externalFileUpdateTimer = setTimeout(() => {
+        externalFileUpdateTimer = undefined;
+        void refreshWebviewFromDisk();
+      }, delay);
+    };
+
+    const externalFileWatcher = document.uri.scheme === 'file'
+      ? vscode.workspace.createFileSystemWatcher(
+          new vscode.RelativePattern(path.dirname(document.uri.fsPath), '*'),
+          false,
+          false,
+          true
+        )
+      : undefined;
+    const handleWatchedFileChange = uri => {
+      if (isSameUri(uri, document.uri)) {
+        scheduleExternalFileRefresh();
+      }
+    };
+    externalFileWatcher?.onDidChange(handleWatchedFileChange);
+    externalFileWatcher?.onDidCreate(handleWatchedFileChange);
+
     webviewPanel.webview.html = getRichEditorHtml(this.context, webviewPanel.webview, document.getText(), getRichEditorSettings());
     scheduleGitDiffUpdate(document.getText(), 0);
 
     const changeDocumentSubscription = vscode.workspace.onDidChangeTextDocument(event => {
       if (event.document.uri.toString() === document.uri.toString()) {
         const nextText = document.getText();
+        hasDeferredExternalUpdate = false;
         if (pendingWebviewEditSignatures.delete(makeTextSignature(nextText))) {
           scheduleGitDiffUpdate(nextText);
           return;
@@ -739,19 +796,46 @@ class RichdownEditorProvider {
         updateSettings();
       }
     });
+    const saveDocumentSubscription = vscode.workspace.onDidSaveTextDocument(savedDocument => {
+      if (
+        hasDeferredExternalUpdate &&
+        savedDocument.uri.toString() === document.uri.toString()
+      ) {
+        scheduleExternalFileRefresh(0);
+      }
+    });
+    const windowStateSubscription = vscode.window.onDidChangeWindowState(state => {
+      if (state.focused) {
+        scheduleExternalFileRefresh(0);
+      }
+    });
+    const viewStateSubscription = webviewPanel.onDidChangeViewState(event => {
+      if (event.webviewPanel.visible) {
+        scheduleExternalFileRefresh(0);
+      }
+    });
 
     webviewPanel.onDidDispose(() => {
       if (gitDiffUpdateTimer) {
         clearTimeout(gitDiffUpdateTimer);
       }
+      if (externalFileUpdateTimer) {
+        clearTimeout(externalFileUpdateTimer);
+      }
       gitDiffUpdateSequence += 1;
+      externalFileUpdateSequence += 1;
+      externalFileWatcher?.dispose();
       changeDocumentSubscription.dispose();
       changeConfigurationSubscription.dispose();
+      saveDocumentSubscription.dispose();
+      windowStateSubscription.dispose();
+      viewStateSubscription.dispose();
     });
 
     webviewPanel.webview.onDidReceiveMessage(async event => {
       if (event.type === 'ready') {
         scheduleGitDiffUpdate(document.getText(), 0);
+        scheduleExternalFileRefresh(0);
         return;
       }
 
