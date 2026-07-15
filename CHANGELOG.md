@@ -6,6 +6,7 @@ All notable changes to Richdown will be documented in this file.
 
 - Fixed underscores in table cells and other rich inline previews being mistaken for emphasis inside identifiers.
 - Improved expanded `<details>` spacing, nested list layout, wide-table handling, and fenced-code language labels and syntax highlighting.
+- Made Mermaid preview heights follow each rendered diagram's aspect ratio and available editor width, with viewport-aware limits for tall diagrams.
 
 ## 0.7.3 - 2026-07-15
 

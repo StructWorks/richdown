@@ -46170,19 +46170,27 @@
           this.focusSource(view2);
         });
         if (this.mermaidBlock.code) {
-          this.render(output, view2, (controller) => {
+          this.render(wrapper, output, view2, sourceHeight, (controller) => {
             viewportController = controller;
           });
         }
         return wrapper;
       }
-      async render(output, view2, setController) {
+      destroy() {
+        this.resizeObserver?.disconnect();
+        this.resizeObserver = null;
+        if (this.resizePreview) {
+          window.removeEventListener("resize", this.resizePreview);
+          this.resizePreview = null;
+        }
+      }
+      async render(wrapper, output, view2, sourceHeight, setController) {
         try {
           const mermaid = await loadMermaid();
           mermaid.initialize(getMermaidConfig(this.colorized));
           const id3 = `richdown-mermaid-${this.mermaidBlock.from}-${Math.random().toString(36).slice(2)}`;
           const result = await mermaid.render(id3, this.mermaidBlock.code);
-          const { canvas, stage, svgMarkup } = createMermaidCanvas(
+          const { canvas, stage, svgMarkup, naturalSize } = createMermaidCanvas(
             result.svg,
             "cm-mermaid",
             this.colorized
@@ -46198,8 +46206,42 @@
             scrollable: true
           });
           setController(controller);
-          controller.fit();
-          requestEditorMeasure2(view2);
+          let measuredWidth = 0;
+          let measuredViewportHeight = 0;
+          const resizePreview = () => {
+            const width = wrapper.getBoundingClientRect().width;
+            const viewportHeight = window.innerHeight || 0;
+            if (width <= 0 || Math.abs(width - measuredWidth) < 1 && Math.abs(viewportHeight - measuredViewportHeight) < 1) {
+              return;
+            }
+            measuredWidth = width;
+            measuredViewportHeight = viewportHeight;
+            wrapper.style.setProperty(
+              "--mermaid-source-height",
+              `${getResponsiveMermaidPreviewHeight({
+                sourceHeight,
+                previewSize: this.previewSize,
+                naturalWidth: naturalSize.width,
+                naturalHeight: naturalSize.height,
+                containerWidth: width
+              })}px`
+            );
+            window.requestAnimationFrame(() => {
+              controller.fit();
+              requestEditorMeasure2(view2);
+            });
+          };
+          resizePreview();
+          if (typeof ResizeObserver === "function") {
+            this.resizeObserver?.disconnect();
+            this.resizeObserver = new ResizeObserver(resizePreview);
+            this.resizeObserver.observe(wrapper);
+          }
+          if (this.resizePreview) {
+            window.removeEventListener("resize", this.resizePreview);
+          }
+          this.resizePreview = resizePreview;
+          window.addEventListener("resize", resizePreview);
         } catch (error) {
           const message = error && error.message ? error.message : String(error);
           const pre = document.createElement("pre");
@@ -46287,7 +46329,12 @@
         svg.style.height = "100%";
       }
       canvas.appendChild(stage);
-      return { canvas, stage, svgMarkup: stage.innerHTML };
+      return {
+        canvas,
+        stage,
+        svgMarkup: stage.innerHTML,
+        naturalSize: size
+      };
     }
     function colorizeMermaidSvg(svg) {
       if (!svg || svg.querySelector("style[data-richdown-mermaid]")) {
@@ -46623,6 +46670,28 @@
         return Math.max(sourceHeight, estimateLargeMermaidPreviewHeight(code3));
       }
       return Math.max(sourceHeight, 260);
+    }
+    function getResponsiveMermaidPreviewHeight({
+      sourceHeight,
+      previewSize,
+      naturalWidth,
+      naturalHeight,
+      containerWidth
+    }) {
+      if (previewSize === "source") {
+        return sourceHeight;
+      }
+      const viewportHeight = Math.max(window.innerHeight || 0, 600);
+      const availableWidth = Math.max(240, containerWidth - 22);
+      const width = Math.max(1, naturalWidth);
+      const height = Math.max(1, naturalHeight);
+      const fittedHeight = height * Math.min(1, availableWidth / width);
+      const isLarge = previewSize === "large";
+      const minimumHeight = isLarge ? 280 : 140;
+      const maximumHeight = isLarge ? clamp(viewportHeight * 1.15, 760, 1200) : clamp(viewportHeight * 0.82, 560, 900);
+      return Math.round(
+        clamp(fittedHeight + 22, minimumHeight, maximumHeight)
+      );
     }
     function estimateLargeMermaidPreviewHeight(code3) {
       const lines = code3.split(/\r?\n/).filter((line) => line.trim());
