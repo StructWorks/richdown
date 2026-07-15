@@ -44798,7 +44798,14 @@
     };
   }
   function normalizeDetailsBodyLines(body2) {
-    return body2.replace(/<\/?div\b[^>]*>/gi, "\n").replace(/<br\s*\/?>/gi, "\n").split(/\r?\n/).map((line) => stripHtmlTags(line).trim()).filter(Boolean).map((line) => ({ text: line, sourceFrom: null }));
+    const lines = body2.replace(/<\/?div\b[^>]*>/gi, "\n").replace(/<br\s*\/?>/gi, "\n").split(/\r?\n/).map((line) => stripHtmlTags(line)).map((line) => ({ text: line, sourceFrom: null }));
+    while (lines.length > 0 && !lines[0].text.trim()) {
+      lines.shift();
+    }
+    while (lines.length > 0 && !lines[lines.length - 1].text.trim()) {
+      lines.pop();
+    }
+    return lines;
   }
   function getDetailsBodyLineText(line) {
     return typeof line === "string" ? line : line.text || "";
@@ -45165,9 +45172,7 @@
         if (this.open) {
           const body2 = document.createElement("div");
           body2.className = "cm-details-body";
-          const bodyLines = this.detailsBlock.bodyLines.filter(
-            (line) => getDetailsBodyLineText(line).trim()
-          );
+          const bodyLines = this.detailsBlock.bodyLines;
           if (bodyLines.length === 0) {
             const emptyLine = document.createElement("p");
             emptyLine.className = "cm-details-body-line";
@@ -45175,15 +45180,11 @@
             emptyLine.dataset.sourceFrom = String(this.detailsBlock.from);
             body2.appendChild(emptyLine);
           } else {
-            for (const [index, line] of bodyLines.entries()) {
-              const paragraph = document.createElement("p");
-              paragraph.className = "cm-details-body-line";
-              paragraph.dataset.sourceFrom = String(
-                this.getBodyLinePosition(line, index)
-              );
-              appendInlineMarkdown2(paragraph, getDetailsBodyLineText(line));
-              body2.appendChild(paragraph);
-            }
+            appendDetailsBody(body2, bodyLines, {
+              appendInlineMarkdown: appendInlineMarkdown2,
+              getSourcePosition: (line, index) => this.getBodyLinePosition(line, index),
+              onImageReady: () => requestEditorMeasure2(view2)
+            });
           }
           body2.addEventListener("mousedown", (event) => {
             event.preventDefault();
@@ -45248,6 +45249,137 @@
       }
     }
     return DetailsPreviewWidget;
+  }
+  function appendDetailsBody(parent, bodyLines, { appendInlineMarkdown: appendInlineMarkdown2, getSourcePosition, onImageReady }) {
+    const appendInline = (element, text2) => {
+      appendInlineMarkdown2(element, text2, {
+        renderImages: true,
+        onImageReady
+      });
+    };
+    const setSourcePosition = (element, line, index) => {
+      element.dataset.sourceFrom = String(getSourcePosition(line, index));
+    };
+    for (let index = 0; index < bodyLines.length; index += 1) {
+      const line = bodyLines[index];
+      const text2 = getDetailsBodyLineText(line);
+      if (!text2.trim()) {
+        continue;
+      }
+      const fence = text2.match(/^\s{0,3}(`{3,}|~{3,})\s*([^\s`]*)?.*$/);
+      if (fence) {
+        const marker = fence[1][0];
+        const minimumLength = fence[1].length;
+        const codeLines = [];
+        let closingIndex = index + 1;
+        while (closingIndex < bodyLines.length) {
+          const candidate = getDetailsBodyLineText(bodyLines[closingIndex]);
+          const closingFence = candidate.match(/^\s{0,3}(`{3,}|~{3,})\s*$/);
+          if (closingFence && closingFence[1][0] === marker && closingFence[1].length >= minimumLength) {
+            break;
+          }
+          codeLines.push(candidate);
+          closingIndex += 1;
+        }
+        const pre = document.createElement("pre");
+        pre.className = "cm-details-code-block";
+        setSourcePosition(pre, line, index);
+        const code3 = document.createElement("code");
+        if (fence[2]) {
+          code3.className = `language-${fence[2].toLowerCase()}`;
+        }
+        code3.textContent = codeLines.join("\n");
+        pre.appendChild(code3);
+        parent.appendChild(pre);
+        index = closingIndex < bodyLines.length ? closingIndex : bodyLines.length;
+        continue;
+      }
+      if (index + 1 < bodyLines.length && isTableContentLine2(text2) && isTableDelimiterLine2(getDetailsBodyLineText(bodyLines[index + 1]))) {
+        const table = document.createElement("table");
+        table.className = "cm-details-table";
+        setSourcePosition(table, line, index);
+        const head = document.createElement("thead");
+        const headRow = document.createElement("tr");
+        for (const cellText of splitTableCells2(text2)) {
+          const cell = document.createElement("th");
+          appendInline(cell, cellText);
+          headRow.appendChild(cell);
+        }
+        head.appendChild(headRow);
+        table.appendChild(head);
+        const tableBody = document.createElement("tbody");
+        index += 2;
+        while (index < bodyLines.length && isTableContentLine2(getDetailsBodyLineText(bodyLines[index]))) {
+          const row = document.createElement("tr");
+          for (const cellText of splitTableCells2(
+            getDetailsBodyLineText(bodyLines[index])
+          )) {
+            const cell = document.createElement("td");
+            appendInline(cell, cellText);
+            row.appendChild(cell);
+          }
+          tableBody.appendChild(row);
+          index += 1;
+        }
+        table.appendChild(tableBody);
+        parent.appendChild(table);
+        index -= 1;
+        continue;
+      }
+      const heading2 = text2.match(/^\s{0,3}(#{1,6})\s+(.*)$/);
+      if (heading2) {
+        const element = document.createElement(`h${heading2[1].length}`);
+        element.className = "cm-details-heading";
+        setSourcePosition(element, line, index);
+        appendInline(element, heading2[2]);
+        parent.appendChild(element);
+        continue;
+      }
+      const quote2 = text2.match(/^\s{0,3}>\s?(.*)$/);
+      if (quote2) {
+        const element = document.createElement("blockquote");
+        element.className = "cm-details-quote";
+        setSourcePosition(element, line, index);
+        appendInline(element, quote2[1]);
+        parent.appendChild(element);
+        continue;
+      }
+      const list2 = text2.match(/^\s*(?:[-+*]|\d+[.)])\s+(?:\[([ xX])\]\s+)?(.*)$/);
+      if (list2) {
+        const element = document.createElement("div");
+        element.className = "cm-details-list-item";
+        setSourcePosition(element, line, index);
+        const marker = document.createElement("span");
+        marker.className = "cm-details-list-marker";
+        marker.textContent = list2[1] === void 0 ? "\u2022" : list2[1].trim() ? "\u2611" : "\u2610";
+        element.appendChild(marker);
+        const content2 = document.createElement("span");
+        appendInline(content2, list2[2]);
+        element.appendChild(content2);
+        parent.appendChild(element);
+        continue;
+      }
+      if (/^\s{0,3}(?:(?:-\s*){3,}|(?:\*\s*){3,}|(?:_\s*){3,})$/.test(text2)) {
+        const element = document.createElement("hr");
+        setSourcePosition(element, line, index);
+        parent.appendChild(element);
+        continue;
+      }
+      const paragraph = document.createElement("p");
+      paragraph.className = "cm-details-body-line";
+      setSourcePosition(paragraph, line, index);
+      appendInline(paragraph, text2);
+      parent.appendChild(paragraph);
+    }
+  }
+  function isTableContentLine2(text2) {
+    return /^\s*\|?.*\|.*\|?\s*$/.test(text2);
+  }
+  function isTableDelimiterLine2(text2) {
+    return /^\s*\|?\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)+\|?\s*$/.test(text2);
+  }
+  function splitTableCells2(text2) {
+    return text2.trim().replace(/^\|/, "").replace(/\|$/, "").split(/(?<!\\)\|/).map((cell) => cell.replace(/\\\|/g, "|").trim());
   }
 
   // src/rich-editor/presentation/gherkin/gherkinPreview.js
@@ -50836,6 +50968,55 @@ ${rowText}`;
       ".cm-details-body-line": {
         margin: "0",
         lineHeight: "1.55"
+      },
+      ".cm-details-heading": {
+        margin: "4px 0 0",
+        color: "var(--rip-heading)",
+        lineHeight: "1.3"
+      },
+      ".cm-details-code-block": {
+        overflowX: "auto",
+        margin: "2px 0",
+        border: "1px solid var(--rip-border)",
+        borderRadius: "7px",
+        padding: "10px 12px",
+        color: "var(--rip-fg)",
+        backgroundColor: "var(--rip-code-bg)",
+        fontFamily: "var(--vscode-editor-font-family, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace)",
+        lineHeight: "1.5",
+        whiteSpace: "pre"
+      },
+      ".cm-details-code-block code": {
+        font: "inherit"
+      },
+      ".cm-details-quote": {
+        margin: "2px 0",
+        borderLeft: "3px solid var(--rip-quote-border)",
+        padding: "3px 10px",
+        color: "var(--rip-muted)"
+      },
+      ".cm-details-list-item": {
+        display: "flex",
+        gap: "8px",
+        lineHeight: "1.55"
+      },
+      ".cm-details-list-marker": {
+        flex: "0 0 1em",
+        color: "var(--rip-muted)",
+        textAlign: "center"
+      },
+      ".cm-details-table": {
+        width: "100%",
+        borderCollapse: "collapse"
+      },
+      ".cm-details-table th, .cm-details-table td": {
+        border: "1px solid var(--rip-border)",
+        padding: "5px 8px",
+        textAlign: "left"
+      },
+      ".cm-details-table th": {
+        color: "var(--rip-heading)",
+        backgroundColor: "color-mix(in srgb, var(--rip-panel) 80%, var(--rip-bg))"
       },
       ".cm-codeblock-line": {
         position: "relative",

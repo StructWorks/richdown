@@ -172,13 +172,20 @@ export function parseDetailsContent(lines) {
 }
 
 export function normalizeDetailsBodyLines(body) {
-  return body
+  const lines = body
     .replace(/<\/?div\b[^>]*>/gi, "\n")
     .replace(/<br\s*\/?>/gi, "\n")
     .split(/\r?\n/)
-    .map((line) => stripHtmlTags(line).trim())
-    .filter(Boolean)
+    .map((line) => stripHtmlTags(line))
     .map((line) => ({ text: line, sourceFrom: null }));
+
+  while (lines.length > 0 && !lines[0].text.trim()) {
+    lines.shift();
+  }
+  while (lines.length > 0 && !lines[lines.length - 1].text.trim()) {
+    lines.pop();
+  }
+  return lines;
 }
 
 export function getDetailsBodyLineText(line) {

@@ -2,6 +2,10 @@
 
 All notable changes to Richdown will be documented in this file.
 
+## 0.7.3 - 2026-07-15
+
+- Fixed Markdown block rendering inside expanded `<details>` previews, including code fences, headings, lists, quotes, images, and tables.
+
 ## 0.7.2 - 2026-07-15
 
 - Added automatic refresh for Markdown files changed on disk by AI agents and other external tools while they are open in Richdown.
