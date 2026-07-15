@@ -5,6 +5,7 @@ All notable changes to Richdown will be documented in this file.
 ## 0.7.4 - 2026-07-15
 
 - Fixed underscores in table cells and other rich inline previews being mistaken for emphasis inside identifiers.
+- Improved expanded `<details>` spacing, nested list layout, wide-table handling, and fenced-code language labels and syntax highlighting.
 
 ## 0.7.3 - 2026-07-15
 

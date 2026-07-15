@@ -66,7 +66,7 @@ import { vb as visualBasic } from "@codemirror/legacy-modes/mode/vb";
 import { verilog } from "@codemirror/legacy-modes/mode/verilog";
 import { vhdl } from "@codemirror/legacy-modes/mode/vhdl";
 import { wast } from "@codemirror/legacy-modes/mode/wast";
-import { tags } from "@lezer/highlight";
+import { classHighlighter, highlightTree, tags } from "@lezer/highlight";
 
 function legacyMode(parser) {
   return new LanguageSupport(StreamLanguage.define(parser));
@@ -424,6 +424,43 @@ export const codeLanguages = [
     brainfuck,
   ),
 ];
+
+export async function highlightCodeElement(element, source, languageName) {
+  const requestedLanguage = String(languageName || "").trim();
+  if (!element || !requestedLanguage) {
+    return null;
+  }
+
+  const description = LanguageDescription.matchLanguageName(
+    codeLanguages,
+    requestedLanguage,
+    true,
+  );
+  if (!description) {
+    return null;
+  }
+
+  const support = description.support || (await description.load());
+  const tree = support.language.parser.parse(source);
+  const fragment = document.createDocumentFragment();
+  let position = 0;
+  highlightTree(tree, classHighlighter, (from, to, classes) => {
+    if (from > position) {
+      fragment.appendChild(document.createTextNode(source.slice(position, from)));
+    }
+    const span = document.createElement("span");
+    span.className = classes;
+    span.textContent = source.slice(from, to);
+    fragment.appendChild(span);
+    position = to;
+  });
+  if (position < source.length) {
+    fragment.appendChild(document.createTextNode(source.slice(position)));
+  }
+  element.replaceChildren(fragment);
+  element.dataset.language = description.name;
+  return description.name;
+}
 
 export const markdownHighlightStyle = HighlightStyle.define([
   { tag: tags.heading, color: "var(--rip-heading)", fontWeight: "780" },

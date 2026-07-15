@@ -44160,6 +44160,40 @@
       brainfuck
     )
   ];
+  async function highlightCodeElement(element, source, languageName) {
+    const requestedLanguage = String(languageName || "").trim();
+    if (!element || !requestedLanguage) {
+      return null;
+    }
+    const description = LanguageDescription.matchLanguageName(
+      codeLanguages,
+      requestedLanguage,
+      true
+    );
+    if (!description) {
+      return null;
+    }
+    const support = description.support || await description.load();
+    const tree = support.language.parser.parse(source);
+    const fragment = document.createDocumentFragment();
+    let position = 0;
+    highlightTree(tree, classHighlighter, (from3, to, classes) => {
+      if (from3 > position) {
+        fragment.appendChild(document.createTextNode(source.slice(position, from3)));
+      }
+      const span = document.createElement("span");
+      span.className = classes;
+      span.textContent = source.slice(from3, to);
+      fragment.appendChild(span);
+      position = to;
+    });
+    if (position < source.length) {
+      fragment.appendChild(document.createTextNode(source.slice(position)));
+    }
+    element.replaceChildren(fragment);
+    element.dataset.language = description.name;
+    return description.name;
+  }
   var markdownHighlightStyle = HighlightStyle.define([
     { tag: tags.heading, color: "var(--rip-heading)", fontWeight: "780" },
     {
@@ -45183,7 +45217,8 @@
             appendDetailsBody(body2, bodyLines, {
               appendInlineMarkdown: appendInlineMarkdown2,
               getSourcePosition: (line, index) => this.getBodyLinePosition(line, index),
-              onImageReady: () => requestEditorMeasure2(view2)
+              onImageReady: () => requestEditorMeasure2(view2),
+              onCodeHighlighted: () => requestEditorMeasure2(view2)
             });
           }
           body2.addEventListener("mousedown", (event) => {
@@ -45250,7 +45285,12 @@
     }
     return DetailsPreviewWidget;
   }
-  function appendDetailsBody(parent, bodyLines, { appendInlineMarkdown: appendInlineMarkdown2, getSourcePosition, onImageReady }) {
+  function appendDetailsBody(parent, bodyLines, {
+    appendInlineMarkdown: appendInlineMarkdown2,
+    getSourcePosition,
+    onImageReady,
+    onCodeHighlighted
+  }) {
     const appendInline = (element, text2) => {
       appendInlineMarkdown2(element, text2, {
         renderImages: true,
@@ -45281,16 +45321,40 @@
           codeLines.push(candidate);
           closingIndex += 1;
         }
+        const source = codeLines.join("\n");
+        const language2 = (fence[2] || "").toLowerCase();
+        const block2 = document.createElement("div");
+        block2.className = "cm-details-code";
+        setSourcePosition(block2, line, index);
+        if (language2) {
+          const header2 = document.createElement("div");
+          header2.className = "cm-details-code-header";
+          const label = document.createElement("span");
+          label.className = "cm-details-code-language";
+          label.textContent = language2;
+          header2.appendChild(label);
+          block2.appendChild(header2);
+        }
         const pre = document.createElement("pre");
         pre.className = "cm-details-code-block";
-        setSourcePosition(pre, line, index);
         const code3 = document.createElement("code");
-        if (fence[2]) {
-          code3.className = `language-${fence[2].toLowerCase()}`;
+        if (language2) {
+          code3.className = `language-${language2}`;
         }
-        code3.textContent = codeLines.join("\n");
+        code3.textContent = source;
         pre.appendChild(code3);
-        parent.appendChild(pre);
+        block2.appendChild(pre);
+        parent.appendChild(block2);
+        if (language2) {
+          void highlightCodeElement(code3, source, language2).then((resolvedLanguage) => {
+            const label = block2.querySelector(".cm-details-code-language");
+            if (label && resolvedLanguage) {
+              label.textContent = resolvedLanguage;
+            }
+            onCodeHighlighted?.();
+          }).catch(() => {
+          });
+        }
         index = closingIndex < bodyLines.length ? closingIndex : bodyLines.length;
         continue;
       }
@@ -45344,17 +45408,24 @@
         parent.appendChild(element);
         continue;
       }
-      const list2 = text2.match(/^\s*(?:[-+*]|\d+[.)])\s+(?:\[([ xX])\]\s+)?(.*)$/);
+      const list2 = text2.match(
+        /^(\s*)([-+*]|\d+[.)])\s+(?:\[([ xX])\]\s+)?(.*)$/
+      );
       if (list2) {
         const element = document.createElement("div");
         element.className = "cm-details-list-item";
         setSourcePosition(element, line, index);
+        const indentColumns = list2[1].replace(/\t/g, "  ").length;
+        const depth = Math.min(Math.floor(indentColumns / 2), 4);
+        if (depth > 0) {
+          element.style.paddingInlineStart = `${depth * 18}px`;
+        }
         const marker = document.createElement("span");
         marker.className = "cm-details-list-marker";
-        marker.textContent = list2[1] === void 0 ? "\u2022" : list2[1].trim() ? "\u2611" : "\u2610";
+        marker.textContent = list2[3] === void 0 ? /^\d/.test(list2[2]) ? list2[2] : "\u2022" : list2[3].trim() ? "\u2611" : "\u2610";
         element.appendChild(marker);
         const content2 = document.createElement("span");
-        appendInline(content2, list2[2]);
+        appendInline(content2, list2[4]);
         element.appendChild(content2);
         parent.appendChild(element);
         continue;
@@ -50945,7 +51016,7 @@ ${rowText}`;
         alignItems: "center",
         gap: "8px",
         border: "0",
-        padding: "8px 10px",
+        padding: "11px 14px",
         color: "var(--rip-heading)",
         backgroundColor: "color-mix(in srgb, var(--rip-panel) 86%, var(--rip-bg))",
         font: "700 14px var(--vscode-font-family)",
@@ -50961,33 +51032,80 @@ ${rowText}`;
       },
       ".cm-details-body": {
         display: "grid",
-        gap: "6px",
+        gap: "12px",
         borderTop: "1px solid var(--rip-border)",
-        padding: "8px 10px 10px"
+        padding: "18px 20px 20px"
       },
       ".cm-details-body-line": {
         margin: "0",
         lineHeight: "1.55"
       },
       ".cm-details-heading": {
-        margin: "4px 0 0",
+        margin: "6px 0 2px",
         color: "var(--rip-heading)",
         lineHeight: "1.3"
       },
-      ".cm-details-code-block": {
-        overflowX: "auto",
+      ".cm-details-heading:first-child": {
+        marginTop: "0"
+      },
+      ".cm-details-code": {
+        overflow: "hidden",
         margin: "2px 0",
         border: "1px solid var(--rip-border)",
-        borderRadius: "7px",
-        padding: "10px 12px",
+        borderRadius: "8px",
+        backgroundColor: "var(--rip-code-bg)"
+      },
+      ".cm-details-code-header": {
+        display: "flex",
+        alignItems: "center",
+        minHeight: "28px",
+        borderBottom: "1px solid var(--rip-border)",
+        padding: "0 12px",
+        backgroundColor: "color-mix(in srgb, var(--rip-panel) 72%, var(--rip-code-bg))"
+      },
+      ".cm-details-code-language": {
+        color: "var(--rip-muted)",
+        font: "600 11px var(--vscode-font-family)",
+        letterSpacing: "0.04em",
+        textTransform: "uppercase"
+      },
+      ".cm-details-code-block": {
+        overflowX: "auto",
+        margin: "0",
+        padding: "14px 16px 16px",
         color: "var(--rip-fg)",
-        backgroundColor: "var(--rip-code-bg)",
+        backgroundColor: "transparent",
         fontFamily: "var(--vscode-editor-font-family, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace)",
         lineHeight: "1.5",
         whiteSpace: "pre"
       },
       ".cm-details-code-block code": {
         font: "inherit"
+      },
+      ".cm-details-code-block .tok-keyword, .cm-details-code-block .tok-operator, .cm-details-code-block .tok-controlKeyword": {
+        color: "var(--rip-syntax-purple)"
+      },
+      ".cm-details-code-block .tok-number, .cm-details-code-block .tok-bool, .cm-details-code-block .tok-null": {
+        color: "var(--rip-syntax-green)"
+      },
+      ".cm-details-code-block .tok-string, .cm-details-code-block .tok-character, .cm-details-code-block .tok-attributeValue": {
+        color: "var(--rip-syntax-orange)"
+      },
+      ".cm-details-code-block .tok-variableName, .cm-details-code-block .tok-propertyName, .cm-details-code-block .tok-attributeName": {
+        color: "var(--rip-syntax-blue)"
+      },
+      ".cm-details-code-block .tok-typeName, .cm-details-code-block .tok-className, .cm-details-code-block .tok-namespace, .cm-details-code-block .tok-tagName": {
+        color: "var(--rip-syntax-purple)"
+      },
+      ".cm-details-code-block .tok-comment": {
+        color: "var(--rip-muted)",
+        fontStyle: "italic"
+      },
+      ".cm-details-code-block .tok-punctuation, .cm-details-code-block .tok-bracket": {
+        color: "var(--rip-muted)"
+      },
+      ".cm-details-code-block .tok-invalid": {
+        color: "var(--rip-danger)"
       },
       ".cm-details-quote": {
         margin: "2px 0",
@@ -50997,7 +51115,7 @@ ${rowText}`;
       },
       ".cm-details-list-item": {
         display: "flex",
-        gap: "8px",
+        gap: "9px",
         lineHeight: "1.55"
       },
       ".cm-details-list-marker": {
@@ -51006,8 +51124,11 @@ ${rowText}`;
         textAlign: "center"
       },
       ".cm-details-table": {
+        display: "block",
+        overflowX: "auto",
         width: "100%",
-        borderCollapse: "collapse"
+        borderCollapse: "collapse",
+        whiteSpace: "nowrap"
       },
       ".cm-details-table th, .cm-details-table td": {
         border: "1px solid var(--rip-border)",
