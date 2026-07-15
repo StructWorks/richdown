@@ -83,7 +83,7 @@ Install locally from VSIX:
 1. Run `npm run package:vsix`.
 2. In Cursor, open the command palette.
 3. Run `Extensions: Install from VSIX...`.
-4. Select `richdown-0.7.2.vsix`.
+4. Select `richdown-0.7.3.vsix`.
 
 Publish to Open VSX:
 
