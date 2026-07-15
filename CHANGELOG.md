@@ -2,10 +2,13 @@
 
 All notable changes to Richdown will be documented in this file.
 
+## 0.7.4 - 2026-07-15
+
+- Fixed underscores in table cells and other rich inline previews being mistaken for emphasis inside identifiers.
+
 ## 0.7.3 - 2026-07-15
 
 - Fixed Markdown block rendering inside expanded `<details>` previews, including code fences, headings, lists, quotes, images, and tables.
-- Fixed underscores in table cells and other rich inline previews being mistaken for emphasis inside identifiers.
 
 ## 0.7.2 - 2026-07-15
 
