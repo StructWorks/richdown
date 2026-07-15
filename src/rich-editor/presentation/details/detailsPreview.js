@@ -59,9 +59,7 @@ export function createDetailsPreviewWidgetClass({
       if (this.open) {
         const body = document.createElement("div");
         body.className = "cm-details-body";
-        const bodyLines = this.detailsBlock.bodyLines.filter((line) =>
-          getDetailsBodyLineText(line).trim(),
-        );
+        const bodyLines = this.detailsBlock.bodyLines;
         if (bodyLines.length === 0) {
           const emptyLine = document.createElement("p");
           emptyLine.className = "cm-details-body-line";
@@ -69,15 +67,12 @@ export function createDetailsPreviewWidgetClass({
           emptyLine.dataset.sourceFrom = String(this.detailsBlock.from);
           body.appendChild(emptyLine);
         } else {
-          for (const [index, line] of bodyLines.entries()) {
-            const paragraph = document.createElement("p");
-            paragraph.className = "cm-details-body-line";
-            paragraph.dataset.sourceFrom = String(
+          appendDetailsBody(body, bodyLines, {
+            appendInlineMarkdown,
+            getSourcePosition: (line, index) =>
               this.getBodyLinePosition(line, index),
-            );
-            appendInlineMarkdown(paragraph, getDetailsBodyLineText(line));
-            body.appendChild(paragraph);
-          }
+            onImageReady: () => requestEditorMeasure(view),
+          });
         }
         body.addEventListener("mousedown", (event) => {
           event.preventDefault();
@@ -154,4 +149,169 @@ export function createDetailsPreviewWidgetClass({
   }
 
   return DetailsPreviewWidget;
+}
+
+export function appendDetailsBody(
+  parent,
+  bodyLines,
+  { appendInlineMarkdown, getSourcePosition, onImageReady },
+) {
+  const appendInline = (element, text) => {
+    appendInlineMarkdown(element, text, {
+      renderImages: true,
+      onImageReady,
+    });
+  };
+  const setSourcePosition = (element, line, index) => {
+    element.dataset.sourceFrom = String(getSourcePosition(line, index));
+  };
+
+  for (let index = 0; index < bodyLines.length; index += 1) {
+    const line = bodyLines[index];
+    const text = getDetailsBodyLineText(line);
+    if (!text.trim()) {
+      continue;
+    }
+
+    const fence = text.match(/^\s{0,3}(`{3,}|~{3,})\s*([^\s`]*)?.*$/);
+    if (fence) {
+      const marker = fence[1][0];
+      const minimumLength = fence[1].length;
+      const codeLines = [];
+      let closingIndex = index + 1;
+      while (closingIndex < bodyLines.length) {
+        const candidate = getDetailsBodyLineText(bodyLines[closingIndex]);
+        const closingFence = candidate.match(/^\s{0,3}(`{3,}|~{3,})\s*$/);
+        if (
+          closingFence &&
+          closingFence[1][0] === marker &&
+          closingFence[1].length >= minimumLength
+        ) {
+          break;
+        }
+        codeLines.push(candidate);
+        closingIndex += 1;
+      }
+
+      const pre = document.createElement("pre");
+      pre.className = "cm-details-code-block";
+      setSourcePosition(pre, line, index);
+      const code = document.createElement("code");
+      if (fence[2]) {
+        code.className = `language-${fence[2].toLowerCase()}`;
+      }
+      code.textContent = codeLines.join("\n");
+      pre.appendChild(code);
+      parent.appendChild(pre);
+      index = closingIndex < bodyLines.length ? closingIndex : bodyLines.length;
+      continue;
+    }
+
+    if (
+      index + 1 < bodyLines.length &&
+      isTableContentLine(text) &&
+      isTableDelimiterLine(getDetailsBodyLineText(bodyLines[index + 1]))
+    ) {
+      const table = document.createElement("table");
+      table.className = "cm-details-table";
+      setSourcePosition(table, line, index);
+      const head = document.createElement("thead");
+      const headRow = document.createElement("tr");
+      for (const cellText of splitTableCells(text)) {
+        const cell = document.createElement("th");
+        appendInline(cell, cellText);
+        headRow.appendChild(cell);
+      }
+      head.appendChild(headRow);
+      table.appendChild(head);
+
+      const tableBody = document.createElement("tbody");
+      index += 2;
+      while (
+        index < bodyLines.length &&
+        isTableContentLine(getDetailsBodyLineText(bodyLines[index]))
+      ) {
+        const row = document.createElement("tr");
+        for (const cellText of splitTableCells(
+          getDetailsBodyLineText(bodyLines[index]),
+        )) {
+          const cell = document.createElement("td");
+          appendInline(cell, cellText);
+          row.appendChild(cell);
+        }
+        tableBody.appendChild(row);
+        index += 1;
+      }
+      table.appendChild(tableBody);
+      parent.appendChild(table);
+      index -= 1;
+      continue;
+    }
+
+    const heading = text.match(/^\s{0,3}(#{1,6})\s+(.*)$/);
+    if (heading) {
+      const element = document.createElement(`h${heading[1].length}`);
+      element.className = "cm-details-heading";
+      setSourcePosition(element, line, index);
+      appendInline(element, heading[2]);
+      parent.appendChild(element);
+      continue;
+    }
+
+    const quote = text.match(/^\s{0,3}>\s?(.*)$/);
+    if (quote) {
+      const element = document.createElement("blockquote");
+      element.className = "cm-details-quote";
+      setSourcePosition(element, line, index);
+      appendInline(element, quote[1]);
+      parent.appendChild(element);
+      continue;
+    }
+
+    const list = text.match(/^\s*(?:[-+*]|\d+[.)])\s+(?:\[([ xX])\]\s+)?(.*)$/);
+    if (list) {
+      const element = document.createElement("div");
+      element.className = "cm-details-list-item";
+      setSourcePosition(element, line, index);
+      const marker = document.createElement("span");
+      marker.className = "cm-details-list-marker";
+      marker.textContent = list[1] === undefined ? "•" : list[1].trim() ? "☑" : "☐";
+      element.appendChild(marker);
+      const content = document.createElement("span");
+      appendInline(content, list[2]);
+      element.appendChild(content);
+      parent.appendChild(element);
+      continue;
+    }
+
+    if (/^\s{0,3}(?:(?:-\s*){3,}|(?:\*\s*){3,}|(?:_\s*){3,})$/.test(text)) {
+      const element = document.createElement("hr");
+      setSourcePosition(element, line, index);
+      parent.appendChild(element);
+      continue;
+    }
+
+    const paragraph = document.createElement("p");
+    paragraph.className = "cm-details-body-line";
+    setSourcePosition(paragraph, line, index);
+    appendInline(paragraph, text);
+    parent.appendChild(paragraph);
+  }
+}
+
+function isTableContentLine(text) {
+  return /^\s*\|?.*\|.*\|?\s*$/.test(text);
+}
+
+function isTableDelimiterLine(text) {
+  return /^\s*\|?\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)+\|?\s*$/.test(text);
+}
+
+function splitTableCells(text) {
+  return text
+    .trim()
+    .replace(/^\|/, "")
+    .replace(/\|$/, "")
+    .split(/(?<!\\)\|/)
+    .map((cell) => cell.replace(/\\\|/g, "|").trim());
 }

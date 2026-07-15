@@ -368,6 +368,57 @@ export function createEditorThemeExtension() {
     margin: "0",
     lineHeight: "1.55",
   },
+  ".cm-details-heading": {
+    margin: "4px 0 0",
+    color: "var(--rip-heading)",
+    lineHeight: "1.3",
+  },
+  ".cm-details-code-block": {
+    overflowX: "auto",
+    margin: "2px 0",
+    border: "1px solid var(--rip-border)",
+    borderRadius: "7px",
+    padding: "10px 12px",
+    color: "var(--rip-fg)",
+    backgroundColor: "var(--rip-code-bg)",
+    fontFamily:
+      "var(--vscode-editor-font-family, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace)",
+    lineHeight: "1.5",
+    whiteSpace: "pre",
+  },
+  ".cm-details-code-block code": {
+    font: "inherit",
+  },
+  ".cm-details-quote": {
+    margin: "2px 0",
+    borderLeft: "3px solid var(--rip-quote-border)",
+    padding: "3px 10px",
+    color: "var(--rip-muted)",
+  },
+  ".cm-details-list-item": {
+    display: "flex",
+    gap: "8px",
+    lineHeight: "1.55",
+  },
+  ".cm-details-list-marker": {
+    flex: "0 0 1em",
+    color: "var(--rip-muted)",
+    textAlign: "center",
+  },
+  ".cm-details-table": {
+    width: "100%",
+    borderCollapse: "collapse",
+  },
+  ".cm-details-table th, .cm-details-table td": {
+    border: "1px solid var(--rip-border)",
+    padding: "5px 8px",
+    textAlign: "left",
+  },
+  ".cm-details-table th": {
+    color: "var(--rip-heading)",
+    backgroundColor:
+      "color-mix(in srgb, var(--rip-panel) 80%, var(--rip-bg))",
+  },
   ".cm-codeblock-line": {
     position: "relative",
     fontFamily:
