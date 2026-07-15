@@ -6,6 +6,7 @@
 import { WidgetType } from "@codemirror/view";
 
 let tableContextMenu = null;
+let tableContextMenuAnchor = null;
 
 function stopInteractiveEvent(event) {
   event.preventDefault();
@@ -19,6 +20,7 @@ function showTableContextMenu({
   columnIndex,
   columnCount,
   onAction,
+  anchor = null,
 }) {
   closeTableContextMenu();
 
@@ -60,7 +62,40 @@ function showTableContextMenu({
 
   document.body.appendChild(menu);
   tableContextMenu = menu;
+  tableContextMenuAnchor = anchor
+    ? {
+        element: anchor,
+        sourceFrom: anchor.closest(".cm-rich-table-preview")?.dataset.sourceFrom,
+        rowIndex,
+        columnIndex,
+      }
+    : null;
   positionFixedMenu(menu, x, y);
+
+  menu.addEventListener("keydown", (event) => {
+    const items = [...menu.querySelectorAll(".cm-table-context-menu-item:not(:disabled)")];
+    const currentIndex = items.indexOf(document.activeElement);
+    if (event.key === "Escape") {
+      event.preventDefault();
+      event.stopPropagation();
+      closeTableContextMenu({ restoreFocus: true });
+      return;
+    }
+    if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) {
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    let nextIndex = currentIndex;
+    if (event.key === "Home") nextIndex = 0;
+    if (event.key === "End") nextIndex = items.length - 1;
+    if (event.key === "ArrowDown") nextIndex = (currentIndex + 1 + items.length) % items.length;
+    if (event.key === "ArrowUp") nextIndex = (currentIndex - 1 + items.length) % items.length;
+    items[nextIndex]?.focus();
+  });
+  queueMicrotask(() => {
+    menu.querySelector(".cm-table-context-menu-item:not(:disabled)")?.focus();
+  });
 }
 
 function positionFixedMenu(menu, x, y) {
@@ -79,12 +114,29 @@ function positionFixedMenu(menu, x, y) {
   menu.style.top = `${top}px`;
 }
 
-export function closeTableContextMenu() {
+export function closeTableContextMenu({ restoreFocus = false } = {}) {
   if (!tableContextMenu) {
     return false;
   }
+  const focusTarget = restoreFocus ? tableContextMenuAnchor : null;
+  if (focusTarget?.element.isConnected) {
+    focusTarget.element.focus({ preventScroll: true });
+  }
   tableContextMenu.remove();
   tableContextMenu = null;
+  tableContextMenuAnchor = null;
+  if (focusTarget) {
+    window.setTimeout(() => {
+      const currentTarget = focusTarget.element.isConnected
+        ? focusTarget.element
+        : document.querySelector(
+            `.cm-rich-table-preview[data-source-from="${focusTarget.sourceFrom}"] ` +
+              `.cm-rich-table-cell-preview[data-row-index="${focusTarget.rowIndex}"]` +
+              `[data-column-index="${focusTarget.columnIndex}"]`,
+          );
+      currentTarget?.focus({ preventScroll: true });
+    }, 0);
+  }
   return true;
 }
 
@@ -121,8 +173,10 @@ export function createTablePreviewWidgetClass({
       wrapper.setAttribute("role", "region");
       wrapper.setAttribute("tabindex", "0");
       wrapper.title = "Edit table cells";
+      wrapper.dataset.sourceFrom = String(this.tableBlock.from);
       wrapper.dataset.dirty = "false";
       const readOnly = view.state.readOnly;
+      wrapper.classList.toggle("is-read-only", readOnly);
   
       const scroll = document.createElement("div");
       scroll.className = "cm-rich-table-scroll";
@@ -132,7 +186,7 @@ export function createTablePreviewWidgetClass({
   
       const headerRow = this.tableBlock.rows[0];
       const thead = document.createElement("thead");
-      thead.appendChild(this.renderRow(headerRow, "th", 0, view));
+      thead.appendChild(this.renderRow(headerRow, "th", 0, view, wrapper));
       table.appendChild(thead);
   
       const tbody = document.createElement("tbody");
@@ -142,17 +196,25 @@ export function createTablePreviewWidgetClass({
         rowIndex += 1
       ) {
         tbody.appendChild(
-          this.renderRow(this.tableBlock.rows[rowIndex], "td", rowIndex, view),
+          this.renderRow(
+            this.tableBlock.rows[rowIndex],
+            "td",
+            rowIndex,
+            view,
+            wrapper,
+          ),
         );
       }
       table.appendChild(tbody);
   
-      scroll.appendChild(table);
-      wrapper.appendChild(scroll);
-  
       if (!readOnly) {
         const toolbar = document.createElement("div");
         toolbar.className = "cm-rich-table-toolbar";
+
+        const toolbarHint = document.createElement("span");
+        toolbarHint.className = "cm-rich-table-toolbar-hint";
+        toolbarHint.textContent = "Enter: edit · Arrow keys: move · Shift+F10: actions";
+        toolbar.appendChild(toolbarHint);
 
         const addRowButton = document.createElement("button");
         addRowButton.type = "button";
@@ -171,8 +233,24 @@ export function createTablePreviewWidgetClass({
         });
 
         toolbar.appendChild(addRowButton);
+
+        const addColumnButton = document.createElement("button");
+        addColumnButton.type = "button";
+        addColumnButton.className = "cm-rich-table-action";
+        addColumnButton.title = "Add column";
+        addColumnButton.innerHTML =
+          '<span class="cm-rich-table-action-icon">+</span><span>Column</span>';
+        addColumnButton.addEventListener("mousedown", stopInteractiveEvent);
+        addColumnButton.addEventListener("click", (event) => {
+          stopInteractiveEvent(event);
+          this.addColumnFromPreview(view, wrapper);
+        });
+        toolbar.appendChild(addColumnButton);
         wrapper.appendChild(toolbar);
       }
+
+      scroll.appendChild(table);
+      wrapper.appendChild(scroll);
   
       wrapper.addEventListener("input", (event) => {
         if (readOnly) {
@@ -201,6 +279,7 @@ export function createTablePreviewWidgetClass({
           rowIndex,
           columnIndex,
           columnCount: this.tableBlock.columnCount,
+          anchor: cell.querySelector(".cm-rich-table-cell-preview"),
           onAction: (action) => {
             this.applyTableContextAction(
               view,
@@ -227,7 +306,7 @@ export function createTablePreviewWidgetClass({
       return wrapper;
     }
   
-    renderRow(row, cellTag, rowIndex, view) {
+    renderRow(row, cellTag, rowIndex, view, wrapper) {
       const tr = document.createElement("tr");
       tr.dataset.rowIndex = String(rowIndex);
   
@@ -249,8 +328,16 @@ export function createTablePreviewWidgetClass({
         }
         const preview = document.createElement("div");
         preview.className = "cm-rich-table-cell-preview";
+        if (!view.state.readOnly) {
+          preview.tabIndex = 0;
+          preview.setAttribute("role", "button");
+        }
         preview.dataset.rowIndex = String(rowIndex);
         preview.dataset.columnIndex = String(columnIndex);
+        const headerText =
+          this.tableBlock.rows[0]?.cells[columnIndex]?.text || `Column ${columnIndex + 1}`;
+        const cellLabel = `${rowIndex === 0 ? "Header" : `Row ${rowIndex}`}, ${headerText}: ${sourceCell.text || "Empty cell"}`;
+        preview.setAttribute("aria-label", `Edit ${cellLabel}`);
         renderRichTableCellPreview(preview, sourceCell.text, view);
   
         const editor = document.createElement("div");
@@ -260,6 +347,7 @@ export function createTablePreviewWidgetClass({
         editor.dataset.rowIndex = String(rowIndex);
         editor.dataset.columnIndex = String(columnIndex);
         editor.textContent = sourceCell.text;
+        editor.setAttribute("aria-label", cellLabel);
         preview.addEventListener("mousedown", (event) => {
           if (isRichTablePreviewInteractiveTarget(event.target)) {
             return;
@@ -268,7 +356,12 @@ export function createTablePreviewWidgetClass({
           event.stopPropagation();
           activateRichTableCellEditor(editor);
         });
+        preview.addEventListener("keydown", (event) => {
+          this.handleCellPreviewKeydown(event, editor, view, wrapper);
+        });
         editor.addEventListener("focus", () => {
+          editor.dataset.editStartValue = editor.textContent || "";
+          editor.dataset.editStartDirty = wrapper.dataset.dirty || "false";
           activateRichTableCellEditor(editor, { focus: false });
         });
         editor.addEventListener("blur", () => {
@@ -277,16 +370,37 @@ export function createTablePreviewWidgetClass({
           }, 0);
         });
         editor.addEventListener("input", () => {
+          const cellPreview = editor
+            .closest(".cm-rich-table-cell")
+            ?.querySelector(".cm-rich-table-cell-preview");
           renderRichTableCellPreview(
-            editor.previousElementSibling,
+            cellPreview,
             editor.textContent,
             view,
           );
         });
         editor.addEventListener("keydown", (event) => {
-          this.handleCellKeydown(event);
+          this.handleCellKeydown(event, view, wrapper);
+        });
+        editor.addEventListener("paste", (event) => {
+          this.handleCellPaste(event, view, wrapper);
         });
         cell.appendChild(preview);
+
+        if (!view.state.readOnly) {
+          const actionsButton = document.createElement("button");
+          actionsButton.type = "button";
+          actionsButton.className = "cm-rich-table-cell-actions";
+          actionsButton.textContent = "Actions";
+          actionsButton.tabIndex = -1;
+          actionsButton.setAttribute("aria-label", `Row and column actions for ${cellLabel}`);
+          actionsButton.addEventListener("mousedown", stopInteractiveEvent);
+          actionsButton.addEventListener("click", (event) => {
+            stopInteractiveEvent(event);
+            this.openCellActions(view, wrapper, cell, preview);
+          });
+          cell.appendChild(actionsButton);
+        }
         cell.appendChild(editor);
         tr.appendChild(cell);
       }
@@ -294,10 +408,57 @@ export function createTablePreviewWidgetClass({
       return tr;
     }
   
-    handleCellKeydown(event) {
+    handleCellPreviewKeydown(event, editor, view, wrapper) {
+      if (event.key === "Enter" || event.key === "F2") {
+        event.preventDefault();
+        event.stopPropagation();
+        activateRichTableCellEditor(editor, { select: event.key === "Enter" });
+        return;
+      }
+      if ((event.shiftKey && event.key === "F10") || event.key === "ContextMenu") {
+        event.preventDefault();
+        event.stopPropagation();
+        const cell = event.currentTarget.closest(".cm-rich-table-cell");
+        this.openCellActions(view, wrapper, cell, event.currentTarget);
+        return;
+      }
+      const directions = {
+        ArrowLeft: [0, -1],
+        ArrowRight: [0, 1],
+        ArrowUp: [-1, 0],
+        ArrowDown: [1, 0],
+      };
+      const direction = directions[event.key];
+      if (!direction) {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      this.focusRelativeCell(wrapper, event.currentTarget, ...direction);
+    }
+
+    handleCellKeydown(event, view, wrapper) {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        const editor = event.currentTarget;
+        editor.textContent = editor.dataset.editStartValue || "";
+        const preview = editor
+          .closest(".cm-rich-table-cell")
+          ?.querySelector(".cm-rich-table-cell-preview");
+        renderRichTableCellPreview(preview, editor.textContent, view);
+        wrapper.dataset.dirty = editor.dataset.editStartDirty || "false";
+        editor.blur();
+        preview?.focus({ preventScroll: true });
+        return;
+      }
       if (event.key === "Enter" && !event.shiftKey) {
         event.preventDefault();
-        event.currentTarget.blur();
+        const moved = this.focusRelativeCell(wrapper, event.currentTarget, 1, 0, {
+          activate: true,
+        });
+        if (!moved) {
+          event.currentTarget.blur();
+        }
         return;
       }
   
@@ -305,7 +466,6 @@ export function createTablePreviewWidgetClass({
         return;
       }
   
-      const wrapper = event.currentTarget.closest(".cm-rich-table-preview");
       if (!wrapper) {
         return;
       }
@@ -322,6 +482,83 @@ export function createTablePreviewWidgetClass({
       const nextEditor =
         editors[(currentIndex + delta + editors.length) % editors.length];
       activateRichTableCellEditor(nextEditor, { select: true });
+    }
+
+    focusRelativeCell(wrapper, current, rowDelta, columnDelta, options = {}) {
+      const rowIndex = Number.parseInt(current.dataset.rowIndex || "0", 10);
+      const columnIndex = Number.parseInt(current.dataset.columnIndex || "0", 10);
+      const nextRow = rowIndex + rowDelta;
+      const nextColumn = columnIndex + columnDelta;
+      const selector = options.activate
+        ? ".cm-rich-table-cell-editor"
+        : ".cm-rich-table-cell-preview";
+      const next = wrapper.querySelector(
+        `${selector}[data-row-index="${nextRow}"][data-column-index="${nextColumn}"]`,
+      );
+      if (!next) {
+        return false;
+      }
+      if (options.activate) {
+        activateRichTableCellEditor(next, { select: true });
+      } else {
+        next.focus({ preventScroll: true });
+      }
+      return true;
+    }
+
+    openCellActions(view, wrapper, cell, anchor) {
+      if (!cell) {
+        return;
+      }
+      const rowIndex = Number.parseInt(cell.dataset.rowIndex || "0", 10);
+      const columnIndex = Number.parseInt(cell.dataset.columnIndex || "0", 10);
+      const rect = anchor.getBoundingClientRect();
+      showTableContextMenu({
+        x: rect.left + Math.min(rect.width, 28),
+        y: rect.bottom,
+        rowIndex,
+        columnIndex,
+        columnCount: this.tableBlock.columnCount,
+        anchor,
+        onAction: (action) => {
+          this.applyTableContextAction(view, wrapper, rowIndex, columnIndex, action);
+        },
+      });
+    }
+
+    handleCellPaste(event, view, wrapper) {
+      const pastedText = event.clipboardData?.getData("text/plain") || "";
+      if (!pastedText.includes("\t") && !/\r?\n/.test(pastedText.trimEnd())) {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      const startRow = Number.parseInt(event.currentTarget.dataset.rowIndex || "0", 10);
+      const startColumn = Number.parseInt(event.currentTarget.dataset.columnIndex || "0", 10);
+      const pastedRows = pastedText
+        .replace(/\r/g, "")
+        .replace(/\n$/, "")
+        .split("\n")
+        .map((row) => row.split("\t"));
+      const rows = collectEditableTableRows(wrapper, this.tableBlock);
+      const requiredColumns = Math.max(
+        this.tableBlock.columnCount,
+        ...pastedRows.map((row) => startColumn + row.length),
+      );
+      while (rows.length < startRow + pastedRows.length) {
+        rows.push(Array.from({ length: requiredColumns }, () => ""));
+      }
+      rows.forEach((row) => {
+        while (row.length < requiredColumns) row.push("");
+      });
+      pastedRows.forEach((pastedRow, rowOffset) => {
+        pastedRow.forEach((value, columnOffset) => {
+          rows[startRow + rowOffset][startColumn + columnOffset] = value;
+        });
+      });
+      const alignments = [...this.tableBlock.alignments];
+      while (alignments.length < requiredColumns) alignments.push("left");
+      this.replaceTable(view, rows, alignments);
     }
   
     focusSource(view, sourceFrom) {
@@ -373,6 +610,15 @@ export function createTablePreviewWidgetClass({
       const rows = collectEditableTableRows(wrapper, this.tableBlock);
       rows.push(Array.from({ length: this.tableBlock.columnCount }, () => ""));
       this.replaceTable(view, rows);
+    }
+
+    addColumnFromPreview(view, wrapper) {
+      if (view.state.readOnly) {
+        return;
+      }
+      const rows = collectEditableTableRows(wrapper, this.tableBlock);
+      rows.forEach((row) => row.push(""));
+      this.replaceTable(view, rows, [...this.tableBlock.alignments, "left"]);
     }
   
     applyTableContextAction(view, wrapper, rowIndex, columnIndex, action) {
@@ -455,12 +701,6 @@ export function createTablePreviewWidgetClass({
           insert: nextText,
         },
         effects: setActiveTableEdit.of(null),
-        selection: {
-          anchor: Math.min(
-            this.tableBlock.from + nextText.length,
-            view.state.doc.length,
-          ),
-        },
       });
       requestEditorMeasure(view);
     }

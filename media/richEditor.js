@@ -47547,6 +47547,7 @@
 
   // src/rich-editor/presentation/table/tablePreview.js
   var tableContextMenu = null;
+  var tableContextMenuAnchor = null;
   function stopInteractiveEvent2(event) {
     event.preventDefault();
     event.stopPropagation();
@@ -47557,7 +47558,8 @@
     rowIndex,
     columnIndex,
     columnCount,
-    onAction
+    onAction,
+    anchor = null
   }) {
     closeTableContextMenu();
     const menu = document.createElement("div");
@@ -47594,7 +47596,37 @@
     }
     document.body.appendChild(menu);
     tableContextMenu = menu;
+    tableContextMenuAnchor = anchor ? {
+      element: anchor,
+      sourceFrom: anchor.closest(".cm-rich-table-preview")?.dataset.sourceFrom,
+      rowIndex,
+      columnIndex
+    } : null;
     positionFixedMenu(menu, x, y);
+    menu.addEventListener("keydown", (event) => {
+      const items = [...menu.querySelectorAll(".cm-table-context-menu-item:not(:disabled)")];
+      const currentIndex = items.indexOf(document.activeElement);
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+        closeTableContextMenu({ restoreFocus: true });
+        return;
+      }
+      if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      let nextIndex = currentIndex;
+      if (event.key === "Home") nextIndex = 0;
+      if (event.key === "End") nextIndex = items.length - 1;
+      if (event.key === "ArrowDown") nextIndex = (currentIndex + 1 + items.length) % items.length;
+      if (event.key === "ArrowUp") nextIndex = (currentIndex - 1 + items.length) % items.length;
+      items[nextIndex]?.focus();
+    });
+    queueMicrotask(() => {
+      menu.querySelector(".cm-table-context-menu-item:not(:disabled)")?.focus();
+    });
   }
   function positionFixedMenu(menu, x, y) {
     const margin = 8;
@@ -47611,12 +47643,25 @@
     menu.style.left = `${left}px`;
     menu.style.top = `${top2}px`;
   }
-  function closeTableContextMenu() {
+  function closeTableContextMenu({ restoreFocus = false } = {}) {
     if (!tableContextMenu) {
       return false;
     }
+    const focusTarget = restoreFocus ? tableContextMenuAnchor : null;
+    if (focusTarget?.element.isConnected) {
+      focusTarget.element.focus({ preventScroll: true });
+    }
     tableContextMenu.remove();
     tableContextMenu = null;
+    tableContextMenuAnchor = null;
+    if (focusTarget) {
+      window.setTimeout(() => {
+        const currentTarget = focusTarget.element.isConnected ? focusTarget.element : document.querySelector(
+          `.cm-rich-table-preview[data-source-from="${focusTarget.sourceFrom}"] .cm-rich-table-cell-preview[data-row-index="${focusTarget.rowIndex}"][data-column-index="${focusTarget.columnIndex}"]`
+        );
+        currentTarget?.focus({ preventScroll: true });
+      }, 0);
+    }
     return true;
   }
   function createTablePreviewWidgetClass({
@@ -47645,28 +47690,38 @@
         wrapper.setAttribute("role", "region");
         wrapper.setAttribute("tabindex", "0");
         wrapper.title = "Edit table cells";
+        wrapper.dataset.sourceFrom = String(this.tableBlock.from);
         wrapper.dataset.dirty = "false";
         const readOnly2 = view2.state.readOnly;
+        wrapper.classList.toggle("is-read-only", readOnly2);
         const scroll = document.createElement("div");
         scroll.className = "cm-rich-table-scroll";
         const table = document.createElement("table");
         table.className = "cm-rich-table";
         const headerRow = this.tableBlock.rows[0];
         const thead = document.createElement("thead");
-        thead.appendChild(this.renderRow(headerRow, "th", 0, view2));
+        thead.appendChild(this.renderRow(headerRow, "th", 0, view2, wrapper));
         table.appendChild(thead);
         const tbody = document.createElement("tbody");
         for (let rowIndex = 1; rowIndex < this.tableBlock.rows.length; rowIndex += 1) {
           tbody.appendChild(
-            this.renderRow(this.tableBlock.rows[rowIndex], "td", rowIndex, view2)
+            this.renderRow(
+              this.tableBlock.rows[rowIndex],
+              "td",
+              rowIndex,
+              view2,
+              wrapper
+            )
           );
         }
         table.appendChild(tbody);
-        scroll.appendChild(table);
-        wrapper.appendChild(scroll);
         if (!readOnly2) {
           const toolbar = document.createElement("div");
           toolbar.className = "cm-rich-table-toolbar";
+          const toolbarHint = document.createElement("span");
+          toolbarHint.className = "cm-rich-table-toolbar-hint";
+          toolbarHint.textContent = "Enter: edit \xB7 Arrow keys: move \xB7 Shift+F10: actions";
+          toolbar.appendChild(toolbarHint);
           const addRowButton = document.createElement("button");
           addRowButton.type = "button";
           addRowButton.className = "cm-rich-table-action";
@@ -47682,8 +47737,21 @@
             this.addRowFromPreview(view2, wrapper);
           });
           toolbar.appendChild(addRowButton);
+          const addColumnButton = document.createElement("button");
+          addColumnButton.type = "button";
+          addColumnButton.className = "cm-rich-table-action";
+          addColumnButton.title = "Add column";
+          addColumnButton.innerHTML = '<span class="cm-rich-table-action-icon">+</span><span>Column</span>';
+          addColumnButton.addEventListener("mousedown", stopInteractiveEvent2);
+          addColumnButton.addEventListener("click", (event) => {
+            stopInteractiveEvent2(event);
+            this.addColumnFromPreview(view2, wrapper);
+          });
+          toolbar.appendChild(addColumnButton);
           wrapper.appendChild(toolbar);
         }
+        scroll.appendChild(table);
+        wrapper.appendChild(scroll);
         wrapper.addEventListener("input", (event) => {
           if (readOnly2) {
             return;
@@ -47710,6 +47778,7 @@
             rowIndex,
             columnIndex,
             columnCount: this.tableBlock.columnCount,
+            anchor: cell.querySelector(".cm-rich-table-cell-preview"),
             onAction: (action) => {
               this.applyTableContextAction(
                 view2,
@@ -47734,7 +47803,7 @@
         queueMicrotask(() => requestEditorMeasure2(view2));
         return wrapper;
       }
-      renderRow(row, cellTag, rowIndex, view2) {
+      renderRow(row, cellTag, rowIndex, view2, wrapper) {
         const tr = document.createElement("tr");
         tr.dataset.rowIndex = String(rowIndex);
         for (let columnIndex = 0; columnIndex < this.tableBlock.columnCount; columnIndex += 1) {
@@ -47751,8 +47820,15 @@
           }
           const preview = document.createElement("div");
           preview.className = "cm-rich-table-cell-preview";
+          if (!view2.state.readOnly) {
+            preview.tabIndex = 0;
+            preview.setAttribute("role", "button");
+          }
           preview.dataset.rowIndex = String(rowIndex);
           preview.dataset.columnIndex = String(columnIndex);
+          const headerText = this.tableBlock.rows[0]?.cells[columnIndex]?.text || `Column ${columnIndex + 1}`;
+          const cellLabel = `${rowIndex === 0 ? "Header" : `Row ${rowIndex}`}, ${headerText}: ${sourceCell.text || "Empty cell"}`;
+          preview.setAttribute("aria-label", `Edit ${cellLabel}`);
           renderRichTableCellPreview(preview, sourceCell.text, view2);
           const editor = document.createElement("div");
           editor.className = "cm-rich-table-cell-editor";
@@ -47761,6 +47837,7 @@
           editor.dataset.rowIndex = String(rowIndex);
           editor.dataset.columnIndex = String(columnIndex);
           editor.textContent = sourceCell.text;
+          editor.setAttribute("aria-label", cellLabel);
           preview.addEventListener("mousedown", (event) => {
             if (isRichTablePreviewInteractiveTarget(event.target)) {
               return;
@@ -47769,7 +47846,12 @@
             event.stopPropagation();
             activateRichTableCellEditor(editor);
           });
+          preview.addEventListener("keydown", (event) => {
+            this.handleCellPreviewKeydown(event, editor, view2, wrapper);
+          });
           editor.addEventListener("focus", () => {
+            editor.dataset.editStartValue = editor.textContent || "";
+            editor.dataset.editStartDirty = wrapper.dataset.dirty || "false";
             activateRichTableCellEditor(editor, { focus: false });
           });
           editor.addEventListener("blur", () => {
@@ -47778,31 +47860,92 @@
             }, 0);
           });
           editor.addEventListener("input", () => {
+            const cellPreview = editor.closest(".cm-rich-table-cell")?.querySelector(".cm-rich-table-cell-preview");
             renderRichTableCellPreview(
-              editor.previousElementSibling,
+              cellPreview,
               editor.textContent,
               view2
             );
           });
           editor.addEventListener("keydown", (event) => {
-            this.handleCellKeydown(event);
+            this.handleCellKeydown(event, view2, wrapper);
+          });
+          editor.addEventListener("paste", (event) => {
+            this.handleCellPaste(event, view2, wrapper);
           });
           cell.appendChild(preview);
+          if (!view2.state.readOnly) {
+            const actionsButton = document.createElement("button");
+            actionsButton.type = "button";
+            actionsButton.className = "cm-rich-table-cell-actions";
+            actionsButton.textContent = "Actions";
+            actionsButton.tabIndex = -1;
+            actionsButton.setAttribute("aria-label", `Row and column actions for ${cellLabel}`);
+            actionsButton.addEventListener("mousedown", stopInteractiveEvent2);
+            actionsButton.addEventListener("click", (event) => {
+              stopInteractiveEvent2(event);
+              this.openCellActions(view2, wrapper, cell, preview);
+            });
+            cell.appendChild(actionsButton);
+          }
           cell.appendChild(editor);
           tr.appendChild(cell);
         }
         return tr;
       }
-      handleCellKeydown(event) {
+      handleCellPreviewKeydown(event, editor, view2, wrapper) {
+        if (event.key === "Enter" || event.key === "F2") {
+          event.preventDefault();
+          event.stopPropagation();
+          activateRichTableCellEditor(editor, { select: event.key === "Enter" });
+          return;
+        }
+        if (event.shiftKey && event.key === "F10" || event.key === "ContextMenu") {
+          event.preventDefault();
+          event.stopPropagation();
+          const cell = event.currentTarget.closest(".cm-rich-table-cell");
+          this.openCellActions(view2, wrapper, cell, event.currentTarget);
+          return;
+        }
+        const directions = {
+          ArrowLeft: [0, -1],
+          ArrowRight: [0, 1],
+          ArrowUp: [-1, 0],
+          ArrowDown: [1, 0]
+        };
+        const direction = directions[event.key];
+        if (!direction) {
+          return;
+        }
+        event.preventDefault();
+        event.stopPropagation();
+        this.focusRelativeCell(wrapper, event.currentTarget, ...direction);
+      }
+      handleCellKeydown(event, view2, wrapper) {
+        if (event.key === "Escape") {
+          event.preventDefault();
+          const editor = event.currentTarget;
+          editor.textContent = editor.dataset.editStartValue || "";
+          const preview = editor.closest(".cm-rich-table-cell")?.querySelector(".cm-rich-table-cell-preview");
+          renderRichTableCellPreview(preview, editor.textContent, view2);
+          wrapper.dataset.dirty = editor.dataset.editStartDirty || "false";
+          editor.blur();
+          preview?.focus({ preventScroll: true });
+          return;
+        }
         if (event.key === "Enter" && !event.shiftKey) {
           event.preventDefault();
-          event.currentTarget.blur();
+          const moved = this.focusRelativeCell(wrapper, event.currentTarget, 1, 0, {
+            activate: true
+          });
+          if (!moved) {
+            event.currentTarget.blur();
+          }
           return;
         }
         if (event.key !== "Tab") {
           return;
         }
-        const wrapper = event.currentTarget.closest(".cm-rich-table-preview");
         if (!wrapper) {
           return;
         }
@@ -47817,6 +47960,74 @@
         const delta = event.shiftKey ? -1 : 1;
         const nextEditor = editors[(currentIndex + delta + editors.length) % editors.length];
         activateRichTableCellEditor(nextEditor, { select: true });
+      }
+      focusRelativeCell(wrapper, current, rowDelta, columnDelta, options = {}) {
+        const rowIndex = Number.parseInt(current.dataset.rowIndex || "0", 10);
+        const columnIndex = Number.parseInt(current.dataset.columnIndex || "0", 10);
+        const nextRow = rowIndex + rowDelta;
+        const nextColumn = columnIndex + columnDelta;
+        const selector = options.activate ? ".cm-rich-table-cell-editor" : ".cm-rich-table-cell-preview";
+        const next2 = wrapper.querySelector(
+          `${selector}[data-row-index="${nextRow}"][data-column-index="${nextColumn}"]`
+        );
+        if (!next2) {
+          return false;
+        }
+        if (options.activate) {
+          activateRichTableCellEditor(next2, { select: true });
+        } else {
+          next2.focus({ preventScroll: true });
+        }
+        return true;
+      }
+      openCellActions(view2, wrapper, cell, anchor) {
+        if (!cell) {
+          return;
+        }
+        const rowIndex = Number.parseInt(cell.dataset.rowIndex || "0", 10);
+        const columnIndex = Number.parseInt(cell.dataset.columnIndex || "0", 10);
+        const rect = anchor.getBoundingClientRect();
+        showTableContextMenu({
+          x: rect.left + Math.min(rect.width, 28),
+          y: rect.bottom,
+          rowIndex,
+          columnIndex,
+          columnCount: this.tableBlock.columnCount,
+          anchor,
+          onAction: (action) => {
+            this.applyTableContextAction(view2, wrapper, rowIndex, columnIndex, action);
+          }
+        });
+      }
+      handleCellPaste(event, view2, wrapper) {
+        const pastedText = event.clipboardData?.getData("text/plain") || "";
+        if (!pastedText.includes("	") && !/\r?\n/.test(pastedText.trimEnd())) {
+          return;
+        }
+        event.preventDefault();
+        event.stopPropagation();
+        const startRow = Number.parseInt(event.currentTarget.dataset.rowIndex || "0", 10);
+        const startColumn = Number.parseInt(event.currentTarget.dataset.columnIndex || "0", 10);
+        const pastedRows = pastedText.replace(/\r/g, "").replace(/\n$/, "").split("\n").map((row) => row.split("	"));
+        const rows = collectEditableTableRows(wrapper, this.tableBlock);
+        const requiredColumns = Math.max(
+          this.tableBlock.columnCount,
+          ...pastedRows.map((row) => startColumn + row.length)
+        );
+        while (rows.length < startRow + pastedRows.length) {
+          rows.push(Array.from({ length: requiredColumns }, () => ""));
+        }
+        rows.forEach((row) => {
+          while (row.length < requiredColumns) row.push("");
+        });
+        pastedRows.forEach((pastedRow, rowOffset) => {
+          pastedRow.forEach((value, columnOffset) => {
+            rows[startRow + rowOffset][startColumn + columnOffset] = value;
+          });
+        });
+        const alignments = [...this.tableBlock.alignments];
+        while (alignments.length < requiredColumns) alignments.push("left");
+        this.replaceTable(view2, rows, alignments);
       }
       focusSource(view2, sourceFrom) {
         if (view2.state.readOnly) {
@@ -47861,6 +48072,14 @@ ${rowText}`;
         const rows = collectEditableTableRows(wrapper, this.tableBlock);
         rows.push(Array.from({ length: this.tableBlock.columnCount }, () => ""));
         this.replaceTable(view2, rows);
+      }
+      addColumnFromPreview(view2, wrapper) {
+        if (view2.state.readOnly) {
+          return;
+        }
+        const rows = collectEditableTableRows(wrapper, this.tableBlock);
+        rows.forEach((row) => row.push(""));
+        this.replaceTable(view2, rows, [...this.tableBlock.alignments, "left"]);
       }
       applyTableContextAction(view2, wrapper, rowIndex, columnIndex, action) {
         if (view2.state.readOnly) {
@@ -47928,13 +48147,7 @@ ${rowText}`;
             to: this.tableBlock.sourceTo,
             insert: nextText
           },
-          effects: setActiveTableEdit.of(null),
-          selection: {
-            anchor: Math.min(
-              this.tableBlock.from + nextText.length,
-              view2.state.doc.length
-            )
-          }
+          effects: setActiveTableEdit.of(null)
         });
         requestEditorMeasure2(view2);
       }
@@ -51457,7 +51670,15 @@ ${rowText}`;
         overflowWrap: "anywhere"
       },
       ".cm-rich-table-cell-preview": {
-        outline: "none"
+        outline: "none",
+        cursor: "default"
+      },
+      ".cm-rich-table-preview:not(.is-read-only) .cm-rich-table-cell-preview": {
+        paddingRight: "64px"
+      },
+      ".cm-rich-table-cell-preview:focus": {
+        backgroundColor: "color-mix(in srgb, var(--rip-focus) 10%, transparent)",
+        boxShadow: "inset 0 0 0 2px var(--rip-focus)"
       },
       ".cm-rich-table-cell-editor": {
         display: "none",
@@ -51472,6 +51693,33 @@ ${rowText}`;
       ".cm-rich-table-cell-editor:focus": {
         backgroundColor: "color-mix(in srgb, var(--rip-focus) 13%, transparent)",
         boxShadow: "inset 0 0 0 1px var(--rip-focus)"
+      },
+      ".cm-rich-table-cell-actions": {
+        position: "absolute",
+        top: "5px",
+        right: "5px",
+        zIndex: "1",
+        minWidth: "0",
+        height: "24px",
+        border: "1px solid var(--rip-border)",
+        borderRadius: "5px",
+        padding: "0 6px",
+        color: "var(--rip-muted)",
+        backgroundColor: "var(--rip-input-bg)",
+        font: "11px var(--vscode-font-family)",
+        cursor: "pointer",
+        opacity: "0",
+        pointerEvents: "none",
+        transition: "opacity 100ms ease"
+      },
+      ".cm-rich-table-cell:hover .cm-rich-table-cell-actions, .cm-rich-table-cell:focus-within .cm-rich-table-cell-actions": {
+        opacity: "1",
+        pointerEvents: "auto"
+      },
+      ".cm-rich-table-cell-actions:hover": {
+        color: "var(--rip-fg)",
+        borderColor: "var(--rip-focus)",
+        backgroundColor: "var(--rip-hover)"
       },
       ".cm-rich-table-cell-preview:empty::before, .cm-rich-table-cell-editor:empty::before": {
         content: '"Cell"',
@@ -51503,11 +51751,21 @@ ${rowText}`;
       },
       ".cm-rich-table-toolbar": {
         display: "flex",
+        alignItems: "center",
         justifyContent: "flex-end",
         gap: "6px",
-        borderTop: "1px solid var(--rip-border)",
+        borderBottom: "1px solid var(--rip-border)",
         padding: "6px 8px",
         backgroundColor: "color-mix(in srgb, var(--rip-panel) 88%, var(--rip-bg))"
+      },
+      ".cm-rich-table-toolbar-hint": {
+        minWidth: "0",
+        marginRight: "auto",
+        color: "var(--rip-muted)",
+        font: "11px var(--vscode-font-family)",
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+        whiteSpace: "nowrap"
       },
       ".cm-rich-table-action": {
         height: "26px",
@@ -51525,6 +51783,10 @@ ${rowText}`;
       ".cm-rich-table-action:hover": {
         borderColor: "var(--rip-focus)",
         backgroundColor: "var(--rip-hover)"
+      },
+      ".cm-rich-table-action:focus-visible, .cm-rich-table-cell-actions:focus-visible": {
+        outline: "2px solid var(--rip-focus)",
+        outlineOffset: "1px"
       },
       ".cm-rich-table-action-icon": {
         color: "var(--rip-heading)",
@@ -52424,8 +52686,11 @@ ${rowText}`;
       cursor: pointer;
       font: 13px var(--vscode-font-family);
     }
-    .cm-table-context-menu-item:hover {
+    .cm-table-context-menu-item:hover,
+    .cm-table-context-menu-item:focus-visible {
       background: var(--rip-hover);
+      outline: 2px solid var(--rip-focus);
+      outline-offset: -2px;
     }
     .cm-table-context-menu-item:disabled {
       opacity: 0.45;

@@ -742,6 +742,15 @@ export function createEditorThemeExtension() {
   },
   ".cm-rich-table-cell-preview": {
     outline: "none",
+    cursor: "default",
+  },
+  ".cm-rich-table-preview:not(.is-read-only) .cm-rich-table-cell-preview": {
+    paddingRight: "64px",
+  },
+  ".cm-rich-table-cell-preview:focus": {
+    backgroundColor:
+      "color-mix(in srgb, var(--rip-focus) 10%, transparent)",
+    boxShadow: "inset 0 0 0 2px var(--rip-focus)",
   },
   ".cm-rich-table-cell-editor": {
     display: "none",
@@ -757,6 +766,33 @@ export function createEditorThemeExtension() {
     backgroundColor:
       "color-mix(in srgb, var(--rip-focus) 13%, transparent)",
     boxShadow: "inset 0 0 0 1px var(--rip-focus)",
+  },
+  ".cm-rich-table-cell-actions": {
+    position: "absolute",
+    top: "5px",
+    right: "5px",
+    zIndex: "1",
+    minWidth: "0",
+    height: "24px",
+    border: "1px solid var(--rip-border)",
+    borderRadius: "5px",
+    padding: "0 6px",
+    color: "var(--rip-muted)",
+    backgroundColor: "var(--rip-input-bg)",
+    font: "11px var(--vscode-font-family)",
+    cursor: "pointer",
+    opacity: "0",
+    pointerEvents: "none",
+    transition: "opacity 100ms ease",
+  },
+  ".cm-rich-table-cell:hover .cm-rich-table-cell-actions, .cm-rich-table-cell:focus-within .cm-rich-table-cell-actions": {
+    opacity: "1",
+    pointerEvents: "auto",
+  },
+  ".cm-rich-table-cell-actions:hover": {
+    color: "var(--rip-fg)",
+    borderColor: "var(--rip-focus)",
+    backgroundColor: "var(--rip-hover)",
   },
   ".cm-rich-table-cell-preview:empty::before, .cm-rich-table-cell-editor:empty::before": {
     content: '"Cell"',
@@ -788,12 +824,22 @@ export function createEditorThemeExtension() {
   },
   ".cm-rich-table-toolbar": {
     display: "flex",
+    alignItems: "center",
     justifyContent: "flex-end",
     gap: "6px",
-    borderTop: "1px solid var(--rip-border)",
+    borderBottom: "1px solid var(--rip-border)",
     padding: "6px 8px",
     backgroundColor:
       "color-mix(in srgb, var(--rip-panel) 88%, var(--rip-bg))",
+  },
+  ".cm-rich-table-toolbar-hint": {
+    minWidth: "0",
+    marginRight: "auto",
+    color: "var(--rip-muted)",
+    font: "11px var(--vscode-font-family)",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
   },
   ".cm-rich-table-action": {
     height: "26px",
@@ -811,6 +857,10 @@ export function createEditorThemeExtension() {
   ".cm-rich-table-action:hover": {
     borderColor: "var(--rip-focus)",
     backgroundColor: "var(--rip-hover)",
+  },
+  ".cm-rich-table-action:focus-visible, .cm-rich-table-cell-actions:focus-visible": {
+    outline: "2px solid var(--rip-focus)",
+    outlineOffset: "1px",
   },
   ".cm-rich-table-action-icon": {
     color: "var(--rip-heading)",
