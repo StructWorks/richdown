@@ -19,6 +19,7 @@ Richdown Diff gives Markdown changes a rendered side-by-side review view while k
 ## Features
 
 - Opens regular `.md` and `.markdown` files with the Richdown editor by default while keeping Source Control diffs in VS Code's native diff viewer.
+- Automatically refreshes an open Richdown editor when an AI agent or another external tool changes the Markdown file on disk.
 - Toggle between Richdown and the standard VS Code text editor from the editor title button or the command palette.
 - Open the VS Code Git diff for the current Markdown file from the editor title button or the command palette.
 - Open a Richdown Diff view for Markdown changes, including rendered headings, lists, tables, images, links, and highlighted code blocks.
@@ -82,7 +83,7 @@ Install locally from VSIX:
 1. Run `npm run package:vsix`.
 2. In Cursor, open the command palette.
 3. Run `Extensions: Install from VSIX...`.
-4. Select `richdown-0.7.0.vsix`.
+4. Select `richdown-0.7.2.vsix`.
 
 Publish to Open VSX:
 
