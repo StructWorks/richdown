@@ -352,8 +352,11 @@ export function injectStyles() {
       cursor: pointer;
       font: 13px var(--vscode-font-family);
     }
-    .cm-table-context-menu-item:hover {
+    .cm-table-context-menu-item:hover,
+    .cm-table-context-menu-item:focus-visible {
       background: var(--rip-hover);
+      outline: 2px solid var(--rip-focus);
+      outline-offset: -2px;
     }
     .cm-table-context-menu-item:disabled {
       opacity: 0.45;

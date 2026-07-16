@@ -2,6 +2,14 @@
 
 All notable changes to Richdown will be documented in this file.
 
+## 0.7.4 - 2026-07-15
+
+- Fixed underscores in table cells and other rich inline previews being mistaken for emphasis inside identifiers.
+- Improved expanded `<details>` spacing, nested list layout, wide-table handling, and fenced-code language labels and syntax highlighting.
+- Made Mermaid preview heights follow each rendered diagram's aspect ratio and available editor width, with viewport-aware limits for tall diagrams.
+- Made rich tables easier to operate with visible row and column controls, keyboard cell navigation, accessible action menus, edit cancellation, and multi-cell tabular paste.
+- Fixed rich-table edge cases for escaped and inline-code pipes, indented or outer-pipe-free rows, whitespace preservation, and predictable Tab and Escape focus behavior.
+
 ## 0.7.3 - 2026-07-15
 
 - Fixed Markdown block rendering inside expanded `<details>` previews, including code fences, headings, lists, quotes, images, and tables.

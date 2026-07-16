@@ -3,7 +3,9 @@
 // The preview gives details blocks an interactive disclosure UI while preserving
 // a direct path back to the original Markdown source for editing.
 import { WidgetType } from "@codemirror/view";
+import { splitMarkdownTableCells } from "../../../markdown/tableCells.js";
 import { getDetailsBodyLineText } from "../../domain/markdownBlocks.js";
+import { highlightCodeElement } from "../codemirror/language.js";
 
 export function createDetailsPreviewWidgetClass({
   appendInlineMarkdown,
@@ -72,6 +74,7 @@ export function createDetailsPreviewWidgetClass({
             getSourcePosition: (line, index) =>
               this.getBodyLinePosition(line, index),
             onImageReady: () => requestEditorMeasure(view),
+            onCodeHighlighted: () => requestEditorMeasure(view),
           });
         }
         body.addEventListener("mousedown", (event) => {
@@ -154,7 +157,12 @@ export function createDetailsPreviewWidgetClass({
 export function appendDetailsBody(
   parent,
   bodyLines,
-  { appendInlineMarkdown, getSourcePosition, onImageReady },
+  {
+    appendInlineMarkdown,
+    getSourcePosition,
+    onImageReady,
+    onCodeHighlighted,
+  },
 ) {
   const appendInline = (element, text) => {
     appendInlineMarkdown(element, text, {
@@ -193,16 +201,43 @@ export function appendDetailsBody(
         closingIndex += 1;
       }
 
+      const source = codeLines.join("\n");
+      const language = (fence[2] || "").toLowerCase();
+      const block = document.createElement("div");
+      block.className = "cm-details-code";
+      setSourcePosition(block, line, index);
+      if (language) {
+        const header = document.createElement("div");
+        header.className = "cm-details-code-header";
+        const label = document.createElement("span");
+        label.className = "cm-details-code-language";
+        label.textContent = language;
+        header.appendChild(label);
+        block.appendChild(header);
+      }
       const pre = document.createElement("pre");
       pre.className = "cm-details-code-block";
-      setSourcePosition(pre, line, index);
       const code = document.createElement("code");
-      if (fence[2]) {
-        code.className = `language-${fence[2].toLowerCase()}`;
+      if (language) {
+        code.className = `language-${language}`;
       }
-      code.textContent = codeLines.join("\n");
+      code.textContent = source;
       pre.appendChild(code);
-      parent.appendChild(pre);
+      block.appendChild(pre);
+      parent.appendChild(block);
+      if (language) {
+        void highlightCodeElement(code, source, language)
+          .then((resolvedLanguage) => {
+            const label = block.querySelector(".cm-details-code-language");
+            if (label && resolvedLanguage) {
+              label.textContent = resolvedLanguage;
+            }
+            onCodeHighlighted?.();
+          })
+          .catch(() => {
+            // Unknown or invalid language input remains readable as plain text.
+          });
+      }
       index = closingIndex < bodyLines.length ? closingIndex : bodyLines.length;
       continue;
     }
@@ -268,17 +303,31 @@ export function appendDetailsBody(
       continue;
     }
 
-    const list = text.match(/^\s*(?:[-+*]|\d+[.)])\s+(?:\[([ xX])\]\s+)?(.*)$/);
+    const list = text.match(
+      /^(\s*)([-+*]|\d+[.)])\s+(?:\[([ xX])\]\s+)?(.*)$/,
+    );
     if (list) {
       const element = document.createElement("div");
       element.className = "cm-details-list-item";
       setSourcePosition(element, line, index);
+      const indentColumns = list[1].replace(/\t/g, "  ").length;
+      const depth = Math.min(Math.floor(indentColumns / 2), 4);
+      if (depth > 0) {
+        element.style.paddingInlineStart = `${depth * 18}px`;
+      }
       const marker = document.createElement("span");
       marker.className = "cm-details-list-marker";
-      marker.textContent = list[1] === undefined ? "•" : list[1].trim() ? "☑" : "☐";
+      marker.textContent =
+        list[3] === undefined
+          ? /^\d/.test(list[2])
+            ? list[2]
+            : "•"
+          : list[3].trim()
+            ? "☑"
+            : "☐";
       element.appendChild(marker);
       const content = document.createElement("span");
-      appendInline(content, list[2]);
+      appendInline(content, list[4]);
       element.appendChild(content);
       parent.appendChild(element);
       continue;
@@ -308,10 +357,5 @@ function isTableDelimiterLine(text) {
 }
 
 function splitTableCells(text) {
-  return text
-    .trim()
-    .replace(/^\|/, "")
-    .replace(/\|$/, "")
-    .split(/(?<!\\)\|/)
-    .map((cell) => cell.replace(/\\\|/g, "|").trim());
+  return splitMarkdownTableCells(text, { unescapePipes: true });
 }

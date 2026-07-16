@@ -44160,6 +44160,40 @@
       brainfuck
     )
   ];
+  async function highlightCodeElement(element, source, languageName) {
+    const requestedLanguage = String(languageName || "").trim();
+    if (!element || !requestedLanguage) {
+      return null;
+    }
+    const description = LanguageDescription.matchLanguageName(
+      codeLanguages,
+      requestedLanguage,
+      true
+    );
+    if (!description) {
+      return null;
+    }
+    const support = description.support || await description.load();
+    const tree = support.language.parser.parse(source);
+    const fragment = document.createDocumentFragment();
+    let position = 0;
+    highlightTree(tree, classHighlighter, (from3, to, classes) => {
+      if (from3 > position) {
+        fragment.appendChild(document.createTextNode(source.slice(position, from3)));
+      }
+      const span = document.createElement("span");
+      span.className = classes;
+      span.textContent = source.slice(from3, to);
+      fragment.appendChild(span);
+      position = to;
+    });
+    if (position < source.length) {
+      fragment.appendChild(document.createTextNode(source.slice(position)));
+    }
+    element.replaceChildren(fragment);
+    element.dataset.language = description.name;
+    return description.name;
+  }
   var markdownHighlightStyle = HighlightStyle.define([
     { tag: tags.heading, color: "var(--rip-heading)", fontWeight: "780" },
     {
@@ -44670,6 +44704,142 @@
     }
   };
 
+  // src/markdown/tableCells.js
+  function scanMarkdownTableRow(text2) {
+    const indent4 = text2.match(/^[\t ]*/)?.[0] || "";
+    let contentEnd = text2.length;
+    while (contentEnd > indent4.length && /\s/.test(text2[contentEnd - 1])) {
+      contentEnd -= 1;
+    }
+    const usesLeadingPipe = text2[indent4.length] === "|";
+    const contentStart = usesLeadingPipe ? indent4.length + 1 : indent4.length;
+    const delimiterIndexes = findTableDelimiterPipes(text2, contentStart, contentEnd);
+    const usesTrailingPipe = delimiterIndexes.at(-1) === contentEnd - 1;
+    const cells = [];
+    let cellStart = contentStart;
+    for (const delimiterIndex of delimiterIndexes) {
+      cells.push({
+        from: cellStart,
+        to: delimiterIndex,
+        text: text2.slice(cellStart, delimiterIndex).trim()
+      });
+      cellStart = delimiterIndex + 1;
+    }
+    if (!usesTrailingPipe) {
+      cells.push({
+        from: cellStart,
+        to: contentEnd,
+        text: text2.slice(cellStart, contentEnd).trim()
+      });
+    }
+    return {
+      indent: indent4,
+      usesLeadingPipe,
+      usesTrailingPipe,
+      cells
+    };
+  }
+  function splitMarkdownTableCells(text2, options = {}) {
+    return scanMarkdownTableRow(text2).cells.map(
+      (cell) => options.unescapePipes ? unescapeMarkdownTableCellPipes(cell.text) : cell.text
+    );
+  }
+  function unescapeMarkdownTableCellPipes(text2) {
+    let result = "";
+    let codeFenceLength = 0;
+    for (let index = 0; index < text2.length; index += 1) {
+      const character = text2[index];
+      if (character === "`" && !isEscapedCharacter(text2, index)) {
+        const runLength = countCharacterRun(text2, index, "`");
+        if (codeFenceLength === 0 && hasClosingBacktickRun(text2, index + runLength, runLength)) {
+          codeFenceLength = runLength;
+        } else if (runLength === codeFenceLength) {
+          codeFenceLength = 0;
+        }
+        result += text2.slice(index, index + runLength);
+        index += runLength - 1;
+        continue;
+      }
+      if (character === "|" && codeFenceLength === 0 && isEscapedCharacter(text2, index)) {
+        result = result.slice(0, -1);
+      }
+      result += character;
+    }
+    return result;
+  }
+  function escapeMarkdownTableCellPipes(text2) {
+    let result = "";
+    let codeFenceLength = 0;
+    for (let index = 0; index < text2.length; index += 1) {
+      const character = text2[index];
+      if (character === "`" && !isEscapedCharacter(text2, index)) {
+        const runLength = countCharacterRun(text2, index, "`");
+        if (codeFenceLength === 0 && hasClosingBacktickRun(text2, index + runLength, runLength)) {
+          codeFenceLength = runLength;
+        } else if (runLength === codeFenceLength) {
+          codeFenceLength = 0;
+        }
+        result += text2.slice(index, index + runLength);
+        index += runLength - 1;
+        continue;
+      }
+      if (character === "|" && codeFenceLength === 0 && !isEscapedCharacter(text2, index)) {
+        result += "\\|";
+        continue;
+      }
+      result += character;
+    }
+    return result;
+  }
+  function findTableDelimiterPipes(text2, start2, end) {
+    const indexes = [];
+    let codeFenceLength = 0;
+    for (let index = start2; index < end; index += 1) {
+      const character = text2[index];
+      if (character === "`" && !isEscapedCharacter(text2, index)) {
+        const runLength = countCharacterRun(text2, index, "`");
+        if (codeFenceLength === 0 && hasClosingBacktickRun(text2, index + runLength, runLength, end)) {
+          codeFenceLength = runLength;
+        } else if (runLength === codeFenceLength) {
+          codeFenceLength = 0;
+        }
+        index += runLength - 1;
+        continue;
+      }
+      if (character === "|" && codeFenceLength === 0 && !isEscapedCharacter(text2, index)) {
+        indexes.push(index);
+      }
+    }
+    return indexes;
+  }
+  function isEscapedCharacter(text2, index) {
+    let backslashCount = 0;
+    for (let cursor = index - 1; cursor >= 0 && text2[cursor] === "\\"; cursor -= 1) {
+      backslashCount += 1;
+    }
+    return backslashCount % 2 === 1;
+  }
+  function countCharacterRun(text2, start2, character) {
+    let end = start2 + 1;
+    while (end < text2.length && text2[end] === character) {
+      end += 1;
+    }
+    return end - start2;
+  }
+  function hasClosingBacktickRun(text2, start2, runLength, end = text2.length) {
+    for (let index = start2; index < end; index += 1) {
+      if (text2[index] !== "`" || isEscapedCharacter(text2, index)) {
+        continue;
+      }
+      const candidateLength = countCharacterRun(text2, index, "`");
+      if (candidateLength === runLength) {
+        return true;
+      }
+      index += candidateLength - 1;
+    }
+    return false;
+  }
+
   // src/rich-editor/domain/markdownBlocks.js
   var detailsBlocksCache = /* @__PURE__ */ new WeakMap();
   var tableBlocksCache = /* @__PURE__ */ new WeakMap();
@@ -44837,7 +45007,7 @@
     return /^\s*\|?\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)*\|?\s*$/.test(text2);
   }
   function splitTableCells(text2) {
-    return text2.trim().replace(/^\|/, "").replace(/\|$/, "").split("|");
+    return splitMarkdownTableCells(text2);
   }
   function computeMermaidBlocks(doc2, options = {}) {
     const includeUnclosed = options.includeUnclosed === true;
@@ -45026,6 +45196,7 @@
     return blocks;
   }
   function createTableBlock(doc2, headerLine, delimiterLine2, bodyLines, lastLine) {
+    const headerRow = scanMarkdownTableRow(headerLine.text);
     const headerCells = parseTableCells(headerLine);
     const delimiterCells = parseTableCells(delimiterLine2);
     const bodyRows = bodyLines.map((line) => ({
@@ -45064,8 +45235,9 @@
       ].join("\n"),
       columnCount,
       alignments,
-      usesLeadingPipe: headerLine.text.trimStart().startsWith("|"),
-      usesTrailingPipe: headerLine.text.trimEnd().endsWith("|"),
+      indent: headerRow.indent,
+      usesLeadingPipe: headerRow.usesLeadingPipe,
+      usesTrailingPipe: headerRow.usesTrailingPipe,
       rows,
       sourceRows: [
         { role: "header", line: headerLine },
@@ -45075,30 +45247,18 @@
     };
   }
   function parseTableCells(line) {
-    const text2 = line.text;
-    let start2 = 0;
-    let end = text2.length;
-    if (text2[start2] === "|") start2 += 1;
-    if (text2[end - 1] === "|") end -= 1;
-    const cells = [];
-    let cellStart = start2;
-    for (let index = start2; index <= end; index += 1) {
-      if (index !== end && text2[index] !== "|") {
-        continue;
-      }
-      const raw = text2.slice(cellStart, index);
+    return scanMarkdownTableRow(line.text).cells.map((cell) => {
+      const raw = line.text.slice(cell.from, cell.to);
       const leadingLength = raw.match(/^\s*/)[0].length;
       const trailingLength = raw.match(/\s*$/)[0].length;
-      const contentFrom = line.from + cellStart + leadingLength;
-      const contentTo = line.from + index - trailingLength;
-      cells.push({
-        text: raw.trim(),
+      const contentFrom = line.from + cell.from + leadingLength;
+      const contentTo = line.from + cell.to - trailingLength;
+      return {
+        text: cell.text,
         from: Math.min(contentFrom, contentTo),
         to: Math.max(contentFrom, contentTo)
-      });
-      cellStart = index + 1;
-    }
-    return cells;
+      };
+    });
   }
   function normalizeTableCells(cells, columnCount) {
     return Array.from(
@@ -45183,7 +45343,8 @@
             appendDetailsBody(body2, bodyLines, {
               appendInlineMarkdown: appendInlineMarkdown2,
               getSourcePosition: (line, index) => this.getBodyLinePosition(line, index),
-              onImageReady: () => requestEditorMeasure2(view2)
+              onImageReady: () => requestEditorMeasure2(view2),
+              onCodeHighlighted: () => requestEditorMeasure2(view2)
             });
           }
           body2.addEventListener("mousedown", (event) => {
@@ -45250,7 +45411,12 @@
     }
     return DetailsPreviewWidget;
   }
-  function appendDetailsBody(parent, bodyLines, { appendInlineMarkdown: appendInlineMarkdown2, getSourcePosition, onImageReady }) {
+  function appendDetailsBody(parent, bodyLines, {
+    appendInlineMarkdown: appendInlineMarkdown2,
+    getSourcePosition,
+    onImageReady,
+    onCodeHighlighted
+  }) {
     const appendInline = (element, text2) => {
       appendInlineMarkdown2(element, text2, {
         renderImages: true,
@@ -45281,16 +45447,40 @@
           codeLines.push(candidate);
           closingIndex += 1;
         }
+        const source = codeLines.join("\n");
+        const language2 = (fence[2] || "").toLowerCase();
+        const block2 = document.createElement("div");
+        block2.className = "cm-details-code";
+        setSourcePosition(block2, line, index);
+        if (language2) {
+          const header2 = document.createElement("div");
+          header2.className = "cm-details-code-header";
+          const label = document.createElement("span");
+          label.className = "cm-details-code-language";
+          label.textContent = language2;
+          header2.appendChild(label);
+          block2.appendChild(header2);
+        }
         const pre = document.createElement("pre");
         pre.className = "cm-details-code-block";
-        setSourcePosition(pre, line, index);
         const code3 = document.createElement("code");
-        if (fence[2]) {
-          code3.className = `language-${fence[2].toLowerCase()}`;
+        if (language2) {
+          code3.className = `language-${language2}`;
         }
-        code3.textContent = codeLines.join("\n");
+        code3.textContent = source;
         pre.appendChild(code3);
-        parent.appendChild(pre);
+        block2.appendChild(pre);
+        parent.appendChild(block2);
+        if (language2) {
+          void highlightCodeElement(code3, source, language2).then((resolvedLanguage) => {
+            const label = block2.querySelector(".cm-details-code-language");
+            if (label && resolvedLanguage) {
+              label.textContent = resolvedLanguage;
+            }
+            onCodeHighlighted?.();
+          }).catch(() => {
+          });
+        }
         index = closingIndex < bodyLines.length ? closingIndex : bodyLines.length;
         continue;
       }
@@ -45344,17 +45534,24 @@
         parent.appendChild(element);
         continue;
       }
-      const list2 = text2.match(/^\s*(?:[-+*]|\d+[.)])\s+(?:\[([ xX])\]\s+)?(.*)$/);
+      const list2 = text2.match(
+        /^(\s*)([-+*]|\d+[.)])\s+(?:\[([ xX])\]\s+)?(.*)$/
+      );
       if (list2) {
         const element = document.createElement("div");
         element.className = "cm-details-list-item";
         setSourcePosition(element, line, index);
+        const indentColumns = list2[1].replace(/\t/g, "  ").length;
+        const depth = Math.min(Math.floor(indentColumns / 2), 4);
+        if (depth > 0) {
+          element.style.paddingInlineStart = `${depth * 18}px`;
+        }
         const marker = document.createElement("span");
         marker.className = "cm-details-list-marker";
-        marker.textContent = list2[1] === void 0 ? "\u2022" : list2[1].trim() ? "\u2611" : "\u2610";
+        marker.textContent = list2[3] === void 0 ? /^\d/.test(list2[2]) ? list2[2] : "\u2022" : list2[3].trim() ? "\u2611" : "\u2610";
         element.appendChild(marker);
         const content2 = document.createElement("span");
-        appendInline(content2, list2[2]);
+        appendInline(content2, list2[4]);
         element.appendChild(content2);
         parent.appendChild(element);
         continue;
@@ -45379,7 +45576,7 @@
     return /^\s*\|?\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)+\|?\s*$/.test(text2);
   }
   function splitTableCells2(text2) {
-    return text2.trim().replace(/^\|/, "").replace(/\|$/, "").split(/(?<!\\)\|/).map((cell) => cell.replace(/\\\|/g, "|").trim());
+    return splitMarkdownTableCells(text2, { unescapePipes: true });
   }
 
   // src/rich-editor/presentation/gherkin/gherkinPreview.js
@@ -46099,19 +46296,27 @@
           this.focusSource(view2);
         });
         if (this.mermaidBlock.code) {
-          this.render(output, view2, (controller) => {
+          this.render(wrapper, output, view2, sourceHeight, (controller) => {
             viewportController = controller;
           });
         }
         return wrapper;
       }
-      async render(output, view2, setController) {
+      destroy() {
+        this.resizeObserver?.disconnect();
+        this.resizeObserver = null;
+        if (this.resizePreview) {
+          window.removeEventListener("resize", this.resizePreview);
+          this.resizePreview = null;
+        }
+      }
+      async render(wrapper, output, view2, sourceHeight, setController) {
         try {
           const mermaid = await loadMermaid();
           mermaid.initialize(getMermaidConfig(this.colorized));
           const id3 = `richdown-mermaid-${this.mermaidBlock.from}-${Math.random().toString(36).slice(2)}`;
           const result = await mermaid.render(id3, this.mermaidBlock.code);
-          const { canvas, stage, svgMarkup } = createMermaidCanvas(
+          const { canvas, stage, svgMarkup, naturalSize } = createMermaidCanvas(
             result.svg,
             "cm-mermaid",
             this.colorized
@@ -46127,8 +46332,42 @@
             scrollable: true
           });
           setController(controller);
-          controller.fit();
-          requestEditorMeasure2(view2);
+          let measuredWidth = 0;
+          let measuredViewportHeight = 0;
+          const resizePreview = () => {
+            const width = wrapper.getBoundingClientRect().width;
+            const viewportHeight = window.innerHeight || 0;
+            if (width <= 0 || Math.abs(width - measuredWidth) < 1 && Math.abs(viewportHeight - measuredViewportHeight) < 1) {
+              return;
+            }
+            measuredWidth = width;
+            measuredViewportHeight = viewportHeight;
+            wrapper.style.setProperty(
+              "--mermaid-source-height",
+              `${getResponsiveMermaidPreviewHeight({
+                sourceHeight,
+                previewSize: this.previewSize,
+                naturalWidth: naturalSize.width,
+                naturalHeight: naturalSize.height,
+                containerWidth: width
+              })}px`
+            );
+            window.requestAnimationFrame(() => {
+              controller.fit();
+              requestEditorMeasure2(view2);
+            });
+          };
+          resizePreview();
+          if (typeof ResizeObserver === "function") {
+            this.resizeObserver?.disconnect();
+            this.resizeObserver = new ResizeObserver(resizePreview);
+            this.resizeObserver.observe(wrapper);
+          }
+          if (this.resizePreview) {
+            window.removeEventListener("resize", this.resizePreview);
+          }
+          this.resizePreview = resizePreview;
+          window.addEventListener("resize", resizePreview);
         } catch (error) {
           const message = error && error.message ? error.message : String(error);
           const pre = document.createElement("pre");
@@ -46216,7 +46455,12 @@
         svg.style.height = "100%";
       }
       canvas.appendChild(stage);
-      return { canvas, stage, svgMarkup: stage.innerHTML };
+      return {
+        canvas,
+        stage,
+        svgMarkup: stage.innerHTML,
+        naturalSize: size
+      };
     }
     function colorizeMermaidSvg(svg) {
       if (!svg || svg.querySelector("style[data-richdown-mermaid]")) {
@@ -46552,6 +46796,28 @@
         return Math.max(sourceHeight, estimateLargeMermaidPreviewHeight(code3));
       }
       return Math.max(sourceHeight, 260);
+    }
+    function getResponsiveMermaidPreviewHeight({
+      sourceHeight,
+      previewSize,
+      naturalWidth,
+      naturalHeight,
+      containerWidth
+    }) {
+      if (previewSize === "source") {
+        return sourceHeight;
+      }
+      const viewportHeight = Math.max(window.innerHeight || 0, 600);
+      const availableWidth = Math.max(240, containerWidth - 22);
+      const width = Math.max(1, naturalWidth);
+      const height = Math.max(1, naturalHeight);
+      const fittedHeight = height * Math.min(1, availableWidth / width);
+      const isLarge = previewSize === "large";
+      const minimumHeight = isLarge ? 280 : 140;
+      const maximumHeight = isLarge ? clamp(viewportHeight * 1.15, 760, 1200) : clamp(viewportHeight * 0.82, 560, 900);
+      return Math.round(
+        clamp(fittedHeight + 22, minimumHeight, maximumHeight)
+      );
     }
     function estimateLargeMermaidPreviewHeight(code3) {
       const lines = code3.split(/\r?\n/).filter((line) => line.trim());
@@ -47407,6 +47673,7 @@
 
   // src/rich-editor/presentation/table/tablePreview.js
   var tableContextMenu = null;
+  var tableContextMenuAnchor = null;
   function stopInteractiveEvent2(event) {
     event.preventDefault();
     event.stopPropagation();
@@ -47417,7 +47684,8 @@
     rowIndex,
     columnIndex,
     columnCount,
-    onAction
+    onAction,
+    anchor = null
   }) {
     closeTableContextMenu();
     const menu = document.createElement("div");
@@ -47454,7 +47722,38 @@
     }
     document.body.appendChild(menu);
     tableContextMenu = menu;
+    tableContextMenuAnchor = anchor ? {
+      element: anchor,
+      sourceFrom: anchor.closest(".cm-rich-table-preview")?.dataset.sourceFrom,
+      rowIndex,
+      columnIndex
+    } : null;
     positionFixedMenu(menu, x, y);
+    menu.addEventListener("keydown", (event) => {
+      const items = [...menu.querySelectorAll(".cm-table-context-menu-item:not(:disabled)")];
+      const currentIndex = items.indexOf(document.activeElement);
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+        event.stopImmediatePropagation();
+        closeTableContextMenu({ restoreFocus: true });
+        return;
+      }
+      if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      let nextIndex = currentIndex;
+      if (event.key === "Home") nextIndex = 0;
+      if (event.key === "End") nextIndex = items.length - 1;
+      if (event.key === "ArrowDown") nextIndex = (currentIndex + 1 + items.length) % items.length;
+      if (event.key === "ArrowUp") nextIndex = (currentIndex - 1 + items.length) % items.length;
+      items[nextIndex]?.focus();
+    });
+    queueMicrotask(() => {
+      menu.querySelector(".cm-table-context-menu-item:not(:disabled)")?.focus();
+    });
   }
   function positionFixedMenu(menu, x, y) {
     const margin = 8;
@@ -47471,12 +47770,63 @@
     menu.style.left = `${left}px`;
     menu.style.top = `${top2}px`;
   }
-  function closeTableContextMenu() {
+  function setRovingTableCell(wrapper, target) {
+    if (!wrapper || !target) {
+      return;
+    }
+    for (const preview of wrapper.querySelectorAll(
+      ".cm-rich-table-cell-preview[tabindex]"
+    )) {
+      preview.tabIndex = preview === target ? 0 : -1;
+    }
+  }
+  function scheduleTableCellFocus(focusTarget) {
+    const restore = () => {
+      const selector = `.cm-rich-table-preview[data-source-from="${focusTarget.sourceFrom}"] .cm-rich-table-cell-preview[data-row-index="${focusTarget.rowIndex}"][data-column-index="${focusTarget.columnIndex}"]`;
+      const currentTarget = document.querySelector(selector) || (focusTarget.element?.isConnected ? focusTarget.element : null);
+      if (!currentTarget) {
+        return;
+      }
+      setRovingTableCell(
+        currentTarget.closest(".cm-rich-table-preview"),
+        currentTarget
+      );
+      currentTarget.focus({ preventScroll: true });
+    };
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        restore();
+      });
+    });
+    window.setTimeout(restore, 100);
+  }
+  function focusOutsideTable(wrapper, reverse = false) {
+    const candidates = [
+      ...document.querySelectorAll(
+        'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [contenteditable="true"], [contenteditable="plaintext-only"], [tabindex]:not([tabindex="-1"])'
+      )
+    ].filter(
+      (element) => !wrapper.contains(element) && !element.hidden && element.getAttribute("aria-hidden") !== "true" && element.getClientRects().length > 0
+    );
+    const ordered = reverse ? candidates.reverse() : candidates;
+    const position = reverse ? Node.DOCUMENT_POSITION_PRECEDING : Node.DOCUMENT_POSITION_FOLLOWING;
+    const target = ordered.find(
+      (element) => wrapper.compareDocumentPosition(element) & position
+    );
+    target?.focus({ preventScroll: true });
+    return Boolean(target);
+  }
+  function closeTableContextMenu({ restoreFocus = false } = {}) {
     if (!tableContextMenu) {
       return false;
     }
+    const focusTarget = restoreFocus ? tableContextMenuAnchor : null;
     tableContextMenu.remove();
     tableContextMenu = null;
+    tableContextMenuAnchor = null;
+    if (focusTarget) {
+      scheduleTableCellFocus(focusTarget);
+    }
     return true;
   }
   function createTablePreviewWidgetClass({
@@ -47503,30 +47853,45 @@
         const wrapper = document.createElement("div");
         wrapper.className = "cm-rich-table-preview";
         wrapper.setAttribute("role", "region");
-        wrapper.setAttribute("tabindex", "0");
-        wrapper.title = "Edit table cells";
+        wrapper.dataset.sourceFrom = String(this.tableBlock.from);
         wrapper.dataset.dirty = "false";
         const readOnly2 = view2.state.readOnly;
+        wrapper.classList.toggle("is-read-only", readOnly2);
+        wrapper.setAttribute(
+          "aria-label",
+          readOnly2 ? "Markdown table" : "Editable Markdown table"
+        );
+        if (!readOnly2) {
+          wrapper.title = "Edit table cells";
+        }
         const scroll = document.createElement("div");
         scroll.className = "cm-rich-table-scroll";
         const table = document.createElement("table");
         table.className = "cm-rich-table";
         const headerRow = this.tableBlock.rows[0];
         const thead = document.createElement("thead");
-        thead.appendChild(this.renderRow(headerRow, "th", 0, view2));
+        thead.appendChild(this.renderRow(headerRow, "th", 0, view2, wrapper));
         table.appendChild(thead);
         const tbody = document.createElement("tbody");
         for (let rowIndex = 1; rowIndex < this.tableBlock.rows.length; rowIndex += 1) {
           tbody.appendChild(
-            this.renderRow(this.tableBlock.rows[rowIndex], "td", rowIndex, view2)
+            this.renderRow(
+              this.tableBlock.rows[rowIndex],
+              "td",
+              rowIndex,
+              view2,
+              wrapper
+            )
           );
         }
         table.appendChild(tbody);
-        scroll.appendChild(table);
-        wrapper.appendChild(scroll);
         if (!readOnly2) {
           const toolbar = document.createElement("div");
           toolbar.className = "cm-rich-table-toolbar";
+          const toolbarHint = document.createElement("span");
+          toolbarHint.className = "cm-rich-table-toolbar-hint";
+          toolbarHint.textContent = "Enter: edit \xB7 Arrow keys: move \xB7 Shift+F10: actions";
+          toolbar.appendChild(toolbarHint);
           const addRowButton = document.createElement("button");
           addRowButton.type = "button";
           addRowButton.className = "cm-rich-table-action";
@@ -47542,8 +47907,21 @@
             this.addRowFromPreview(view2, wrapper);
           });
           toolbar.appendChild(addRowButton);
+          const addColumnButton = document.createElement("button");
+          addColumnButton.type = "button";
+          addColumnButton.className = "cm-rich-table-action";
+          addColumnButton.title = "Add column";
+          addColumnButton.innerHTML = '<span class="cm-rich-table-action-icon">+</span><span>Column</span>';
+          addColumnButton.addEventListener("mousedown", stopInteractiveEvent2);
+          addColumnButton.addEventListener("click", (event) => {
+            stopInteractiveEvent2(event);
+            this.addColumnFromPreview(view2, wrapper);
+          });
+          toolbar.appendChild(addColumnButton);
           wrapper.appendChild(toolbar);
         }
+        scroll.appendChild(table);
+        wrapper.appendChild(scroll);
         wrapper.addEventListener("input", (event) => {
           if (readOnly2) {
             return;
@@ -47570,6 +47948,7 @@
             rowIndex,
             columnIndex,
             columnCount: this.tableBlock.columnCount,
+            anchor: cell.querySelector(".cm-rich-table-cell-preview"),
             onAction: (action) => {
               this.applyTableContextAction(
                 view2,
@@ -47594,7 +47973,7 @@
         queueMicrotask(() => requestEditorMeasure2(view2));
         return wrapper;
       }
-      renderRow(row, cellTag, rowIndex, view2) {
+      renderRow(row, cellTag, rowIndex, view2, wrapper) {
         const tr = document.createElement("tr");
         tr.dataset.rowIndex = String(rowIndex);
         for (let columnIndex = 0; columnIndex < this.tableBlock.columnCount; columnIndex += 1) {
@@ -47611,16 +47990,27 @@
           }
           const preview = document.createElement("div");
           preview.className = "cm-rich-table-cell-preview";
+          if (!view2.state.readOnly) {
+            preview.tabIndex = rowIndex === 0 && columnIndex === 0 ? 0 : -1;
+            preview.setAttribute("role", "button");
+          }
           preview.dataset.rowIndex = String(rowIndex);
           preview.dataset.columnIndex = String(columnIndex);
+          const headerText = this.tableBlock.rows[0]?.cells[columnIndex]?.text || `Column ${columnIndex + 1}`;
+          const cellLabel = `${rowIndex === 0 ? "Header" : `Row ${rowIndex}`}, ${headerText}: ${sourceCell.text || "Empty cell"}`;
+          preview.setAttribute(
+            "aria-label",
+            view2.state.readOnly ? cellLabel : `Edit ${cellLabel}`
+          );
           renderRichTableCellPreview(preview, sourceCell.text, view2);
           const editor = document.createElement("div");
           editor.className = "cm-rich-table-cell-editor";
-          editor.contentEditable = "plaintext-only";
+          editor.contentEditable = view2.state.readOnly ? "false" : "plaintext-only";
           editor.spellcheck = true;
           editor.dataset.rowIndex = String(rowIndex);
           editor.dataset.columnIndex = String(columnIndex);
           editor.textContent = sourceCell.text;
+          editor.setAttribute("aria-label", cellLabel);
           preview.addEventListener("mousedown", (event) => {
             if (isRichTablePreviewInteractiveTarget(event.target)) {
               return;
@@ -47629,7 +48019,13 @@
             event.stopPropagation();
             activateRichTableCellEditor(editor);
           });
+          preview.addEventListener("keydown", (event) => {
+            this.handleCellPreviewKeydown(event, editor, view2, wrapper);
+          });
           editor.addEventListener("focus", () => {
+            setRovingTableCell(wrapper, preview);
+            editor.dataset.editStartValue = editor.textContent || "";
+            editor.dataset.editStartDirty = wrapper.dataset.dirty || "false";
             activateRichTableCellEditor(editor, { focus: false });
           });
           editor.addEventListener("blur", () => {
@@ -47638,31 +48034,98 @@
             }, 0);
           });
           editor.addEventListener("input", () => {
+            const cellPreview = editor.closest(".cm-rich-table-cell")?.querySelector(".cm-rich-table-cell-preview");
             renderRichTableCellPreview(
-              editor.previousElementSibling,
+              cellPreview,
               editor.textContent,
               view2
             );
           });
           editor.addEventListener("keydown", (event) => {
-            this.handleCellKeydown(event);
+            this.handleCellKeydown(event, view2, wrapper);
+          });
+          editor.addEventListener("paste", (event) => {
+            this.handleCellPaste(event, view2, wrapper);
           });
           cell.appendChild(preview);
+          if (!view2.state.readOnly) {
+            const actionsButton = document.createElement("button");
+            actionsButton.type = "button";
+            actionsButton.className = "cm-rich-table-cell-actions";
+            actionsButton.textContent = "Actions";
+            actionsButton.tabIndex = -1;
+            actionsButton.setAttribute("aria-label", `Row and column actions for ${cellLabel}`);
+            actionsButton.addEventListener("mousedown", stopInteractiveEvent2);
+            actionsButton.addEventListener("click", (event) => {
+              stopInteractiveEvent2(event);
+              this.openCellActions(view2, wrapper, cell, preview);
+            });
+            cell.appendChild(actionsButton);
+          }
           cell.appendChild(editor);
           tr.appendChild(cell);
         }
         return tr;
       }
-      handleCellKeydown(event) {
+      handleCellPreviewKeydown(event, editor, view2, wrapper) {
+        if (event.key === "Enter" || event.key === "F2") {
+          event.preventDefault();
+          event.stopPropagation();
+          activateRichTableCellEditor(editor, { select: event.key === "Enter" });
+          return;
+        }
+        if (event.shiftKey && event.key === "F10" || event.key === "ContextMenu") {
+          event.preventDefault();
+          event.stopPropagation();
+          const cell = event.currentTarget.closest(".cm-rich-table-cell");
+          this.openCellActions(view2, wrapper, cell, event.currentTarget);
+          return;
+        }
+        const directions = {
+          ArrowLeft: [0, -1],
+          ArrowRight: [0, 1],
+          ArrowUp: [-1, 0],
+          ArrowDown: [1, 0]
+        };
+        const direction = directions[event.key];
+        if (!direction) {
+          return;
+        }
+        event.preventDefault();
+        event.stopPropagation();
+        this.focusRelativeCell(wrapper, event.currentTarget, ...direction);
+      }
+      handleCellKeydown(event, view2, wrapper) {
+        if (event.key === "Escape") {
+          event.preventDefault();
+          const editor = event.currentTarget;
+          editor.textContent = editor.dataset.editStartValue || "";
+          const preview = editor.closest(".cm-rich-table-cell")?.querySelector(".cm-rich-table-cell-preview");
+          renderRichTableCellPreview(preview, editor.textContent, view2);
+          wrapper.dataset.dirty = editor.dataset.editStartDirty || "false";
+          const focusTarget = {
+            element: preview,
+            sourceFrom: wrapper.dataset.sourceFrom,
+            rowIndex: editor.dataset.rowIndex,
+            columnIndex: editor.dataset.columnIndex
+          };
+          editor.blur();
+          scheduleTableCellFocus(focusTarget);
+          return;
+        }
         if (event.key === "Enter" && !event.shiftKey) {
           event.preventDefault();
-          event.currentTarget.blur();
+          const moved = this.focusRelativeCell(wrapper, event.currentTarget, 1, 0, {
+            activate: true
+          });
+          if (!moved) {
+            event.currentTarget.blur();
+          }
           return;
         }
         if (event.key !== "Tab") {
           return;
         }
-        const wrapper = event.currentTarget.closest(".cm-rich-table-preview");
         if (!wrapper) {
           return;
         }
@@ -47673,10 +48136,85 @@
         if (currentIndex === -1) {
           return;
         }
-        event.preventDefault();
         const delta = event.shiftKey ? -1 : 1;
-        const nextEditor = editors[(currentIndex + delta + editors.length) % editors.length];
+        const nextIndex = currentIndex + delta;
+        if (nextIndex < 0 || nextIndex >= editors.length) {
+          event.preventDefault();
+          focusOutsideTable(wrapper, event.shiftKey);
+          return;
+        }
+        event.preventDefault();
+        const nextEditor = editors[nextIndex];
         activateRichTableCellEditor(nextEditor, { select: true });
+      }
+      focusRelativeCell(wrapper, current, rowDelta, columnDelta, options = {}) {
+        const rowIndex = Number.parseInt(current.dataset.rowIndex || "0", 10);
+        const columnIndex = Number.parseInt(current.dataset.columnIndex || "0", 10);
+        const nextRow = rowIndex + rowDelta;
+        const nextColumn = columnIndex + columnDelta;
+        const selector = options.activate ? ".cm-rich-table-cell-editor" : ".cm-rich-table-cell-preview";
+        const next2 = wrapper.querySelector(
+          `${selector}[data-row-index="${nextRow}"][data-column-index="${nextColumn}"]`
+        );
+        if (!next2) {
+          return false;
+        }
+        if (options.activate) {
+          activateRichTableCellEditor(next2, { select: true });
+        } else {
+          setRovingTableCell(wrapper, next2);
+          next2.focus({ preventScroll: true });
+        }
+        return true;
+      }
+      openCellActions(view2, wrapper, cell, anchor) {
+        if (!cell) {
+          return;
+        }
+        const rowIndex = Number.parseInt(cell.dataset.rowIndex || "0", 10);
+        const columnIndex = Number.parseInt(cell.dataset.columnIndex || "0", 10);
+        const rect = anchor.getBoundingClientRect();
+        showTableContextMenu({
+          x: rect.left + Math.min(rect.width, 28),
+          y: rect.bottom,
+          rowIndex,
+          columnIndex,
+          columnCount: this.tableBlock.columnCount,
+          anchor,
+          onAction: (action) => {
+            this.applyTableContextAction(view2, wrapper, rowIndex, columnIndex, action);
+          }
+        });
+      }
+      handleCellPaste(event, view2, wrapper) {
+        const pastedText = event.clipboardData?.getData("text/plain") || "";
+        if (!pastedText.includes("	") && !/\r?\n/.test(pastedText.trimEnd())) {
+          return;
+        }
+        event.preventDefault();
+        event.stopPropagation();
+        const startRow = Number.parseInt(event.currentTarget.dataset.rowIndex || "0", 10);
+        const startColumn = Number.parseInt(event.currentTarget.dataset.columnIndex || "0", 10);
+        const pastedRows = pastedText.replace(/\r/g, "").replace(/\n$/, "").split("\n").map((row) => row.split("	"));
+        const rows = collectEditableTableRows(wrapper, this.tableBlock);
+        const requiredColumns = Math.max(
+          this.tableBlock.columnCount,
+          ...pastedRows.map((row) => startColumn + row.length)
+        );
+        while (rows.length < startRow + pastedRows.length) {
+          rows.push(Array.from({ length: requiredColumns }, () => ""));
+        }
+        rows.forEach((row) => {
+          while (row.length < requiredColumns) row.push("");
+        });
+        pastedRows.forEach((pastedRow, rowOffset) => {
+          pastedRow.forEach((value, columnOffset) => {
+            rows[startRow + rowOffset][startColumn + columnOffset] = value;
+          });
+        });
+        const alignments = [...this.tableBlock.alignments];
+        while (alignments.length < requiredColumns) alignments.push("left");
+        this.replaceTable(view2, rows, alignments);
       }
       focusSource(view2, sourceFrom) {
         if (view2.state.readOnly) {
@@ -47721,6 +48259,14 @@ ${rowText}`;
         const rows = collectEditableTableRows(wrapper, this.tableBlock);
         rows.push(Array.from({ length: this.tableBlock.columnCount }, () => ""));
         this.replaceTable(view2, rows);
+      }
+      addColumnFromPreview(view2, wrapper) {
+        if (view2.state.readOnly) {
+          return;
+        }
+        const rows = collectEditableTableRows(wrapper, this.tableBlock);
+        rows.forEach((row) => row.push(""));
+        this.replaceTable(view2, rows, [...this.tableBlock.alignments, "left"]);
       }
       applyTableContextAction(view2, wrapper, rowIndex, columnIndex, action) {
         if (view2.state.readOnly) {
@@ -47788,13 +48334,7 @@ ${rowText}`;
             to: this.tableBlock.sourceTo,
             insert: nextText
           },
-          effects: setActiveTableEdit.of(null),
-          selection: {
-            anchor: Math.min(
-              this.tableBlock.from + nextText.length,
-              view2.state.doc.length
-            )
-          }
+          effects: setActiveTableEdit.of(null)
         });
         requestEditorMeasure2(view2);
       }
@@ -47807,7 +48347,7 @@ ${rowText}`;
         return;
       }
       preview.replaceChildren();
-      appendInlineMarkdown2(preview, text2, {
+      appendInlineMarkdown2(preview, unescapeMarkdownTableCellPipes(text2), {
         renderImages: true,
         onImageReady: () => requestEditorMeasure2(view2)
       });
@@ -47851,10 +48391,7 @@ ${rowText}`;
     }
     function buildEmptyTableRow(tableBlock) {
       const cells = Array.from({ length: tableBlock.columnCount }, () => "");
-      if (tableBlock.usesLeadingPipe || tableBlock.usesTrailingPipe) {
-        return `| ${cells.join(" | ")} |`;
-      }
-      return cells.map(() => " ").join(" | ");
+      return formatMarkdownTableRow(tableBlock, cells);
     }
     function collectEditableTableRows(wrapper, tableBlock) {
       return tableBlock.rows.map(
@@ -47862,7 +48399,7 @@ ${rowText}`;
           const editor = wrapper.querySelector(
             `.cm-rich-table-cell-editor[data-row-index="${rowIndex}"][data-column-index="${columnIndex}"]`
           );
-          return normalizeEditedTableCellText(editor?.textContent || "");
+          return sanitizeEditedTableCellText(editor?.textContent || "");
         })
       );
     }
@@ -47898,15 +48435,16 @@ ${rowText}`;
       });
     }
     function formatMarkdownTableRow(tableBlock, cells) {
-      const segments = cells.map((cell) => ` ${normalizeEditedTableCellText(cell)} `);
+      const segments = cells.map(
+        (cell) => ` ${escapeMarkdownTableCellPipes(sanitizeEditedTableCellText(cell))} `
+      );
       const row = segments.join("|");
-      if (tableBlock.usesLeadingPipe || tableBlock.usesTrailingPipe) {
-        return `|${row}|`;
-      }
-      return row;
+      const prefix2 = `${tableBlock.indent || ""}${tableBlock.usesLeadingPipe ? "|" : ""}`;
+      const suffix2 = tableBlock.usesTrailingPipe ? "|" : "";
+      return `${prefix2}${row}${suffix2}`;
     }
-    function normalizeEditedTableCellText(text2) {
-      return text2.replace(/\r?\n/g, " ").replace(/\|/g, "\\|").replace(/\s+/g, " ").trim();
+    function sanitizeEditedTableCellText(text2) {
+      return text2.replace(/\r?\n/g, " ").trim();
     }
     function selectEditableText(element) {
       const selection = window.getSelection();
@@ -48629,7 +49167,7 @@ ${rowText}`;
       return true;
     }
     function appendInlineMarkdown2(parent, text2, options = {}) {
-      const pattern = /!\[(?<imageAlt>[^\]]*)\]\(\s*(?:<(?<imageSrcAngle>[^>]+)>|(?<imageSrc>[^)\s]+))(?:\s+(?:"[^"]*"|'[^']*'))?\s*\)|`(?<code>[^`]+)`|\*\*(?<boldStar>[^*]+)\*\*|__(?<boldUnderscore>[^_]+)__|\*(?<italicStar>[^*\s][^*]*?)\*|_(?<italicUnderscore>[^_\s][^_]*?)_|~~(?<strike>[^~]+)~~|\[(?<linkText>[^\]]+)\]\(\s*(?:<(?<linkHrefAngle>[^>]+)>|(?<linkHref>[^)\s]+))(?:\s+(?:"[^"]*"|'[^']*'))?\s*\)|(?<bareUrl>https?:\/\/[^\s)]+)/g;
+      const pattern = /!\[(?<imageAlt>[^\]]*)\]\(\s*(?:<(?<imageSrcAngle>[^>]+)>|(?<imageSrc>[^)\s]+))(?:\s+(?:"[^"]*"|'[^']*'))?\s*\)|`(?<code>[^`]+)`|\*\*(?<boldStar>[^*]+)\*\*|(?<![\p{L}\p{N}\p{M}_])__(?<boldUnderscore>[^_\s](?:[^_]*?[^_\s])?)__(?![\p{L}\p{N}\p{M}_])|\*(?<italicStar>[^*\s][^*]*?)\*|(?<![\p{L}\p{N}\p{M}_])_(?<italicUnderscore>[^_\s](?:[^_]*?[^_\s])?)_(?![\p{L}\p{N}\p{M}_])|~~(?<strike>[^~]+)~~|\[(?<linkText>[^\]]+)\]\(\s*(?:<(?<linkHrefAngle>[^>]+)>|(?<linkHref>[^)\s]+))(?:\s+(?:"[^"]*"|'[^']*'))?\s*\)|(?<bareUrl>https?:\/\/[^\s)]+)/gu;
       let lastIndex = 0;
       for (const match2 of text2.matchAll(pattern)) {
         const groups = match2.groups || {};
@@ -50945,7 +51483,7 @@ ${rowText}`;
         alignItems: "center",
         gap: "8px",
         border: "0",
-        padding: "8px 10px",
+        padding: "11px 14px",
         color: "var(--rip-heading)",
         backgroundColor: "color-mix(in srgb, var(--rip-panel) 86%, var(--rip-bg))",
         font: "700 14px var(--vscode-font-family)",
@@ -50961,33 +51499,80 @@ ${rowText}`;
       },
       ".cm-details-body": {
         display: "grid",
-        gap: "6px",
+        gap: "12px",
         borderTop: "1px solid var(--rip-border)",
-        padding: "8px 10px 10px"
+        padding: "18px 20px 20px"
       },
       ".cm-details-body-line": {
         margin: "0",
         lineHeight: "1.55"
       },
       ".cm-details-heading": {
-        margin: "4px 0 0",
+        margin: "6px 0 2px",
         color: "var(--rip-heading)",
         lineHeight: "1.3"
       },
-      ".cm-details-code-block": {
-        overflowX: "auto",
+      ".cm-details-heading:first-child": {
+        marginTop: "0"
+      },
+      ".cm-details-code": {
+        overflow: "hidden",
         margin: "2px 0",
         border: "1px solid var(--rip-border)",
-        borderRadius: "7px",
-        padding: "10px 12px",
+        borderRadius: "8px",
+        backgroundColor: "var(--rip-code-bg)"
+      },
+      ".cm-details-code-header": {
+        display: "flex",
+        alignItems: "center",
+        minHeight: "28px",
+        borderBottom: "1px solid var(--rip-border)",
+        padding: "0 12px",
+        backgroundColor: "color-mix(in srgb, var(--rip-panel) 72%, var(--rip-code-bg))"
+      },
+      ".cm-details-code-language": {
+        color: "var(--rip-muted)",
+        font: "600 11px var(--vscode-font-family)",
+        letterSpacing: "0.04em",
+        textTransform: "uppercase"
+      },
+      ".cm-details-code-block": {
+        overflowX: "auto",
+        margin: "0",
+        padding: "14px 16px 16px",
         color: "var(--rip-fg)",
-        backgroundColor: "var(--rip-code-bg)",
+        backgroundColor: "transparent",
         fontFamily: "var(--vscode-editor-font-family, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace)",
         lineHeight: "1.5",
         whiteSpace: "pre"
       },
       ".cm-details-code-block code": {
         font: "inherit"
+      },
+      ".cm-details-code-block .tok-keyword, .cm-details-code-block .tok-operator, .cm-details-code-block .tok-controlKeyword": {
+        color: "var(--rip-syntax-purple)"
+      },
+      ".cm-details-code-block .tok-number, .cm-details-code-block .tok-bool, .cm-details-code-block .tok-null": {
+        color: "var(--rip-syntax-green)"
+      },
+      ".cm-details-code-block .tok-string, .cm-details-code-block .tok-character, .cm-details-code-block .tok-attributeValue": {
+        color: "var(--rip-syntax-orange)"
+      },
+      ".cm-details-code-block .tok-variableName, .cm-details-code-block .tok-propertyName, .cm-details-code-block .tok-attributeName": {
+        color: "var(--rip-syntax-blue)"
+      },
+      ".cm-details-code-block .tok-typeName, .cm-details-code-block .tok-className, .cm-details-code-block .tok-namespace, .cm-details-code-block .tok-tagName": {
+        color: "var(--rip-syntax-purple)"
+      },
+      ".cm-details-code-block .tok-comment": {
+        color: "var(--rip-muted)",
+        fontStyle: "italic"
+      },
+      ".cm-details-code-block .tok-punctuation, .cm-details-code-block .tok-bracket": {
+        color: "var(--rip-muted)"
+      },
+      ".cm-details-code-block .tok-invalid": {
+        color: "var(--rip-danger)"
       },
       ".cm-details-quote": {
         margin: "2px 0",
@@ -50997,7 +51582,7 @@ ${rowText}`;
       },
       ".cm-details-list-item": {
         display: "flex",
-        gap: "8px",
+        gap: "9px",
         lineHeight: "1.55"
       },
       ".cm-details-list-marker": {
@@ -51006,8 +51591,11 @@ ${rowText}`;
         textAlign: "center"
       },
       ".cm-details-table": {
+        display: "block",
+        overflowX: "auto",
         width: "100%",
-        borderCollapse: "collapse"
+        borderCollapse: "collapse",
+        whiteSpace: "nowrap"
       },
       ".cm-details-table th, .cm-details-table td": {
         border: "1px solid var(--rip-border)",
@@ -51267,7 +51855,15 @@ ${rowText}`;
         overflowWrap: "anywhere"
       },
       ".cm-rich-table-cell-preview": {
-        outline: "none"
+        outline: "none",
+        cursor: "default"
+      },
+      ".cm-rich-table-preview:not(.is-read-only) .cm-rich-table-cell-preview": {
+        paddingRight: "64px"
+      },
+      ".cm-rich-table-cell-preview:focus": {
+        backgroundColor: "color-mix(in srgb, var(--rip-focus) 10%, transparent)",
+        boxShadow: "inset 0 0 0 2px var(--rip-focus)"
       },
       ".cm-rich-table-cell-editor": {
         display: "none",
@@ -51282,6 +51878,33 @@ ${rowText}`;
       ".cm-rich-table-cell-editor:focus": {
         backgroundColor: "color-mix(in srgb, var(--rip-focus) 13%, transparent)",
         boxShadow: "inset 0 0 0 1px var(--rip-focus)"
+      },
+      ".cm-rich-table-cell-actions": {
+        position: "absolute",
+        top: "5px",
+        right: "5px",
+        zIndex: "1",
+        minWidth: "0",
+        height: "24px",
+        border: "1px solid var(--rip-border)",
+        borderRadius: "5px",
+        padding: "0 6px",
+        color: "var(--rip-muted)",
+        backgroundColor: "var(--rip-input-bg)",
+        font: "11px var(--vscode-font-family)",
+        cursor: "pointer",
+        opacity: "0",
+        pointerEvents: "none",
+        transition: "opacity 100ms ease"
+      },
+      ".cm-rich-table-cell:hover .cm-rich-table-cell-actions, .cm-rich-table-cell:focus-within .cm-rich-table-cell-actions": {
+        opacity: "1",
+        pointerEvents: "auto"
+      },
+      ".cm-rich-table-cell-actions:hover": {
+        color: "var(--rip-fg)",
+        borderColor: "var(--rip-focus)",
+        backgroundColor: "var(--rip-hover)"
       },
       ".cm-rich-table-cell-preview:empty::before, .cm-rich-table-cell-editor:empty::before": {
         content: '"Cell"',
@@ -51313,11 +51936,21 @@ ${rowText}`;
       },
       ".cm-rich-table-toolbar": {
         display: "flex",
+        alignItems: "center",
         justifyContent: "flex-end",
         gap: "6px",
-        borderTop: "1px solid var(--rip-border)",
+        borderBottom: "1px solid var(--rip-border)",
         padding: "6px 8px",
         backgroundColor: "color-mix(in srgb, var(--rip-panel) 88%, var(--rip-bg))"
+      },
+      ".cm-rich-table-toolbar-hint": {
+        minWidth: "0",
+        marginRight: "auto",
+        color: "var(--rip-muted)",
+        font: "11px var(--vscode-font-family)",
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+        whiteSpace: "nowrap"
       },
       ".cm-rich-table-action": {
         height: "26px",
@@ -51335,6 +51968,10 @@ ${rowText}`;
       ".cm-rich-table-action:hover": {
         borderColor: "var(--rip-focus)",
         backgroundColor: "var(--rip-hover)"
+      },
+      ".cm-rich-table-action:focus-visible, .cm-rich-table-cell-actions:focus-visible": {
+        outline: "2px solid var(--rip-focus)",
+        outlineOffset: "1px"
       },
       ".cm-rich-table-action-icon": {
         color: "var(--rip-heading)",
@@ -52234,8 +52871,11 @@ ${rowText}`;
       cursor: pointer;
       font: 13px var(--vscode-font-family);
     }
-    .cm-table-context-menu-item:hover {
+    .cm-table-context-menu-item:hover,
+    .cm-table-context-menu-item:focus-visible {
       background: var(--rip-hover);
+      outline: 2px solid var(--rip-focus);
+      outline-offset: -2px;
     }
     .cm-table-context-menu-item:disabled {
       opacity: 0.45;
@@ -52652,7 +53292,7 @@ ${rowText}`;
   window.addEventListener(
     "keydown",
     (event) => {
-      if (event.key === "Escape" && closeTableContextMenu()) {
+      if (event.key === "Escape" && closeTableContextMenu({ restoreFocus: true })) {
         event.preventDefault();
         event.stopPropagation();
       }

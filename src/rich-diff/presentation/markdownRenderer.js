@@ -4,6 +4,7 @@
 // analysis pass records multi-line context such as fenced code blocks and
 // tables, then renderMarkdownLine can output richer HTML for each row.
 import { escapeAttribute, escapeHtml } from "./htmlEscape.js";
+import { splitMarkdownTableCells } from "../../markdown/tableCells.js";
 
 const LANGUAGE_ALIASES = new Map([
   ["bf", "brainfuck"],
@@ -360,7 +361,7 @@ export function createMarkdownRenderer({ hljs, registerCopyPayload }) {
   }
   
   function splitTableCells(text) {
-    return text.trim().replace(/^\|/, "").replace(/\|$/, "").split("|");
+    return splitMarkdownTableCells(text, { unescapePipes: true });
   }
 
   return {
