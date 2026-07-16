@@ -11,7 +11,17 @@ const {
 
 const richEditorViewType = 'richdown.richEditor';
 const legacyMarkdownEditorAssociationPatterns = ['*.md', '*.markdown'];
-const markdownFileEditorAssociationPatterns = ['file:/**/*.md', 'file:/**/*.markdown'];
+// VS Code matches editor-association globs that contain a path separator against
+// `${resource.scheme}:${resource.path}`, so a scheme-qualified pattern only applies
+// to that scheme. Local files use `file:`; WSL, SSH, Dev Containers, and Codespaces
+// use `vscode-remote:`; web/virtual workspaces use `vscode-vfs:`. Covering the remote
+// schemes keeps "open by default" working when connected to WSL and other remotes,
+// while still excluding Source Control diff resources (which use the `git:` scheme).
+const markdownFileEditorAssociationSchemes = ['file', 'vscode-remote', 'vscode-vfs'];
+const markdownFileEditorAssociationExtensions = ['md', 'markdown'];
+const markdownFileEditorAssociationPatterns = markdownFileEditorAssociationSchemes.flatMap(
+  scheme => markdownFileEditorAssociationExtensions.map(extension => `${scheme}:/**/*.${extension}`)
+);
 const markdownDiffEditorAssociationPatterns = ['*.md', '*.markdown'];
 const richThemeValues = ['default', 'midnight', 'graphite', 'forest', 'ivory', 'paper', 'solar'];
 const mermaidPreviewSizeValues = ['source', 'readable', 'large'];

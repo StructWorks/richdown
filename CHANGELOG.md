@@ -2,6 +2,10 @@
 
 All notable changes to Richdown will be documented in this file.
 
+## 0.7.5 - 2026-07-16
+
+- Fixed "open Markdown with Richdown by default" not taking effect for files opened over a remote connection (WSL, SSH, Dev Containers, Codespaces, and web/virtual workspaces). The editor associations now cover the `vscode-remote` and `vscode-vfs` schemes in addition to local files.
+
 ## 0.7.4 - 2026-07-15
 
 - Fixed underscores in table cells and other rich inline previews being mistaken for emphasis inside identifiers.

@@ -2,7 +2,7 @@
   "name": "richdown",
   "displayName": "Richdown",
   "description": "Edit Markdown with a rich inline preview, editable tables, colored Mermaid diagrams, Gherkin boards, HTML/PDF export, Richdown diffs, and a focused writing flow in VS Code.",
-  "version": "0.7.4",
+  "version": "0.7.5",
   "publisher": "mytooyodev",
   "license": "SEE LICENSE IN LICENSE",
   "repository": {
@@ -117,7 +117,7 @@
         "richdown.openMarkdownAsRichEditor": {
           "type": "boolean",
           "default": true,
-          "description": "Open regular local Markdown files with Richdown by default. Source Control diffs continue to use VS Code's native diff editor."
+          "description": "Open regular Markdown files with Richdown by default, including files opened over a remote connection such as WSL, SSH, Dev Containers, or Codespaces. Source Control diffs continue to use VS Code's native diff editor."
         },
         "richdown.richTheme": {
           "type": "string",
