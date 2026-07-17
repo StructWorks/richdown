@@ -2,7 +2,7 @@
   "name": "richdown",
   "displayName": "Richdown",
   "description": "Edit Markdown with a rich inline preview, editable tables, colored Mermaid diagrams, Gherkin boards, HTML/PDF export, Richdown diffs, and a focused writing flow in VS Code.",
-  "version": "0.7.5",
+  "version": "0.8.0",
   "publisher": "mytooyodev",
   "license": "SEE LICENSE IN LICENSE",
   "repository": {
@@ -56,6 +56,7 @@
     "build:all": "npm run build && npm run build:mermaid && npm run build:diff",
     "package:vsix": "vsce package",
     "test:table": "node scripts/test-table-cells.cjs",
+    "test:blocks": "node scripts/test-markdown-blocks.cjs",
     "publish:marketplace": "vsce publish",
     "publish:openvsx": "ovsx publish",
     "watch": "esbuild src/richEditor.js --bundle --format=iife --outfile=media/richEditor.js --watch"
@@ -247,6 +248,7 @@
     }
   },
   "devDependencies": {
+    "@codemirror/autocomplete": "^6.20.3",
     "@codemirror/commands": "^6.10.3",
     "@codemirror/lang-cpp": "^6.0.3",
     "@codemirror/lang-css": "^6.3.1",

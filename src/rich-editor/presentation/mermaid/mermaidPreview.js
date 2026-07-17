@@ -417,7 +417,13 @@ export function createMermaidPreviewWidgetClass({
         bounds.height / this.naturalHeight,
         this.fitMaxScale,
       );
-      this.scale = clamp(scale || 1, this.minScale, this.maxScale);
+      // Fit must always show the whole diagram. Very wide diagrams need scales
+      // below minScale, which only bounds manual zoom-out; clamping the fit
+      // scale there would draw the diagram wider than the preview box.
+      this.scale =
+        scale > 0 && Number.isFinite(scale)
+          ? Math.min(scale, this.maxScale)
+          : 1;
       if (this.scrollable) {
         this.apply();
         this.container.scrollLeft = 0;
@@ -440,7 +446,9 @@ export function createMermaidPreviewWidgetClass({
         const centerY = this.container.scrollTop + anchor.y;
         const nextScale = clamp(
           this.scale * factor,
-          this.minScale,
+          // Fitting a very wide diagram can land below minScale; never let a
+          // zoom-out request bounce the scale back up to minScale.
+          Math.min(this.minScale, this.scale),
           this.maxScale,
         );
         const ratio = nextScale / this.scale;
@@ -456,7 +464,7 @@ export function createMermaidPreviewWidgetClass({
       };
       const nextScale = clamp(
         this.scale * factor,
-        this.minScale,
+        Math.min(this.minScale, this.scale),
         this.maxScale,
       );
       const ratio = nextScale / this.scale;

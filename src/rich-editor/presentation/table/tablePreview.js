@@ -532,7 +532,38 @@ export function createTablePreviewWidgetClass({
         }
         return;
       }
-  
+
+      // Arrow keys move the text caret inside the cell, but once the caret
+      // reaches the cell edge they continue into the neighboring cell so the
+      // arrows navigate the whole table like Tab does.
+      if (
+        (event.key === "ArrowRight" || event.key === "ArrowLeft") &&
+        !event.shiftKey &&
+        !event.altKey &&
+        !event.metaKey &&
+        !event.ctrlKey
+      ) {
+        const forward = event.key === "ArrowRight";
+        if (
+          !isCaretAtEditableEdge(event.currentTarget, forward ? "end" : "start")
+        ) {
+          return;
+        }
+        const editors = [
+          ...wrapper.querySelectorAll(".cm-rich-table-cell-editor"),
+        ];
+        const currentIndex = editors.indexOf(event.currentTarget);
+        const nextIndex = currentIndex + (forward ? 1 : -1);
+        if (currentIndex === -1 || nextIndex < 0 || nextIndex >= editors.length) {
+          return;
+        }
+        event.preventDefault();
+        activateRichTableCellEditor(editors[nextIndex], {
+          caret: forward ? "start" : "end",
+        });
+        return;
+      }
+
       if (event.key !== "Tab") {
         return;
       }
@@ -824,9 +855,41 @@ export function createTablePreviewWidgetClass({
     }
     if (options.select) {
       selectEditableText(editor);
+    } else if (options.caret === "start") {
+      placeCaretAtEdge(editor, "start");
     } else if (options.focus !== false) {
       placeCaretAtEnd(editor);
     }
+  }
+
+  function isCaretAtEditableEdge(editor, edge) {
+    const selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0 || !selection.isCollapsed) {
+      return false;
+    }
+    const range = selection.getRangeAt(0);
+    if (!editor.contains(range.startContainer)) {
+      return false;
+    }
+    const measure = range.cloneRange();
+    measure.selectNodeContents(editor);
+    measure.setEnd(range.startContainer, range.startOffset);
+    const caretOffset = measure.toString().length;
+    return edge === "start"
+      ? caretOffset === 0
+      : caretOffset === (editor.textContent || "").length;
+  }
+
+  function placeCaretAtEdge(element, edge) {
+    const selection = window.getSelection();
+    if (!selection) {
+      return;
+    }
+    const range = document.createRange();
+    range.selectNodeContents(element);
+    range.collapse(edge === "start");
+    selection.removeAllRanges();
+    selection.addRange(range);
   }
   
   function deactivateRichTableCellEditor(editor) {
@@ -924,15 +987,7 @@ export function createTablePreviewWidgetClass({
   }
   
   function placeCaretAtEnd(element) {
-    const selection = window.getSelection();
-    if (!selection) {
-      return;
-    }
-    const range = document.createRange();
-    range.selectNodeContents(element);
-    range.collapse(false);
-    selection.removeAllRanges();
-    selection.addRange(range);
+    placeCaretAtEdge(element, "end");
   }
 
   return TablePreviewWidget;

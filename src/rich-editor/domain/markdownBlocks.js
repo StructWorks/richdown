@@ -20,6 +20,7 @@ const detailsBlocksCache = new WeakMap();
 const tableBlocksCache = new WeakMap();
 const mermaidBlocksCache = new WeakMap();
 const gherkinBlocksCache = new WeakMap();
+const frontmatterBlockCache = new WeakMap();
 
 function memoizeBlocks(cache, doc, compute) {
   let result = cache.get(doc);
@@ -48,6 +49,99 @@ export function findMermaidFenceBlocks(doc, options = {}) {
 
 export function findGherkinBlocks(doc) {
   return memoizeBlocks(gherkinBlocksCache, doc, computeGherkinBlocks);
+}
+
+export function findFrontmatterBlock(doc) {
+  return memoizeBlocks(frontmatterBlockCache, doc, computeFrontmatterBlock);
+}
+
+function computeFrontmatterBlock(doc) {
+  // YAML front matter only exists when the very first line is exactly "---"
+  // (matching GitHub and the lezer yaml-frontmatter grammar). Anything else,
+  // including an unclosed opening fence, stays regular Markdown.
+  const openingLine = doc.line(1);
+  if (!/^---\s*$/.test(openingLine.text)) {
+    return null;
+  }
+
+  for (let lineNumber = 2; lineNumber <= doc.lines; lineNumber += 1) {
+    const closingLine = doc.line(lineNumber);
+    if (!/^---\s*$/.test(closingLine.text)) {
+      continue;
+    }
+
+    const bodyLines = [];
+    for (
+      let bodyLineNumber = 2;
+      bodyLineNumber < lineNumber;
+      bodyLineNumber += 1
+    ) {
+      const line = doc.line(bodyLineNumber);
+      bodyLines.push({ text: line.text, from: line.from });
+    }
+
+    const signature = [
+      openingLine.text,
+      ...bodyLines.map((line) => line.text),
+      closingLine.text,
+    ].join("\n");
+    return {
+      from: openingLine.from,
+      to: closingLine.to,
+      sourceTo: closingLine.to,
+      sourceLineCount: lineNumber,
+      signature,
+      entries: parseFrontmatterEntries(bodyLines),
+    };
+  }
+
+  return null;
+}
+
+export function parseFrontmatterEntries(bodyLines) {
+  // Display-oriented YAML mapping scan: top-level "key: value" pairs become
+  // entries, list items and nested lines attach to the entry above them. This
+  // intentionally stays far simpler than a YAML parser — unrecognized lines
+  // remain readable as raw values instead of failing the preview.
+  const entries = [];
+  for (const line of bodyLines) {
+    const text = line.text;
+    if (!text.trim() || /^\s*#/.test(text)) {
+      continue;
+    }
+
+    const keyValue = /^[\s#-]/.test(text)
+      ? null
+      : text.match(/^([^:]+?)\s*:(?:\s+(.*?))?\s*$/);
+    if (keyValue) {
+      entries.push({
+        key: keyValue[1],
+        values: keyValue[2] ? [normalizeFrontmatterScalar(keyValue[2])] : [],
+        sourceFrom: line.from,
+      });
+      continue;
+    }
+
+    const continuation = text.trim();
+    const listItem = continuation.match(/^-\s+(.*)$/);
+    const value = normalizeFrontmatterScalar(
+      listItem ? listItem[1].trim() : continuation,
+    );
+    if (!value) {
+      continue;
+    }
+    if (entries.length > 0) {
+      entries[entries.length - 1].values.push(value);
+    } else {
+      entries.push({ key: null, values: [value], sourceFrom: line.from });
+    }
+  }
+  return entries;
+}
+
+function normalizeFrontmatterScalar(value) {
+  const quoted = value.match(/^"([^"]*)"$/) || value.match(/^'([^']*)'$/);
+  return quoted ? quoted[1] : value;
 }
 
 export function isThematicBreakLine(text) {
@@ -274,7 +368,9 @@ export function isTableDelimiterLine(text) {
   if (!text.includes("|")) {
     return false;
   }
-  return /^\s*\|?\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)*\|?\s*$/.test(text);
+  // GFM delimiter cells need only one dash, so alignment forms such as
+  // ":-", "-:" and ":-:" must be recognized alongside ":---:".
+  return /^\s*\|?\s*:?-+:?\s*(?:\|\s*:?-+:?\s*)*\|?\s*$/.test(text);
 }
 
 export function splitTableCells(text) {

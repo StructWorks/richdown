@@ -21580,7 +21580,7 @@
       if (!text.includes("|")) {
         return false;
       }
-      return /^\s*\|?\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)*\|?\s*$/.test(text);
+      return /^\s*\|?\s*:?-+:?\s*(?:\|\s*:?-+:?\s*)*\|?\s*$/.test(text);
     }
     function splitTableCells(text) {
       return splitMarkdownTableCells(text, { unescapePipes: true });

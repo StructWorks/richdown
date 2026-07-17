@@ -7,6 +7,7 @@ import { RangeSetBuilder, StateEffect, StateField } from "@codemirror/state";
 import { Decoration, EditorView } from "@codemirror/view";
 import {
   findDetailsBlocks,
+  findFrontmatterBlock,
   findGherkinBlocks,
   findMermaidBlocks,
   findTableBlocks,
@@ -18,6 +19,7 @@ import {
   selectionInsideRange,
 } from "../../domain/markdownBlocks.js";
 import { createDetailsPreviewWidgetClass } from "../details/detailsPreview.js";
+import { createFrontmatterPreviewWidgetClass } from "../frontmatter/frontmatterPreview.js";
 import { createGherkinPreviewWidgetClass } from "../gherkin/gherkinPreview.js";
 import { createMermaidPreviewWidgetClass } from "../mermaid/mermaidPreview.js";
 import { createSyntaxPreviewDecorations } from "./syntaxPreviewDecorations.js";
@@ -105,7 +107,7 @@ export function createPreviewExtensions({
     taskCheckboxes,
   } = createSyntaxPreviewDecorations({
     safeBuildDecorations,
-    getPreviewedDetailsRanges,
+    getPreviewedBlockRanges,
     isLineFocused,
     findMarkdownImages,
     ImagePreviewWidget,
@@ -407,6 +409,153 @@ export function createPreviewExtensions({
       EditorView.decorations.from(field, (value) => value.decorations),
   });
   
+  const setActiveFrontmatterEdit = StateEffect.define({
+    map(value, changes) {
+      if (!value) {
+        return null;
+      }
+      return {
+        from: changes.mapPos(value.from),
+        to: changes.mapPos(value.to),
+      };
+    },
+  });
+
+  const FrontmatterPreviewWidget = createFrontmatterPreviewWidgetClass({
+    requestEditorMeasure,
+    setActiveFrontmatterEdit,
+  });
+
+  function safeBuildFrontmatterDecorationState(state, activeEdit) {
+    try {
+      return buildFrontmatterDecorationState(state, activeEdit);
+    } catch (error) {
+      reportError("frontmatter-preview", error);
+      return {
+        activeEdit: null,
+        decorations: Decoration.none,
+      };
+    }
+  }
+
+  // Front matter follows the Mermaid pattern: the metadata card is shown until
+  // a click on it explicitly activates source editing. Selection alone must not
+  // switch modes because the initial caret sits at position 0, inside the block.
+  const frontmatterDecorationField = StateField.define({
+    create(state) {
+      return safeBuildFrontmatterDecorationState(state, null);
+    },
+
+    update(value, transaction) {
+      let activeEdit = value.activeEdit;
+      let editChanged = false;
+
+      if (activeEdit && transaction.docChanged) {
+        activeEdit = {
+          from: transaction.changes.mapPos(activeEdit.from),
+          to: transaction.changes.mapPos(activeEdit.to),
+        };
+        editChanged = true;
+      }
+
+      for (const effect of transaction.effects) {
+        if (effect.is(setActiveFrontmatterEdit)) {
+          activeEdit = effect.value;
+          editChanged = true;
+        }
+        if (effect.is(refreshPreviewDecorations)) {
+          editChanged = true;
+        }
+      }
+
+      if (
+        activeEdit &&
+        !selectionInsideRange(
+          transaction.state.selection,
+          activeEdit.from,
+          activeEdit.to,
+        )
+      ) {
+        activeEdit = null;
+        editChanged = true;
+      }
+
+      if (!transaction.docChanged && !transaction.selection && !editChanged) {
+        return value;
+      }
+
+      return safeBuildFrontmatterDecorationState(transaction.state, activeEdit);
+    },
+
+    provide: (field) =>
+      EditorView.decorations.from(field, (value) => value.decorations),
+  });
+
+  function buildFrontmatterDecorationState(state, activeEdit) {
+    const builder = new RangeSetBuilder();
+    const frontmatterBlock = findFrontmatterBlock(state.doc);
+    if (!frontmatterBlock) {
+      return { activeEdit: null, decorations: builder.finish() };
+    }
+
+    const editing =
+      !state.readOnly &&
+      activeEdit &&
+      activeEdit.from === frontmatterBlock.from &&
+      selectionInsideRange(
+        state.selection,
+        frontmatterBlock.from,
+        frontmatterBlock.sourceTo,
+      );
+    if (!editing) {
+      builder.add(
+        frontmatterBlock.from,
+        frontmatterBlock.to,
+        Decoration.replace({
+          block: true,
+          widget: new FrontmatterPreviewWidget(frontmatterBlock),
+        }),
+      );
+      return { activeEdit: null, decorations: builder.finish() };
+    }
+
+    for (
+      let lineNumber = 1;
+      lineNumber <= frontmatterBlock.sourceLineCount;
+      lineNumber += 1
+    ) {
+      const line = state.doc.line(lineNumber);
+      const classes = ["cm-frontmatter-line"];
+      if (lineNumber === 1 || lineNumber === frontmatterBlock.sourceLineCount) {
+        classes.push("cm-frontmatter-boundary-line");
+      }
+      if (lineNumber === 1) {
+        classes.push("cm-frontmatter-first-line");
+      }
+      if (lineNumber === frontmatterBlock.sourceLineCount) {
+        classes.push("cm-frontmatter-last-line");
+      }
+      builder.add(
+        line.from,
+        line.from,
+        Decoration.line({ class: classes.join(" ") }),
+      );
+    }
+    return {
+      activeEdit: { from: frontmatterBlock.from, to: frontmatterBlock.sourceTo },
+      decorations: builder.finish(),
+    };
+  }
+
+  function exitFrontmatterEditMode(view, force = false) {
+    if (!view) return;
+    const activeEdit = view.state.field(frontmatterDecorationField).activeEdit;
+    if (!force && !activeEdit) return;
+    view.dispatch({
+      effects: setActiveFrontmatterEdit.of(null),
+    });
+  }
+
   function exitDetailsEditMode(view, force = false) {
     if (!view) return;
     const activeEdit = view.state.field(detailsDecorationField).activeEdit;
@@ -448,6 +597,19 @@ export function createPreviewExtensions({
     return findDetailsBlocks(state.doc)
       .filter((block) => !activeEdit || activeEdit.from !== block.from)
       .map((block) => ({ from: block.from, to: block.to }));
+  }
+
+  // Ranges that other decorations must leave alone: previewed <details> blocks
+  // plus the YAML front matter block. The front matter range is included even
+  // while it is being edited so its lines never pick up Markdown styling such
+  // as thematic breaks or list markers.
+  function getPreviewedBlockRanges(state) {
+    const ranges = getPreviewedDetailsRanges(state);
+    const frontmatterBlock = findFrontmatterBlock(state.doc);
+    if (frontmatterBlock) {
+      ranges.push({ from: frontmatterBlock.from, to: frontmatterBlock.to });
+    }
+    return ranges;
   }
   
   function getActiveDetailsEdit(state) {
@@ -492,7 +654,7 @@ export function createPreviewExtensions({
   function buildTableDecorationState(state, activeEdit) {
     const builder = new RangeSetBuilder();
     const tableBlocks = findTableBlocks(state.doc);
-    const previewedDetailsRanges = getPreviewedDetailsRanges(state);
+    const previewedBlockRanges = getPreviewedBlockRanges(state);
     // When rich table preview is disabled, keep the lightweight line styling so
     // Markdown tables still look structured without replacing the source.
     let nextActiveEdit = getSettings().richTablePreview ? activeEdit : null;
@@ -502,7 +664,7 @@ export function createPreviewExtensions({
         rangeIntersectsRanges(
           tableBlock.from,
           tableBlock.sourceTo,
-          previewedDetailsRanges,
+          previewedBlockRanges,
         )
       ) {
         continue;
@@ -573,7 +735,7 @@ export function createPreviewExtensions({
     }
   
     const mermaidBlocks = findMermaidBlocks(state.doc);
-    const previewedDetailsRanges = getPreviewedDetailsRanges(state);
+    const previewedBlockRanges = getPreviewedBlockRanges(state);
     let nextActiveEdit = activeEdit;
   
     for (const mermaidBlock of mermaidBlocks) {
@@ -581,7 +743,7 @@ export function createPreviewExtensions({
         rangeIntersectsRanges(
           mermaidBlock.from,
           mermaidBlock.sourceTo,
-          previewedDetailsRanges,
+          previewedBlockRanges,
         )
       ) {
         continue;
@@ -636,7 +798,7 @@ export function createPreviewExtensions({
     }
 
     const gherkinBlocks = findGherkinBlocks(state.doc);
-    const previewedDetailsRanges = getPreviewedDetailsRanges(state);
+    const previewedBlockRanges = getPreviewedBlockRanges(state);
     const blockKeys = new Set(gherkinBlocks.map((block) => block.key));
     const nextModes = new Map(
       [...modes].filter(([key]) => blockKeys.has(key)),
@@ -648,7 +810,7 @@ export function createPreviewExtensions({
         rangeIntersectsRanges(
           gherkinBlock.from,
           gherkinBlock.sourceTo,
-          previewedDetailsRanges,
+          previewedBlockRanges,
         )
       ) {
         continue;
@@ -757,6 +919,7 @@ export function createPreviewExtensions({
     view.dispatch({
       effects: [
         refreshPreviewDecorations.of(null),
+        setActiveFrontmatterEdit.of(null),
         setActiveTableEdit.of(null),
         setActiveMermaidEdit.of(null),
         setActiveGherkinEdit.of(null),
@@ -767,6 +930,7 @@ export function createPreviewExtensions({
 
   return {
     extensions: [
+      frontmatterDecorationField,
       detailsDecorationField,
       tableDecorationField,
       mermaidDecorationField,
@@ -778,6 +942,7 @@ export function createPreviewExtensions({
     ],
     refresh,
     exitDetailsEditMode,
+    exitFrontmatterEditMode,
     exitTableEditMode,
     exitMermaidEditMode,
     exitGherkinEditMode,
