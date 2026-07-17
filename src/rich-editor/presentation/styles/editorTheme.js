@@ -323,6 +323,159 @@ export function createEditorThemeExtension() {
     backgroundColor: "var(--rip-panel)",
     font: "12px var(--vscode-font-family)",
   },
+  ".cm-tooltip": {
+    border: "1px solid var(--rip-border)",
+    backgroundColor: "var(--rip-panel)",
+    color: "var(--rip-fg)",
+  },
+  ".cm-tooltip.cm-tooltip-autocomplete": {
+    borderRadius: "8px",
+    overflow: "hidden",
+    boxShadow: "0 10px 28px rgba(0, 0, 0, 0.18)",
+  },
+  ".cm-tooltip.cm-tooltip-autocomplete > ul": {
+    maxHeight: "14em",
+    minWidth: "220px",
+    maxWidth: "min(480px, 80vw)",
+    fontFamily: "var(--vscode-font-family)",
+    fontSize: "13px",
+  },
+  ".cm-tooltip.cm-tooltip-autocomplete > ul > li": {
+    display: "flex",
+    alignItems: "baseline",
+    gap: "10px",
+    padding: "3px 10px",
+    lineHeight: "1.5",
+  },
+  ".cm-tooltip.cm-tooltip-autocomplete > ul > li[aria-selected]": {
+    color: "var(--rip-heading)",
+    backgroundColor:
+      "color-mix(in srgb, var(--rip-focus) 16%, transparent)",
+  },
+  ".cm-tooltip-autocomplete .cm-completionLabel": {
+    flex: "0 1 auto",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+  },
+  ".cm-tooltip-autocomplete .cm-completionMatchedText": {
+    color: "var(--rip-link)",
+    fontWeight: "650",
+    textDecoration: "none",
+  },
+  ".cm-tooltip-autocomplete .cm-completionDetail": {
+    marginLeft: "auto",
+    color: "var(--rip-muted)",
+    fontSize: "11px",
+    fontStyle: "normal",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+  },
+  ".cm-frontmatter-preview": {
+    display: "block",
+    position: "relative",
+    boxSizing: "border-box",
+    maxWidth: "100%",
+    margin: "0",
+    border:
+      "1px solid color-mix(in srgb, var(--rip-border) 72%, transparent)",
+    borderRadius: "12px",
+    padding: "15px 20px 16px",
+    overflow: "hidden",
+    color: "var(--rip-fg)",
+    background:
+      "linear-gradient(180deg, color-mix(in srgb, var(--rip-panel) 88%, var(--rip-bg)), color-mix(in srgb, var(--rip-panel) 46%, var(--rip-bg)))",
+    transition: "border-color 120ms ease",
+  },
+  ".cm-frontmatter-preview:not(.is-read-only)": {
+    cursor: "pointer",
+  },
+  ".cm-frontmatter-preview:not(.is-read-only):hover": {
+    borderColor:
+      "color-mix(in srgb, var(--rip-focus) 45%, var(--rip-border))",
+  },
+  ".cm-frontmatter-preview.cm-widgetBuffer": {
+    display: "none",
+  },
+  ".cm-frontmatter-edit-hint": {
+    position: "absolute",
+    top: "10px",
+    right: "13px",
+    color: "var(--rip-muted)",
+    fontSize: "12px",
+    opacity: "0",
+    transition: "opacity 120ms ease",
+  },
+  ".cm-frontmatter-preview:not(.is-read-only):hover .cm-frontmatter-edit-hint":
+    {
+      opacity: "0.85",
+    },
+  ".cm-frontmatter-grid": {
+    display: "grid",
+    gridTemplateColumns: "minmax(88px, max-content) 1fr",
+    alignItems: "baseline",
+    columnGap: "22px",
+    rowGap: "8px",
+    margin: "0",
+    padding: "0",
+  },
+  ".cm-frontmatter-key": {
+    color: "var(--rip-muted)",
+    font: "600 11px var(--vscode-font-family)",
+    letterSpacing: "0.07em",
+    textTransform: "uppercase",
+    overflowWrap: "anywhere",
+  },
+  ".cm-frontmatter-value": {
+    display: "flex",
+    flexWrap: "wrap",
+    alignItems: "center",
+    gap: "6px",
+    margin: "0",
+    color: "var(--rip-fg)",
+    font: "13.5px var(--vscode-font-family)",
+    lineHeight: "1.5",
+    overflowWrap: "anywhere",
+  },
+  ".cm-frontmatter-value.is-empty": {
+    color: "var(--rip-muted)",
+    opacity: "0.7",
+  },
+  ".cm-frontmatter-chip": {
+    border:
+      "1px solid color-mix(in srgb, var(--rip-syntax-blue) 32%, transparent)",
+    borderRadius: "999px",
+    padding: "1px 10px",
+    color: "color-mix(in srgb, var(--rip-syntax-blue) 78%, var(--rip-fg))",
+    backgroundColor:
+      "color-mix(in srgb, var(--rip-syntax-blue) 10%, transparent)",
+    font: "500 12px var(--vscode-font-family)",
+  },
+  ".cm-frontmatter-empty": {
+    padding: "0",
+    color: "var(--rip-muted)",
+    font: "italic 13px var(--vscode-font-family)",
+  },
+  ".cm-frontmatter-line": {
+    backgroundColor:
+      "color-mix(in srgb, var(--rip-code-bg) 72%, var(--rip-bg))",
+    fontFamily:
+      "var(--vscode-editor-font-family, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace)",
+    boxShadow:
+      "inset 1px 0 0 color-mix(in srgb, var(--rip-border) 58%, transparent), inset -1px 0 0 color-mix(in srgb, var(--rip-border) 58%, transparent)",
+  },
+  ".cm-frontmatter-boundary-line": {
+    color: "var(--rip-muted)",
+  },
+  ".cm-frontmatter-first-line": {
+    boxShadow:
+      "inset 0 1px 0 var(--rip-border), inset 1px 0 0 color-mix(in srgb, var(--rip-border) 58%, transparent), inset -1px 0 0 color-mix(in srgb, var(--rip-border) 58%, transparent)",
+  },
+  ".cm-frontmatter-last-line": {
+    boxShadow:
+      "inset 0 -1px 0 var(--rip-border), inset 1px 0 0 color-mix(in srgb, var(--rip-border) 58%, transparent), inset -1px 0 0 color-mix(in srgb, var(--rip-border) 58%, transparent)",
+  },
   ".cm-details-preview": {
     display: "block",
     boxSizing: "border-box",
@@ -789,6 +942,13 @@ export function createEditorThemeExtension() {
     opacity: "1",
     pointerEvents: "auto",
   },
+  // Typing mode: while the contenteditable editor is active the button would
+  // hover over the text being written, so keep it hidden until editing ends.
+  ".cm-rich-table-cell.is-editing:hover .cm-rich-table-cell-actions, .cm-rich-table-cell.is-editing:focus-within .cm-rich-table-cell-actions":
+    {
+      opacity: "0",
+      pointerEvents: "none",
+    },
   ".cm-rich-table-cell-actions:hover": {
     color: "var(--rip-fg)",
     borderColor: "var(--rip-focus)",

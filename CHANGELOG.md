@@ -2,6 +2,11 @@
 
 All notable changes to Richdown will be documented in this file.
 
+## 0.8.0 - 2026-07-17
+
+- Added completions matching the standard VS Code editor. Richdown runs VS Code's registered completion providers against the real document and shows their suggestions inline — including ones contributed by other extensions, such as model names in agent files and Markdown link path/anchor suggestions. Like VS Code, completions open inside link targets, on front matter keys and values, or with Ctrl+Space — never while typing ordinary text.
+- Added YAML front matter rendering: documents that start with a `---` fenced header now show a clean metadata card with keys, values, and tag chips instead of raw delimiter lines. Clicking the card edits the YAML source with proper YAML syntax parsing, and the card returns when the caret leaves the block.
+
 ## 0.7.5 - 2026-07-16
 
 - Fixed "open Markdown with Richdown by default" not taking effect for files opened over a remote connection (WSL, SSH, Dev Containers, Codespaces, and web/virtual workspaces). The editor associations now cover the `vscode-remote` and `vscode-vfs` schemes in addition to local files.

@@ -11,6 +11,7 @@ import {
   indentWithTab,
 } from "@codemirror/commands";
 import { markdown } from "@codemirror/lang-markdown";
+import { yamlFrontmatter } from "@codemirror/lang-yaml";
 import { syntaxHighlighting } from "@codemirror/language";
 import { EditorState } from "@codemirror/state";
 import {
@@ -32,6 +33,7 @@ import {
   codeLanguages,
   markdownHighlightStyle,
 } from "./rich-editor/presentation/codemirror/language.js";
+import { createMarkdownCompletion } from "./rich-editor/presentation/codemirror/completions.js";
 import { createGitDiffGutter } from "./rich-editor/presentation/codemirror/gitDiffGutter.js";
 import { findLinkAtClick } from "./rich-editor/presentation/codemirror/links.js";
 import { createSlashCommandController } from "./rich-editor/presentation/codemirror/slashCommands.js";
@@ -94,6 +96,9 @@ const {
   ImagePreviewWidget,
   isRangeInsideRanges,
 } = inlineMarkdown;
+const markdownCompletion = createMarkdownCompletion({
+  postMessage: (message) => vscodePort.postMessage(message),
+});
 const previewExtensions = createPreviewExtensions({
   appendInlineMarkdown,
   findMarkdownImages,
@@ -190,18 +195,24 @@ queueMicrotask(() => {
                 history(),
                 highlightActiveLine(),
                 highlightActiveLineGutter(),
+                markdownCompletion.extension,
                 ...createSearchExtensions(),
               ]),
           syntaxHighlighting(markdownHighlightStyle),
-          markdown({
-            extensions: GFM,
-            codeLanguages,
+          // Wrapping Markdown in yamlFrontmatter keeps a leading "---" header
+          // parsed as YAML instead of a setext heading or thematic break.
+          yamlFrontmatter({
+            content: markdown({
+              extensions: GFM,
+              codeLanguages,
+            }),
           }),
           ...previewExtensions.extensions,
           EditorView.domEventHandlers({
             blur(event, view) {
               slashCommands.close();
               previewExtensions.exitDetailsEditMode(view, true);
+              previewExtensions.exitFrontmatterEditMode(view, true);
               previewExtensions.exitTableEditMode(view, true);
               previewExtensions.exitMermaidEditMode(view, true);
               previewExtensions.exitGherkinEditMode(view, true);
@@ -288,6 +299,16 @@ window.addEventListener("message", (event) => {
 
   if (event.data.type === "resolvedImage") {
     handleResolvedImage(event.data);
+    return;
+  }
+
+  if (event.data.type === "hostCompletions") {
+    markdownCompletion.handleHostCompletions(event.data);
+    return;
+  }
+
+  if (event.data.type === "linkCompletions") {
+    markdownCompletion.handleLinkCompletions(event.data);
     return;
   }
 
@@ -389,6 +410,7 @@ window.addEventListener("blur", () => {
   slashCommands.close();
   closeTableContextMenu();
   previewExtensions.exitDetailsEditMode(view, true);
+  previewExtensions.exitFrontmatterEditMode(view, true);
   previewExtensions.exitTableEditMode(view, true);
   previewExtensions.exitMermaidEditMode(view, true);
 });

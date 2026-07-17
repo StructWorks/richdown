@@ -22,7 +22,7 @@ import {
 
 export function createSyntaxPreviewDecorations({
   safeBuildDecorations,
-  getPreviewedDetailsRanges,
+  getPreviewedBlockRanges,
   isLineFocused,
   findMarkdownImages,
   ImagePreviewWidget,
@@ -122,13 +122,13 @@ export function createSyntaxPreviewDecorations({
     // decorations to be emitted in document order.
     const codeBlockLineSpecs = collectCodeBlockLineSpecs(view);
     const codeBlockLineStarts = new Set(codeBlockLineSpecs.keys());
-    const previewedDetailsRanges = getPreviewedDetailsRanges(view.state);
+    const previewedBlockRanges = getPreviewedBlockRanges(view.state);
   
     for (const range of view.visibleRanges) {
       let position = range.from;
       while (position <= range.to) {
         const line = view.state.doc.lineAt(position);
-        if (rangeIntersectsRanges(line.from, line.to, previewedDetailsRanges)) {
+        if (rangeIntersectsRanges(line.from, line.to, previewedBlockRanges)) {
           position = line.to + 1;
           if (position > view.state.doc.length) break;
           continue;
@@ -165,7 +165,7 @@ export function createSyntaxPreviewDecorations({
   
     for (const [lineStart, spec] of codeBlockLineSpecs) {
       if (
-        rangeIntersectsRanges(lineStart, lineStart + 1, previewedDetailsRanges)
+        rangeIntersectsRanges(lineStart, lineStart + 1, previewedBlockRanges)
       ) {
         continue;
       }
@@ -321,7 +321,7 @@ export function createSyntaxPreviewDecorations({
   function buildCodeBlockCopyButtons(view) {
     const ranges = [];
     const seenBlocks = new Set();
-    const previewedDetailsRanges = getPreviewedDetailsRanges(view.state);
+    const previewedBlockRanges = getPreviewedBlockRanges(view.state);
     const doc = view.state.doc;
   
     for (const range of view.visibleRanges) {
@@ -335,7 +335,7 @@ export function createSyntaxPreviewDecorations({
           const blockKey = `${node.from}:${node.to}`;
           if (
             seenBlocks.has(blockKey) ||
-            rangeIntersectsRanges(node.from, node.to, previewedDetailsRanges)
+            rangeIntersectsRanges(node.from, node.to, previewedBlockRanges)
           ) {
             return;
           }
@@ -361,7 +361,7 @@ export function createSyntaxPreviewDecorations({
         block.fenceChar !== ":" ||
         seenBlocks.has(`${block.from}:${block.to}`) ||
         !rangeIntersectsVisibleRanges(view, block.from, block.to) ||
-        rangeIntersectsRanges(block.from, block.to, previewedDetailsRanges) ||
+        rangeIntersectsRanges(block.from, block.to, previewedBlockRanges) ||
         !block.code
       ) {
         continue;
@@ -594,13 +594,13 @@ export function createSyntaxPreviewDecorations({
     // Image previews replace the whole Markdown image token. Keep their ranges
     // so syntax marks from the parser do not overlap the replacement widget.
     const imageRanges = [];
-    const previewedDetailsRanges = getPreviewedDetailsRanges(view.state);
+    const previewedBlockRanges = getPreviewedBlockRanges(view.state);
   
     for (const range of view.visibleRanges) {
       let position = range.from;
       while (position <= range.to) {
         const line = view.state.doc.lineAt(position);
-        if (rangeIntersectsRanges(line.from, line.to, previewedDetailsRanges)) {
+        if (rangeIntersectsRanges(line.from, line.to, previewedBlockRanges)) {
           position = line.to + 1;
           if (position > view.state.doc.length) break;
           continue;
@@ -660,7 +660,7 @@ export function createSyntaxPreviewDecorations({
         enter(node) {
           if (
             isRangeInsideRanges(node.from, node.to, imageRanges) ||
-            rangeIntersectsRanges(node.from, node.to, previewedDetailsRanges)
+            rangeIntersectsRanges(node.from, node.to, previewedBlockRanges)
           ) {
             return;
           }
@@ -753,13 +753,13 @@ export function createSyntaxPreviewDecorations({
   
   function buildTaskCheckboxes(view) {
     const builder = new RangeSetBuilder();
-    const previewedDetailsRanges = getPreviewedDetailsRanges(view.state);
+    const previewedBlockRanges = getPreviewedBlockRanges(view.state);
   
     for (const range of view.visibleRanges) {
       let position = range.from;
       while (position <= range.to) {
         const line = view.state.doc.lineAt(position);
-        if (rangeIntersectsRanges(line.from, line.to, previewedDetailsRanges)) {
+        if (rangeIntersectsRanges(line.from, line.to, previewedBlockRanges)) {
           position = line.to + 1;
           if (position > view.state.doc.length) break;
           continue;

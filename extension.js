@@ -879,6 +879,26 @@ class RichdownEditorProvider {
         return;
       }
 
+      if (event.type === 'requestHostCompletions') {
+        const items = await collectHostCompletionItems(document, event);
+        webviewPanel.webview.postMessage({
+          type: 'hostCompletions',
+          requestId: event.requestId,
+          items
+        });
+        return;
+      }
+
+      if (event.type === 'requestLinkCompletions') {
+        const paths = await collectMarkdownLinkCompletionPaths(document);
+        webviewPanel.webview.postMessage({
+          type: 'linkCompletions',
+          requestId: event.requestId,
+          paths
+        });
+        return;
+      }
+
       if (event.type === 'webviewError') {
         console.warn(
           `[Richdown] ${event.context || 'webview'}: ${event.message || 'Unknown webview error'}`
@@ -1273,6 +1293,109 @@ async function openMarkdownLink(document, href) {
 
   if (fragment) {
     vscode.window.showInformationMessage(`Opened link target: #${fragment}`);
+  }
+}
+
+async function collectHostCompletionItems(document, request) {
+  try {
+    if (
+      typeof request.line !== 'number' ||
+      typeof request.character !== 'number' ||
+      typeof request.lineText !== 'string'
+    ) {
+      return [];
+    }
+
+    // Webview edits reach the TextDocument asynchronously. Wait briefly until
+    // the requested line matches what the user sees, so completion providers
+    // run against the text the caret position refers to.
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      if (
+        document.getText().length === request.docLength &&
+        request.line < document.lineCount &&
+        document.lineAt(request.line).text === request.lineText
+      ) {
+        break;
+      }
+      await new Promise(resolve => setTimeout(resolve, 40));
+    }
+    if (
+      request.line >= document.lineCount ||
+      document.lineAt(request.line).text !== request.lineText
+    ) {
+      return [];
+    }
+
+    const position = new vscode.Position(
+      request.line,
+      Math.max(0, Math.min(request.character, request.lineText.length))
+    );
+    // Runs every completion provider registered for this document — the same
+    // set the standard text editor consults — including ones contributed by
+    // other extensions.
+    const result = await vscode.commands.executeCommand(
+      'vscode.executeCompletionItemProvider',
+      document.uri,
+      position
+    );
+    const items = result && Array.isArray(result.items) ? result.items : [];
+    return items.slice(0, 200).map(item => serializeHostCompletionItem(document, item));
+  } catch (error) {
+    return [];
+  }
+}
+
+function serializeHostCompletionItem(document, item) {
+  const label = typeof item.label === 'string' ? item.label : item.label?.label || '';
+  let insertText = item.insertText ?? label;
+  if (insertText && typeof insertText === 'object' && typeof insertText.value === 'string') {
+    // SnippetString: reduce tab stops and placeholders to plain text.
+    insertText = stripSnippetPlaceholders(insertText.value);
+  }
+  const range = item.range && item.range.replacing ? item.range.replacing : item.range;
+  return {
+    label,
+    insertText: typeof insertText === 'string' ? insertText : label,
+    detail: typeof item.detail === 'string' ? item.detail : undefined,
+    kind: typeof item.kind === 'number' ? item.kind : undefined,
+    fromOffset: range && range.start ? document.offsetAt(range.start) : undefined
+  };
+}
+
+function stripSnippetPlaceholders(value) {
+  return value
+    .replace(/\$\{\d+:([^}]*)\}/g, '$1')
+    .replace(/\$\{\d+\|([^,|}]*)[^}]*\}/g, '$1')
+    .replace(/\$\{\d+\}/g, '')
+    .replace(/\$\d+/g, '')
+    .replace(/\\\$/g, '$');
+}
+
+async function collectMarkdownLinkCompletionPaths(document) {
+  try {
+    // Passing undefined as the exclude pattern keeps the user's files.exclude
+    // and search.exclude settings in effect (node_modules, .git, ...).
+    const files = await vscode.workspace.findFiles('**/*', undefined, 1000);
+    const documentDir = path.dirname(document.uri.fsPath);
+    const paths = [];
+    for (const file of files) {
+      if (file.toString() === document.uri.toString()) {
+        continue;
+      }
+      const relative = path.relative(documentDir, file.fsPath).split(path.sep).join('/');
+      if (relative) {
+        paths.push(relative);
+      }
+    }
+    // Nearby files first, like VS Code's own link completions.
+    paths.sort((a, b) => {
+      const depthA = a.split('/').length + (a.startsWith('..') ? 100 : 0);
+      const depthB = b.split('/').length + (b.startsWith('..') ? 100 : 0);
+      return depthA - depthB || a.localeCompare(b);
+    });
+    return paths.slice(0, 400);
+  } catch (error) {
+    return [];
   }
 }
 

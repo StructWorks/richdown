@@ -357,7 +357,8 @@ export function createMarkdownRenderer({ hljs, registerCopyPayload }) {
     if (!text.includes("|")) {
       return false;
     }
-    return /^\s*\|?\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)*\|?\s*$/.test(text);
+    // GFM delimiter cells need only one dash (":-", "-:", ":-:").
+    return /^\s*\|?\s*:?-+:?\s*(?:\|\s*:?-+:?\s*)*\|?\s*$/.test(text);
   }
   
   function splitTableCells(text) {

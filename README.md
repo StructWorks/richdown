@@ -25,6 +25,8 @@ Richdown Diff gives Markdown changes a rendered side-by-side review view while k
 - Open a Richdown Diff view for Markdown changes, including rendered headings, lists, tables, images, links, and highlighted code blocks.
 - Export local Markdown files to Richdown-styled HTML or PDF from the editor title button or the command palette.
 - Preview headings, emphasis, inline code, links, images, blockquotes, task checkboxes, thematic breaks, code blocks, tables, details blocks, Mermaid diagrams, and Gherkin scenarios while editing.
+- Render YAML front matter (`---` fenced headers) as a clean metadata card with keys, values, and tag chips; click the card to edit the YAML source.
+- Suggest completions while typing, matching the standard VS Code editor: VS Code's registered completion providers (including ones from other extensions, such as model names in agent files), plus code fence language ids.
 - Show a color swatch after inline code color values such as `#ff0066`, and mark added, changed, and deleted Git lines beside the line numbers.
 - Highlight matches for the active Richdown search query using VS Code find-match colors.
 - Edit Markdown tables as rich tables, including cell editing, row/column insertion, and row/column deletion.
