@@ -2,6 +2,13 @@
 
 All notable changes to Richdown will be documented in this file.
 
+## 0.8.1 - 2026-07-22
+
+- Made rich tables wrap long cell text within the editor width instead of forcing horizontal scrolling; scrolling now only appears when many columns cannot fit even after wrapping.
+- Reclaimed cell space previously reserved for the hover Actions button so narrow columns stay readable; the button now overlays the cell corner while hovered.
+- Fixed the table +Row/+Column toolbar buttons wrapping their labels in narrow windows, and kept wide tables from stretching the whole editor horizontally.
+- Removed the fixed 720px width and 460px height caps on image previews so images align with the surrounding content width; smaller images keep their natural size.
+
 ## 0.8.0 - 2026-07-17
 
 - Added completions matching the standard VS Code editor. Richdown runs VS Code's registered completion providers against the real document and shows their suggestions inline — including ones contributed by other extensions, such as model names in agent files and Markdown link path/anchor suggestions. Like VS Code, completions open inside link targets, on front matter keys and values, or with Ctrl+Space — never while typing ordinary text.
