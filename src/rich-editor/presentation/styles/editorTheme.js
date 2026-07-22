@@ -301,8 +301,7 @@ export function createEditorThemeExtension() {
   ".cm-image-preview img": {
     width: "auto",
     height: "auto",
-    maxWidth: "min(100%, 720px)",
-    maxHeight: "460px",
+    maxWidth: "100%",
     display: "block",
     border: "1px solid var(--rip-border)",
     borderRadius: "8px",
@@ -803,6 +802,9 @@ export function createEditorThemeExtension() {
     display: "block",
     boxSizing: "border-box",
     maxWidth: "100%",
+    // Keep the table's intrinsic width from propagating to .cm-content
+    // (flex-shrink: 0 in CodeMirror), which would widen the whole editor.
+    contain: "inline-size",
     margin: "0",
     border: "1px solid var(--rip-border)",
     borderRadius: "8px",
@@ -820,7 +822,6 @@ export function createEditorThemeExtension() {
   },
   ".cm-rich-table": {
     width: "100%",
-    minWidth: "max-content",
     borderCollapse: "separate",
     borderSpacing: "0",
     color: "var(--rip-fg)",
@@ -896,9 +897,6 @@ export function createEditorThemeExtension() {
   ".cm-rich-table-cell-preview": {
     outline: "none",
     cursor: "default",
-  },
-  ".cm-rich-table-preview:not(.is-read-only) .cm-rich-table-cell-preview": {
-    paddingRight: "64px",
   },
   ".cm-rich-table-cell-preview:focus": {
     backgroundColor:
@@ -1006,6 +1004,8 @@ export function createEditorThemeExtension() {
     display: "inline-flex",
     alignItems: "center",
     gap: "5px",
+    flexShrink: "0",
+    whiteSpace: "nowrap",
     border: "1px solid var(--rip-border)",
     borderRadius: "6px",
     padding: "0 9px",
