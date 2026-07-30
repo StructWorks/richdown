@@ -697,7 +697,7 @@ export function createMermaidPreviewWidgetClass({
   function estimateLargeMermaidPreviewHeight(code) {
     const lines = code.split(/\r?\n/).filter((line) => line.trim());
     const nodeLikeLines = lines.filter((line) =>
-      /(?:-->|---|==>|-.->|::|subgraph\b|\w+\s*(?:\[|\(|\{|\>))/i.test(line),
+      /(?:-->|---|==>|-.->|::|subgraph\b|\w+\s*(?:\[|\(|\{|>))/i.test(line),
     ).length;
     const complexity = Math.max(lines.length, nodeLikeLines);
     return Math.max(320, Math.min(620, 260 + complexity * 18));

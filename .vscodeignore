@@ -8,6 +8,11 @@ node_modules/**
 src/**
 !src/export/
 !src/export/**
+test/**
+scripts/**
+vitest.config.js
+eslint.config.mjs
+coverage/**
 articles/**
 examples/**
 *.vsix

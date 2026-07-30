@@ -69,6 +69,69 @@ Run the extension locally:
 2. Press `F5` to start the Extension Development Host.
 3. Open a Markdown file in the new VS Code window.
 
+Run the tests:
+
+```bash
+npm test                          # run once
+npm run test:watch                # re-run on change
+npm run test:coverage             # coverage report for src/
+npm test -- test/diffRows.test.js # a single suite
+```
+
+The suites live in [test/](test/) and run on [Vitest](https://vitest.dev). They import the
+real modules from `src/`, so they exercise the code that ships in `media/`. Pure logic runs
+in the default Node environment; DOM-facing modules opt into jsdom with a
+`// @vitest-environment jsdom` docblock at the top of the file.
+
+- [test/helpers/testKit.js](test/helpers/testKit.js) holds the CodeMirror `Text` and
+  selection stand-ins used by the domain tests.
+- [test/helpers/previewHarness.js](test/helpers/previewHarness.js) builds a real
+  `EditorView` with the full preview extension set, so table, Mermaid, Gherkin,
+  front matter and details previews are tested through the decorations the editor
+  actually produces.
+- [test/webviewBootstrap.test.js](test/webviewBootstrap.test.js) boots
+  `src/richEditor.js` and `src/richDiff.js` against a stand-in VS Code host.
+
+`npm run test:coverage` enforces coverage thresholds from
+[vitest.config.js](vitest.config.js). The largest deliberate gap is the PDF export's
+Chrome DevTools plumbing in [src/export/markdownExport.js](src/export/markdownExport.js),
+which needs a real browser; its launch and failure handling are covered with a stand-in
+executable in [test/pdfExport.test.js](test/pdfExport.test.js).
+
+Static analysis:
+
+```bash
+npm run lint       # ESLint over extension.js, src/ and test/
+npm run lint:fix   # apply the fixable findings
+```
+
+Rules live in [eslint.config.mjs](eslint.config.mjs), which applies node globals to the
+extension host files and browser globals to the webview files. Generated bundles under
+`media/` are never linted.
+
+### Pull request quality gate
+
+[.github/workflows/ci.yml](.github/workflows/ci.yml) runs on every pull request and on
+pushes to `main`:
+
+| Job | Command | What it protects |
+| --- | --- | --- |
+| Lint | `npm run lint` | ESLint findings across the extension host, webview and tests |
+| Test | `npm run test:coverage` | Vitest suites plus the coverage thresholds |
+| Bundles | `npm run verify:bundles` | The committed `media/*.js` still match `src/` |
+| Package VSIX | `npm run package:vsix` | The extension still packages, with the VSIX kept as an artifact |
+
+Run the same gate locally before opening a pull request:
+
+```bash
+npm run lint && npm run test:coverage && npm run verify:bundles
+```
+
+`media/*.js` is committed and is what VS Code loads, so
+[scripts/verify-bundles.mjs](scripts/verify-bundles.mjs) rebuilds each bundle in memory
+and compares it with the committed file. If it fails, run `npm run build:all` and commit
+the result.
+
 Package a VSIX:
 
 ```bash
