@@ -55,8 +55,12 @@
     "build:diff": "esbuild src/richDiff.js --bundle --format=iife --outfile=media/richDiff.js",
     "build:all": "npm run build && npm run build:mermaid && npm run build:diff",
     "package:vsix": "vsce package",
-    "test:table": "node scripts/test-table-cells.cjs",
-    "test:blocks": "node scripts/test-markdown-blocks.cjs",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "verify:bundles": "node scripts/verify-bundles.mjs",
     "publish:marketplace": "vsce publish",
     "publish:openvsx": "ovsx publish",
     "watch": "esbuild src/richEditor.js --bundle --format=iife --outfile=media/richEditor.js --watch"
@@ -268,11 +272,17 @@
     "@codemirror/search": "^6.7.0",
     "@codemirror/state": "^6.6.0",
     "@codemirror/view": "^6.43.0",
+    "@eslint/js": "^10.0.1",
     "@lezer/highlight": "^1.2.3",
     "@lezer/markdown": "^1.6.3",
+    "@vitest/coverage-v8": "^4.1.10",
     "@vscode/vsce": "^3.9.1",
     "esbuild": "^0.28.0",
-    "ovsx": "^0.10.12"
+    "eslint": "^10.8.0",
+    "globals": "^17.8.0",
+    "jsdom": "^29.1.1",
+    "ovsx": "^0.10.12",
+    "vitest": "^4.1.10"
   },
   "dependencies": {
     "highlight.js": "^11.11.1",

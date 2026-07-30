@@ -46627,7 +46627,18 @@
       provide: (field) => gutter({
         class: "cm-git-diff-gutter",
         renderEmptyElements: true,
-        markers: (view2) => view2.state.field(field).markers
+        markers: (view2) => view2.state.field(field).markers,
+        // A preview widget (rich table, Mermaid diagram, Gherkin board, details
+        // block, front matter card) replaces whole lines with a single block, and
+        // CodeMirror asks for that block's marker here instead of reading the
+        // line markers above. Without this, a change inside a previewed block
+        // would leave no gutter mark at all.
+        widgetMarker: (view2, _widget, block2) => buildBlockMarker(view2.state, view2.state.field(field).changes, block2),
+        // Widget markers are not part of the marker RangeSet the gutter diffs,
+        // so tell it explicitly when a new change set arrives.
+        lineMarkerChange: (update2) => update2.transactions.some(
+          (transaction) => transaction.effects.some((effect) => effect.is(setGitDiffChanges))
+        )
       })
     });
     function update(view2, changes) {
@@ -46653,12 +46664,23 @@
       return this.types.map((type4) => `cm-git-diff-line-${type4}`).join(" ");
     }
   };
+  function buildBlockMarker(state, changes, block2) {
+    const lineCount = Math.max(state.doc.lines, 1);
+    const types5 = /* @__PURE__ */ new Set();
+    for (const change of changes) {
+      const line = state.doc.line(clampLineNumber(change.line, lineCount));
+      if (line.from >= block2.from && line.from <= block2.to) {
+        types5.add(change.type);
+      }
+    }
+    return types5.size > 0 ? new GitDiffMarker(sortChangeTypes(types5)) : null;
+  }
   function buildGitDiffState(state, changes) {
     const normalizedChanges = normalizeGitChanges(changes);
     const changesByLine = /* @__PURE__ */ new Map();
     const lineCount = Math.max(state.doc.lines, 1);
     for (const change of normalizedChanges) {
-      const lineNumber = Math.min(Math.max(change.line, 1), lineCount);
+      const lineNumber = clampLineNumber(change.line, lineCount);
       const types5 = changesByLine.get(lineNumber) || /* @__PURE__ */ new Set();
       types5.add(change.type);
       changesByLine.set(lineNumber, types5);
@@ -46685,6 +46707,9 @@
     })).filter(
       (change) => Number.isInteger(change.line) && change.line >= 1 && gitChangeTypes.has(change.type)
     );
+  }
+  function clampLineNumber(lineNumber, lineCount) {
+    return Math.min(Math.max(lineNumber, 1), lineCount);
   }
   function sortChangeTypes(types5) {
     return [...types5].sort(
@@ -48716,7 +48741,7 @@
     function estimateLargeMermaidPreviewHeight(code3) {
       const lines = code3.split(/\r?\n/).filter((line) => line.trim());
       const nodeLikeLines = lines.filter(
-        (line) => /(?:-->|---|==>|-.->|::|subgraph\b|\w+\s*(?:\[|\(|\{|\>))/i.test(line)
+        (line) => /(?:-->|---|==>|-.->|::|subgraph\b|\w+\s*(?:\[|\(|\{|>))/i.test(line)
       ).length;
       const complexity = Math.max(lines.length, nodeLikeLines);
       return Math.max(320, Math.min(620, 260 + complexity * 18));

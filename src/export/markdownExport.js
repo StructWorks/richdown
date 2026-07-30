@@ -169,7 +169,9 @@ async function writePdfExport({
   } catch (error) {
     if (browserErrors.length > 0) {
       const details = browserErrors.join("\n").slice(-4000);
-      throw new Error(`${error.message}\nChrome output:\n${details}`);
+      throw new Error(`${error.message}\nChrome output:\n${details}`, {
+        cause: error,
+      });
     }
     throw error;
   } finally {

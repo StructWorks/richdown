@@ -123,7 +123,7 @@ async function openRichDiff(context, resource) {
     return;
   }
 
-  let leftText = '';
+  let leftText;
   let leftLabel = 'HEAD';
   const rightLabel = 'Working Tree';
   const headUri = createGitHeadUri(uri);
@@ -317,6 +317,8 @@ async function copyRichdownExportAssets(context, targetUri, { includeMermaid }) 
 
 function sanitizeExportAssetName(name) {
   return String(name || 'richdown-export')
+    // Control characters are illegal in file names on every supported platform.
+    // eslint-disable-next-line no-control-regex
     .replace(/[<>:"/\\|?*\x00-\x1f]/g, '-')
     .replace(/\s+/g, '-')
     .replace(/^-+|-+$/g, '')
