@@ -2,6 +2,10 @@
 
 All notable changes to Richdown will be documented in this file.
 
+## 0.8.2 - 2026-07-30
+
+- Fixed the Git change markers beside the line numbers not appearing for edits inside a rendered block. A change in a rich table, Mermaid diagram, Gherkin board, `<details>` section, or front matter card now marks the whole block instead of showing nothing.
+
 ## 0.8.1 - 2026-07-22
 
 - Made rich tables wrap long cell text within the editor width instead of forcing horizontal scrolling; scrolling now only appears when many columns cannot fit even after wrapping.
