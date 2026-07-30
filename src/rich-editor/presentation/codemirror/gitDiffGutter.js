@@ -33,6 +33,19 @@ export function createGitDiffGutter(initialChanges = []) {
         class: "cm-git-diff-gutter",
         renderEmptyElements: true,
         markers: (view) => view.state.field(field).markers,
+        // A preview widget (rich table, Mermaid diagram, Gherkin board, details
+        // block, front matter card) replaces whole lines with a single block, and
+        // CodeMirror asks for that block's marker here instead of reading the
+        // line markers above. Without this, a change inside a previewed block
+        // would leave no gutter mark at all.
+        widgetMarker: (view, _widget, block) =>
+          buildBlockMarker(view.state, view.state.field(field).changes, block),
+        // Widget markers are not part of the marker RangeSet the gutter diffs,
+        // so tell it explicitly when a new change set arrives.
+        lineMarkerChange: (update) =>
+          update.transactions.some((transaction) =>
+            transaction.effects.some((effect) => effect.is(setGitDiffChanges)),
+          ),
       }),
   });
 
@@ -64,13 +77,29 @@ class GitDiffMarker extends GutterMarker {
   }
 }
 
+// Collects every change that falls inside a block widget so the collapsed block
+// carries one mark for the lines it hides.
+function buildBlockMarker(state, changes, block) {
+  const lineCount = Math.max(state.doc.lines, 1);
+  const types = new Set();
+
+  for (const change of changes) {
+    const line = state.doc.line(clampLineNumber(change.line, lineCount));
+    if (line.from >= block.from && line.from <= block.to) {
+      types.add(change.type);
+    }
+  }
+
+  return types.size > 0 ? new GitDiffMarker(sortChangeTypes(types)) : null;
+}
+
 function buildGitDiffState(state, changes) {
   const normalizedChanges = normalizeGitChanges(changes);
   const changesByLine = new Map();
   const lineCount = Math.max(state.doc.lines, 1);
 
   for (const change of normalizedChanges) {
-    const lineNumber = Math.min(Math.max(change.line, 1), lineCount);
+    const lineNumber = clampLineNumber(change.line, lineCount);
     const types = changesByLine.get(lineNumber) || new Set();
     types.add(change.type);
     changesByLine.set(lineNumber, types);
@@ -105,6 +134,10 @@ function normalizeGitChanges(changes) {
         change.line >= 1 &&
         gitChangeTypes.has(change.type),
     );
+}
+
+function clampLineNumber(lineNumber, lineCount) {
+  return Math.min(Math.max(lineNumber, 1), lineCount);
 }
 
 function sortChangeTypes(types) {
