@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   getMinimalTextChange,
   mapPositionThroughTextChange,
+  normalizeLineEndings,
 } from "../src/rich-editor/domain/textChange.js";
 
 describe("getMinimalTextChange", () => {
@@ -119,5 +120,30 @@ describe("mapPositionThroughTextChange", () => {
     expect(
       mapPositionThroughTextChange(4, { from: 1, to: 4, insert: "" }, 6, 3),
     ).toBe(1);
+  });
+});
+
+describe("normalizeLineEndings", () => {
+  it("strips the carriage returns of a Windows document", () => {
+    expect(normalizeLineEndings("a\r\nb\rc\nd")).toBe("a\nb\nc\nd");
+  });
+
+  it("treats missing text as empty", () => {
+    expect(normalizeLineEndings(undefined)).toBe("");
+  });
+
+  it("reports no change for a CRLF copy of the editor document", () => {
+    // Before normalization the minimal change against a CRLF update was a lone
+    // "\r", which CodeMirror applies as an extra line break while the caret is
+    // remapped against the longer CRLF offsets.
+    const editorText = "a\nbc";
+    const hostText = "a\r\nbc";
+
+    expect(getMinimalTextChange(editorText, hostText)).toEqual({
+      from: 1,
+      to: 1,
+      insert: "\r",
+    });
+    expect(normalizeLineEndings(hostText)).toBe(editorText);
   });
 });

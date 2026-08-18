@@ -27650,6 +27650,9 @@
   }
 
   // src/rich-editor/domain/textChange.js
+  function normalizeLineEndings(text2) {
+    return String(text2 ?? "").replace(/\r\n?/g, "\n");
+  }
   function getMinimalTextChange(currentText, nextText) {
     let prefixLength = 0;
     const maxPrefixLength = Math.min(currentText.length, nextText.length);
@@ -47658,7 +47661,7 @@
       stepCount: 0,
       exampleRowCount: 0
     };
-    const lines = normalizeLineEndings(code3).split("\n");
+    const lines = normalizeLineEndings2(code3).split("\n");
     let pendingTags = [];
     let currentFeature = null;
     let currentRule = null;
@@ -48000,7 +48003,7 @@
   function renderGherkinSource(code3) {
     const pre = document.createElement("pre");
     pre.className = "cm-gherkin-source";
-    const lines = normalizeLineEndings(code3).split("\n");
+    const lines = normalizeLineEndings2(code3).split("\n");
     for (const line of lines) {
       pre.appendChild(renderSourceLine(line));
     }
@@ -48128,7 +48131,7 @@
   function parsePipeRow(line) {
     return line.replace(/^\|/, "").replace(/\|$/, "").split("|").map((cell) => cell.trim());
   }
-  function normalizeLineEndings(text2) {
+  function normalizeLineEndings2(text2) {
     return String(text2 || "").replace(/\r\n?/g, "\n");
   }
 
@@ -55475,7 +55478,7 @@ ${rowText}`;
       return;
     }
     if (event.data.type !== "update") return;
-    const nextText = event.data.text;
+    const nextText = typeof event.data.text === "string" ? normalizeLineEndings(event.data.text) : event.data.text;
     if (!view) {
       fallbackEditor.applyUpdate(nextText);
       return;

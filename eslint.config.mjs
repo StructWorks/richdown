@@ -2,7 +2,8 @@ import js from "@eslint/js";
 import globals from "globals";
 
 // The repository holds three kinds of JavaScript:
-//   - extension host code (CommonJS, node globals): extension.js, src/export
+//   - extension host code (CommonJS, node globals): extension.js, src/export,
+//     src/host
 //   - webview code (ESM, browser globals): src/richEditor.js, src/richDiff.js,
 //     src/mermaidLoader.js and everything under src/rich-editor and src/rich-diff
 //   - tests and tooling (ESM, node globals, jsdom in some suites)
@@ -36,7 +37,7 @@ export default [
     },
   },
   {
-    files: ["extension.js", "src/export/**/*.js"],
+    files: ["extension.js", "src/export/**/*.js", "src/host/**/*.js"],
     languageOptions: {
       ecmaVersion: 2023,
       sourceType: "commonjs",
