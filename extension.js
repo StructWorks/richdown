@@ -8,6 +8,7 @@ const {
   createHtmlExport,
   writePdfExport
 } = require('./src/export/markdownExport');
+const { CRLF, LF, applyLineEnding, normalizeToLf } = require('./src/host/lineEndings');
 
 const richEditorViewType = 'richdown.richEditor';
 const legacyMarkdownEditorAssociationPatterns = ['*.md', '*.markdown'];
@@ -636,7 +637,10 @@ class RichdownEditorProvider {
     const updateWebview = text => {
       webviewPanel.webview.postMessage({
         type: 'update',
-        text: text ?? document.getText()
+        // The webview editor works in LF, so send the document without its
+        // carriage returns. Webview edits are converted back to the document's
+        // own EOL in applyQueuedWebviewEdits.
+        text: normalizeToLf(text ?? document.getText())
       });
     };
     const rememberWebviewEdit = text => {
@@ -655,7 +659,7 @@ class RichdownEditorProvider {
       applyingWebviewEdit = true;
       try {
         while (queuedWebviewText !== undefined) {
-          const nextText = queuedWebviewText;
+          const nextText = applyLineEnding(queuedWebviewText, getDocumentLineEnding(document));
           queuedWebviewText = undefined;
 
           if (nextText === document.getText()) {
@@ -778,7 +782,7 @@ class RichdownEditorProvider {
     externalFileWatcher?.onDidChange(handleWatchedFileChange);
     externalFileWatcher?.onDidCreate(handleWatchedFileChange);
 
-    webviewPanel.webview.html = getRichEditorHtml(this.context, webviewPanel.webview, document.getText(), getRichEditorSettings());
+    webviewPanel.webview.html = getRichEditorHtml(this.context, webviewPanel.webview, normalizeToLf(document.getText()), getRichEditorSettings());
     scheduleGitDiffUpdate(document.getText(), 0);
 
     const changeDocumentSubscription = vscode.workspace.onDidChangeTextDocument(event => {
@@ -1254,6 +1258,10 @@ function addLineChange(changesByLine, lineNumber, type, lineCount) {
   changesByLine.set(line, types);
 }
 
+function getDocumentLineEnding(document) {
+  return document.eol === vscode.EndOfLine.CRLF ? CRLF : LF;
+}
+
 function makeTextSignature(text) {
   let hash = 2166136261;
   for (let index = 0; index < text.length; index += 1) {
@@ -1313,7 +1321,7 @@ async function collectHostCompletionItems(document, request) {
     // run against the text the caret position refers to.
     for (let attempt = 0; attempt < 10; attempt += 1) {
       if (
-        document.getText().length === request.docLength &&
+        normalizeToLf(document.getText()).length === request.docLength &&
         request.line < document.lineCount &&
         document.lineAt(request.line).text === request.lineText
       ) {

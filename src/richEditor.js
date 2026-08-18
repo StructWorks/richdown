@@ -28,6 +28,7 @@ import { normalizeRichEditorSettings } from "./rich-editor/domain/settingsModel.
 import {
   getMinimalTextChange,
   mapPositionThroughTextChange,
+  normalizeLineEndings,
 } from "./rich-editor/domain/textChange.js";
 import {
   codeLanguages,
@@ -339,7 +340,12 @@ window.addEventListener("message", (event) => {
 
   if (event.data.type !== "update") return;
 
-  const nextText = event.data.text;
+  // The host already sends LF text; normalizing again keeps a CRLF document
+  // from turning into stray carriage returns inside the CodeMirror document.
+  const nextText =
+    typeof event.data.text === "string"
+      ? normalizeLineEndings(event.data.text)
+      : event.data.text;
   if (!view) {
     fallbackEditor.applyUpdate(nextText);
     return;

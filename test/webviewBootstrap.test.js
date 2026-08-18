@@ -318,6 +318,21 @@ describe("rich editor webview", () => {
     expect(root.textContent).toContain("Changed");
   });
 
+  it("applies a CRLF host update without inserting extra line breaks", async () => {
+    // New files on Windows use CRLF. CodeMirror stores the document in LF, so an
+    // un-normalized update used to arrive as a lone "\r" insert, which the editor
+    // applies as an extra blank line while the caret is remapped.
+    const root = await boot({ text: "alpha\nbravo\n" });
+
+    sendMessage({ type: "update", text: "alpha\r\nbravo\r\ncharlie\r\n" });
+
+    const lines = [...root.querySelectorAll(".cm-line")].map(
+      (line) => line.textContent,
+    );
+    expect(lines).toEqual(["alpha", "bravo", "charlie", ""]);
+    expect(root.textContent).not.toContain("\r");
+  });
+
   it("switches theme on a theme message", async () => {
     await boot();
     sendMessage({ type: "theme", theme: "forest" });

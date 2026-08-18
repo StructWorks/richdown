@@ -2,6 +2,10 @@
 
 All notable changes to Richdown will be documented in this file.
 
+## 0.8.3 - 2026-08-18
+
+- Fixed typing in the rich editor on Windows inserting stray blank lines and jumping the caret. Documents that use CRLF line endings — the default for new files on Windows — are now translated to the editor's LF text and written back with the document's own line endings, so an edit is no longer echoed back as an external change.
+
 ## 0.8.2 - 2026-07-30
 
 - Fixed the Git change markers beside the line numbers not appearing for edits inside a rendered block. A change in a rich table, Mermaid diagram, Gherkin board, `<details>` section, or front matter card now marks the whole block instead of showing nothing.
