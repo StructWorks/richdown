@@ -8,6 +8,8 @@ node_modules/**
 src/**
 !src/export/
 !src/export/**
+!src/host/
+!src/host/**
 test/**
 scripts/**
 vitest.config.js
