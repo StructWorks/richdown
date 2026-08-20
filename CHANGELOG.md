@@ -2,6 +2,10 @@
 
 All notable changes to Richdown will be documented in this file.
 
+## 0.8.4 - 2026-08-20
+
+- Fixed Richdown failing to open any Markdown file after 0.8.3. The line-ending module added in that release was excluded from the packaged extension, so the extension host threw while loading and the rich editor never started.
+
 ## 0.8.3 - 2026-08-18
 
 - Fixed typing in the rich editor on Windows inserting stray blank lines and jumping the caret. Documents that use CRLF line endings — the default for new files on Windows — are now translated to the editor's LF text and written back with the document's own line endings, so an edit is no longer echoed back as an external change.
