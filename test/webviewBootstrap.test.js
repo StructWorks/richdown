@@ -270,9 +270,11 @@ describe("rich editor webview", () => {
     gitDiff = [],
     imageMap = {},
     mermaidScriptUri = "",
+    reveal = null,
   } = {}) {
     document.body.innerHTML = `
       <div id="editor"></div>
+      ${jsonScript("initial-reveal", reveal)}
       ${jsonScript("initial-document", text)}
       ${jsonScript("initial-settings", settings)}
       ${jsonScript("mermaid-script-uri", mermaidScriptUri)}
@@ -358,6 +360,39 @@ describe("rich editor webview", () => {
     const root = await boot();
     expect(() => sendMessage(null)).not.toThrow();
     expect(root.querySelector(".cm-editor")).toBeTruthy();
+  });
+
+  it("opens at the position the host passed in the initial page", async () => {
+    const root = await boot({
+      text: "# Title\n\nfind the needle here\n",
+      reveal: {
+        selection: {
+          start: { line: 2, character: 9 },
+          end: { line: 2, character: 15 },
+        },
+      },
+    });
+
+    expect(root.querySelector(".cm-richdown-reveal-match")?.textContent).toBe(
+      "needle",
+    );
+  });
+
+  it("reveals a heading when the host asks for one", async () => {
+    const root = await boot({ text: "# Title\n\n## Usage\n\ntext\n" });
+    sendMessage({ type: "reveal", target: { anchor: "usage" } });
+
+    const activeLine = root.querySelector(".cm-activeLine");
+    expect(activeLine?.textContent).toContain("Usage");
+  });
+
+  it("shows the Copilot banner while the host reports pending edits", async () => {
+    await boot();
+    sendMessage({ type: "chatEdits", pending: true });
+    expect(document.querySelector(".richdown-chat-edits-banner")).toBeTruthy();
+
+    sendMessage({ type: "chatEdits", pending: false });
+    expect(document.querySelector(".richdown-chat-edits-banner")).toBeNull();
   });
 
   it("runs without an extension host in export mode", async () => {

@@ -182,6 +182,13 @@ export function createEditorThemeExtension() {
     boxShadow:
       "inset 0 -2px 0 var(--vscode-editor-findMatchHighlightBorder, color-mix(in srgb, var(--rip-syntax-orange) 70%, transparent))",
   },
+  ".cm-richdown-reveal-match": {
+    backgroundColor:
+      "var(--vscode-editor-findMatchBackground, color-mix(in srgb, var(--rip-syntax-orange) 45%, transparent))",
+    outline:
+      "1px solid var(--vscode-editor-findMatchBorder, color-mix(in srgb, var(--rip-syntax-orange) 80%, transparent))",
+    borderRadius: "2px",
+  },
   ".cm-selectionMatch": {
     backgroundColor:
       "color-mix(in srgb, var(--rip-link) 24%, transparent)",

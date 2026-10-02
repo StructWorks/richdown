@@ -433,6 +433,50 @@ export function injectStyles() {
       border-color: var(--rip-focus);
       background: var(--rip-hover);
     }
+    .richdown-chat-edits-banner {
+      position: fixed;
+      left: 18px;
+      bottom: 18px;
+      z-index: 10001;
+      max-width: calc(100vw - 92px);
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px 8px;
+      border: 1px solid var(--rip-focus);
+      border-radius: 8px;
+      padding: 8px 10px;
+      color: var(--rip-fg);
+      background: var(--rip-panel);
+      box-shadow: 0 14px 36px rgba(0, 0, 0, 0.3);
+      font: 12px var(--vscode-font-family);
+    }
+    .richdown-chat-edits-message {
+      margin-right: 4px;
+    }
+    .richdown-chat-edits-button {
+      height: 26px;
+      border: 1px solid var(--rip-border);
+      border-radius: 6px;
+      padding: 0 10px;
+      color: var(--rip-fg);
+      background: var(--rip-input-bg);
+      font: 12px var(--vscode-font-family);
+      cursor: pointer;
+    }
+    .richdown-chat-edits-button:hover {
+      border-color: var(--rip-focus);
+      background: var(--rip-hover);
+    }
+    .richdown-chat-edits-button.is-primary {
+      border-color: var(--rip-accent);
+      color: var(--rip-button-fg);
+      background: var(--rip-accent);
+    }
+    .richdown-chat-edits-button:focus-visible {
+      outline: 2px solid var(--rip-focus);
+      outline-offset: 1px;
+    }
     .cm-mermaid-modal-canvas {
       min-width: 0;
       min-height: 0;

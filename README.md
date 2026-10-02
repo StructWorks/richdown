@@ -20,6 +20,10 @@ Richdown Diff gives Markdown changes a rendered side-by-side review view while k
 
 - Opens regular `.md` and `.markdown` files with the Richdown editor by default while keeping Source Control diffs in VS Code's native diff viewer.
 - Automatically refreshes an open Richdown editor when an AI agent or another external tool changes the Markdown file on disk.
+- Follows `#heading` and `#L12` links between Markdown files to the target heading or line.
+- Opens Markdown file links from AI extensions such as Claude Code and Codex in Richdown at the linked line, with the match highlighted. These extensions open files in the text editor, which Richdown takes over with the position.
+- Optionally does the same for VS Code Search results and Copilot Chat links (`richdown.jumpToOpenedPosition`, off by default). VS Code passes that position only to text editors, so this opens every Markdown file in the text editor first and switches to Richdown right away, with a visible flicker.
+- Shows a banner when GitHub Copilot has pending edits to the open file, with Keep and Undo buttons and a Review Changes button that opens Copilot's inline diff in the text editor. Richdown takes the file back once every edit is kept or undone.
 - Toggle between Richdown and the standard VS Code text editor from the editor title button or the command palette.
 - Open the VS Code Git diff for the current Markdown file from the editor title button or the command palette.
 - Open a Richdown Diff view for Markdown changes, including rendered headings, lists, tables, images, links, and highlighted code blocks.
@@ -29,7 +33,7 @@ Richdown Diff gives Markdown changes a rendered side-by-side review view while k
 - Suggest completions while typing, matching the standard VS Code editor: VS Code's registered completion providers (including ones from other extensions, such as model names in agent files), plus code fence language ids.
 - Show a color swatch after inline code color values such as `#ff0066`, and mark added, changed, and deleted Git lines beside the line numbers.
 - Highlight matches for the active Richdown search query using VS Code find-match colors.
-- Edit Markdown tables as rich tables, including cell editing, row/column insertion, and row/column deletion.
+- Edit Markdown tables as rich tables, including cell editing, row/column insertion, and row/column deletion. `<br>` inside a cell renders as a line break.
 - Render Mermaid diagrams lazily with optional Richdown colorization, fit, zoom, pan, and modal viewing controls. Richdown supports both Markdown fences and Azure DevOps-style `::: mermaid` blocks.
 - Render `gherkin`, `feature`, and `cucumber` fenced code blocks as switchable BDD boards with highlighted source view.
 - Choose the preview width and theme from the in-editor settings button.

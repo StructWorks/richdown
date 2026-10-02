@@ -192,6 +192,24 @@ describe("table preview DOM", () => {
     expect(cellPreview(dom, 1, 1).textContent).toBe("a | b");
   });
 
+  it("renders <br> tags inside cells as line breaks", () => {
+    harness = createPreviewHarness({
+      doc: [
+        "intro",
+        "",
+        "| Name | Value |",
+        "| --- | --- |",
+        "| one<br>two | a<BR/>b<br />c |",
+        "",
+      ].join("\n"),
+    });
+    const dom = harness.widget("TablePreviewWidget").toDOM(harness.view);
+
+    expect(cellPreview(dom, 1, 0).innerHTML).toBe("one<br>two");
+    expect(cellPreview(dom, 1, 1).querySelectorAll("br")).toHaveLength(2);
+    expect(cellPreview(dom, 1, 1).textContent).toBe("abc");
+  });
+
   it("offers row and column actions plus a keyboard hint", () => {
     const { dom } = mount();
     expect(

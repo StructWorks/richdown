@@ -36,8 +36,10 @@ export function createInlineMarkdownSupport({
     // Underscore emphasis cannot open or close inside a word. Keeping those
     // boundaries explicit prevents identifiers such as snake_case and
     // CONFIG__VALUE from losing underscores in table/details previews.
+    // A table row cannot contain a newline, so GFM tables spell line breaks
+    // as <br>; render it rather than leaving the tag as literal text.
     const pattern =
-      /!\[(?<imageAlt>[^\]]*)\]\(\s*(?:<(?<imageSrcAngle>[^>]+)>|(?<imageSrc>[^)\s]+))(?:\s+(?:"[^"]*"|'[^']*'))?\s*\)|`(?<code>[^`]+)`|\*\*(?<boldStar>[^*]+)\*\*|(?<![\p{L}\p{N}\p{M}_])__(?<boldUnderscore>[^_\s](?:[^_]*?[^_\s])?)__(?![\p{L}\p{N}\p{M}_])|\*(?<italicStar>[^*\s][^*]*?)\*|(?<![\p{L}\p{N}\p{M}_])_(?<italicUnderscore>[^_\s](?:[^_]*?[^_\s])?)_(?![\p{L}\p{N}\p{M}_])|~~(?<strike>[^~]+)~~|\[(?<linkText>[^\]]+)\]\(\s*(?:<(?<linkHrefAngle>[^>]+)>|(?<linkHref>[^)\s]+))(?:\s+(?:"[^"]*"|'[^']*'))?\s*\)|(?<bareUrl>https?:\/\/[^\s)]+)/gu;
+      /!\[(?<imageAlt>[^\]]*)\]\(\s*(?:<(?<imageSrcAngle>[^>]+)>|(?<imageSrc>[^)\s]+))(?:\s+(?:"[^"]*"|'[^']*'))?\s*\)|`(?<code>[^`]+)`|(?<lineBreak><[Bb][Rr]\s*\/?>)|\*\*(?<boldStar>[^*]+)\*\*|(?<![\p{L}\p{N}\p{M}_])__(?<boldUnderscore>[^_\s](?:[^_]*?[^_\s])?)__(?![\p{L}\p{N}\p{M}_])|\*(?<italicStar>[^*\s][^*]*?)\*|(?<![\p{L}\p{N}\p{M}_])_(?<italicUnderscore>[^_\s](?:[^_]*?[^_\s])?)_(?![\p{L}\p{N}\p{M}_])|~~(?<strike>[^~]+)~~|\[(?<linkText>[^\]]+)\]\(\s*(?:<(?<linkHrefAngle>[^>]+)>|(?<linkHref>[^)\s]+))(?:\s+(?:"[^"]*"|'[^']*'))?\s*\)|(?<bareUrl>https?:\/\/[^\s)]+)/gu;
     let lastIndex = 0;
   
     for (const match of text.matchAll(pattern)) {
@@ -61,6 +63,8 @@ export function createInlineMarkdownSupport({
         const code = document.createElement("code");
         code.textContent = groups.code;
         parent.appendChild(code);
+      } else if (groups.lineBreak !== undefined) {
+        parent.appendChild(document.createElement("br"));
       } else if (
         groups.boldStar !== undefined ||
         groups.boldUnderscore !== undefined

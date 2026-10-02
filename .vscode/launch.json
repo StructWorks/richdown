@@ -10,6 +10,7 @@
         "--user-data-dir=${workspaceFolder}/.vscode-test/user-data",
         "--extensions-dir=${workspaceFolder}/.vscode-test/extensions",
         "--disable-workspace-trust",
+        "--disable-extensions",
         "${workspaceFolder}"
       ]
     }

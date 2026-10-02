@@ -74,6 +74,15 @@ describe("renderMarkdownLine inline constructs", () => {
     ).toBe("&lt;a href=&quot;x&quot; onclick=&quot;steal()&quot;&gt;hi&lt;/a&gt;");
   });
 
+  it("renders <br> as a line break and keeps other tags escaped", () => {
+    expect(renderMarkdownLine("one<br>two<br/>three", undefined)).toBe(
+      "one<br>two<br>three",
+    );
+    expect(renderMarkdownLine("<br onclick=x>", undefined)).toBe(
+      "&lt;br onclick=x&gt;",
+    );
+  });
+
   it("renders emphasis and strikethrough", () => {
     expect(
       renderMarkdownLine("**bold** and *italic* and ~~gone~~", undefined),

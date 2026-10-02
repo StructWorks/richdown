@@ -9,6 +9,9 @@ const {
   writePdfExport
 } = require('./src/export/markdownExport');
 const { CRLF, LF, applyLineEnding, normalizeToLf } = require('./src/host/lineEndings');
+const { hasPendingChatEdits, isChatEditingOriginalUri } = require('./src/host/chatEditing');
+const { createMarkdownEditorRouter, createTabKey } = require('./src/host/markdownEditorRouter');
+const { createSelectionRevealTarget, parseLinkFragment } = require('./src/host/revealTarget');
 
 const richEditorViewType = 'richdown.richEditor';
 const legacyMarkdownEditorAssociationPatterns = ['*.md', '*.markdown'];
@@ -28,7 +31,24 @@ const richThemeValues = ['default', 'midnight', 'graphite', 'forest', 'ivory', '
 const mermaidPreviewSizeValues = ['source', 'readable', 'large'];
 const previewWidthValues = ['default', 'wide'];
 
-let disposables = [];
+// Richdown editors by document uri, so the host can reach a webview that is
+// already open when another editor or a link targets its document.
+const richEditorSessions = new Map();
+// uri -> { target, time }: positions to reveal once the Richdown webview for
+// that document is ready.
+const pendingReveals = new Map();
+const pendingRevealLifetimeMs = 10000;
+// Uris reopened in the text editor to review Copilot's pending edits; they
+// return to Richdown once every edit is kept or undone.
+const chatEditReviewUris = new Set();
+let chatEditRefreshTimer;
+// Hands new Markdown text editors over to Richdown with their position (see
+// src/host/markdownEditorRouter.js).
+const markdownEditorRouter = createMarkdownEditorRouter();
+let markdownEditorRoutingTimer;
+// Claude Code opens a file with showTextDocument and only then sets the
+// selection, so a text editor that arrives without one waits this long.
+const lateSelectionWaitMs = 150;
 
 function activate(context) {
   context.subscriptions.push(vscode.commands.registerCommand('richdown.toggle', toggleMarkdownOpenMode));
@@ -47,19 +67,357 @@ function activate(context) {
     }
   ));
 
-  disposables = [
+  context.subscriptions.push(
     vscode.workspace.onDidChangeConfiguration(event => {
-      if (event.affectsConfiguration('richdown.openMarkdownAsRichEditor')) {
+      if (
+        event.affectsConfiguration('richdown.openMarkdownAsRichEditor') ||
+        event.affectsConfiguration('richdown.jumpToOpenedPosition')
+      ) {
         void syncMarkdownEditorAssociations();
       }
     })
-  ];
-
-  context.subscriptions.push(...disposables);
+  );
+  registerMarkdownEditorRouting(context);
+  registerChatEditTracking(context);
   void syncMarkdownEditorAssociations();
 }
 
-function deactivate() {}
+function deactivate() {
+  clearTimeout(chatEditRefreshTimer);
+  clearTimeout(markdownEditorRoutingTimer);
+}
+
+function isJumpToOpenedPositionEnabled(useRichEditor) {
+  const config = vscode.workspace.getConfiguration('richdown');
+  const richEditorEnabled = typeof useRichEditor === 'boolean'
+    ? useRichEditor
+    : config.get('openMarkdownAsRichEditor', true);
+  return richEditorEnabled && config.get('jumpToOpenedPosition', false);
+}
+
+function registerMarkdownEditorRouting(context) {
+  // Tabs are tracked even while Richdown is off, so turning it on does not
+  // hand over text tabs that were already open.
+  markdownEditorRouter.seed(collectMarkdownTextTabs());
+  context.subscriptions.push(
+    vscode.window.tabGroups.onDidChangeTabs(event => {
+      markdownEditorRouter.noteRichTabsClosed(
+        event.closed.map(getRichdownTabKey).filter(Boolean)
+      );
+      void routeActiveMarkdownEditor();
+    }),
+    vscode.window.onDidChangeActiveTextEditor(() => {
+      void routeActiveMarkdownEditor();
+    })
+  );
+}
+
+// Every frame the text editor stays visible shows as flicker, so a new text
+// tab is handed over as soon as both its tab and its editor have arrived.
+async function routeActiveMarkdownEditor({ settled = false } = {}) {
+  clearTimeout(markdownEditorRoutingTimer);
+  markdownEditorRoutingTimer = undefined;
+  markdownEditorRouter.sync(collectMarkdownTextTabs());
+
+  const editor = vscode.window.activeTextEditor;
+  const tab = vscode.window.tabGroups.activeTabGroup?.activeTab;
+  if (!editor || !isTextTab(tab) || !isSameUri(tab.input.uri, editor.document.uri)) {
+    return;
+  }
+  const uri = tab.input.uri;
+  if (!isRichEditorScheme(uri) || !isMarkdownUri(uri)) {
+    return;
+  }
+
+  const uriKey = uri.toString();
+  // A Richdown tab for this file in the same group may be the one a
+  // "Reopen Editor With > Text Editor" is replacing, and its close can be
+  // reported just after the new text editor. Decide once tab events settle.
+  // Without such a tab the open cannot be a reopen and is handed over now.
+  if (
+    !settled &&
+    tab.group.tabs.some(candidate => isRichdownTab(candidate) && isSameUri(candidate.input.uri, uri))
+  ) {
+    markdownEditorRoutingTimer = setTimeout(() => {
+      void routeActiveMarkdownEditor({ settled: true });
+    }, 50);
+    return;
+  }
+
+  const handOver = markdownEditorRouter.shouldHandOver(
+    { key: createTabKey(tab.group.viewColumn, uriKey), uri: uriKey },
+    {
+      enabled: vscode.workspace.getConfiguration('richdown').get('openMarkdownAsRichEditor', true)
+    }
+  );
+  if (!handOver) {
+    return;
+  }
+
+  // With the editor association a text editor only appears when an extension
+  // asked for one, typically to show a position it may set just after
+  // opening. Without the association every plain open arrives here, and those
+  // must not wait.
+  const target = createSelectionRevealTarget(editor.selection) ??
+    (isJumpToOpenedPositionEnabled() ? undefined : await waitForLateSelection(editor));
+  const textTab = findTextTab(tab.group.viewColumn, uri);
+  if (!textTab) {
+    // Closed while waiting for its selection.
+    return;
+  }
+  if (target) {
+    queueReveal(uriKey, target);
+  }
+  try {
+    await replaceTextTabWithRichdown(textTab, uri);
+  } catch (error) {
+    pendingReveals.delete(uriKey);
+    console.warn(`[Richdown] Could not open ${uriKey} in Richdown: ${error?.message || error}`);
+    return;
+  }
+  deliverPendingReveal(uriKey);
+}
+
+function waitForLateSelection(editor) {
+  return new Promise(resolve => {
+    const subscription = vscode.window.onDidChangeTextEditorSelection(event => {
+      if (event.textEditor !== editor) {
+        return;
+      }
+      const target = createSelectionRevealTarget(event.selections[0]);
+      if (target) {
+        finish(target);
+      }
+    });
+    const timer = setTimeout(() => finish(undefined), lateSelectionWaitMs);
+    function finish(target) {
+      clearTimeout(timer);
+      subscription.dispose();
+      resolve(target);
+    }
+  });
+}
+
+async function replaceTextTabWithRichdown(tab, uri) {
+  const group = tab.group;
+  const hasRichdownTabInGroup = group.tabs.some(candidate =>
+    isRichdownTab(candidate) && isSameUri(candidate.input.uri, uri)
+  );
+  if (!hasRichdownTabInGroup && group.isActive && tab.isActive) {
+    try {
+      // Replaces the text tab in place, keeping its position and preview state.
+      await vscode.commands.executeCommand('reopenActiveEditorWith', richEditorViewType);
+      return;
+    } catch (error) {
+      // Fall back to opening Richdown and closing the text tab below.
+    }
+  }
+
+  // Open Richdown first so the document always keeps an editor and closing a
+  // dirty text tab does not prompt.
+  await vscode.commands.executeCommand('vscode.openWith', uri, richEditorViewType, {
+    viewColumn: group.viewColumn,
+    preserveFocus: true,
+    preview: tab.isPreview
+  });
+  const textTab = findTextTab(group.viewColumn, uri);
+  if (textTab) {
+    await vscode.window.tabGroups.close(textTab, true);
+  }
+}
+
+function findTextTab(viewColumn, uri) {
+  return vscode.window.tabGroups.all
+    .find(candidate => candidate.viewColumn === viewColumn)
+    ?.tabs.find(candidate => isTextTab(candidate) && isSameUri(candidate.input.uri, uri));
+}
+
+function collectMarkdownTextTabs() {
+  const tabs = [];
+  for (const group of vscode.window.tabGroups.all) {
+    for (const tab of group.tabs) {
+      if (isTextTab(tab) && isRichEditorScheme(tab.input.uri) && isMarkdownUri(tab.input.uri)) {
+        const uri = tab.input.uri.toString();
+        tabs.push({ key: createTabKey(group.viewColumn, uri), uri });
+      }
+    }
+  }
+  return tabs;
+}
+
+function getRichdownTabKey(tab) {
+  return isRichdownTab(tab)
+    ? createTabKey(tab.group.viewColumn, tab.input.uri.toString())
+    : undefined;
+}
+
+function isRichEditorScheme(uri) {
+  return markdownFileEditorAssociationSchemes.includes(uri?.scheme);
+}
+
+function registerChatEditTracking(context) {
+  context.subscriptions.push(
+    vscode.workspace.onDidOpenTextDocument(document => {
+      if (isChatEditingOriginalUri(document.uri)) {
+        scheduleChatEditRefresh();
+      }
+    }),
+    vscode.workspace.onDidCloseTextDocument(document => {
+      if (isChatEditingOriginalUri(document.uri)) {
+        scheduleChatEditRefresh();
+      }
+    }),
+    vscode.workspace.onDidChangeTextDocument(event => {
+      if (isChatEditingOriginalUri(event.document.uri) || isMarkdownUri(event.document.uri)) {
+        scheduleChatEditRefresh();
+      }
+    })
+  );
+}
+
+function isTextTab(tab) {
+  return Boolean(
+    typeof vscode.TabInputText === 'function' &&
+    tab?.input instanceof vscode.TabInputText
+  );
+}
+
+function isRichdownTab(tab) {
+  return Boolean(
+    typeof vscode.TabInputCustom === 'function' &&
+    tab?.input instanceof vscode.TabInputCustom &&
+    tab.input.viewType === richEditorViewType
+  );
+}
+
+function shouldOpenWithRichdown(uri) {
+  return isMarkdownUri(uri) &&
+    isRichEditorScheme(uri) &&
+    vscode.workspace.getConfiguration('richdown').get('openMarkdownAsRichEditor', true);
+}
+
+function queueReveal(uriKey, target) {
+  pendingReveals.set(uriKey, { target, time: Date.now() });
+}
+
+function deliverPendingReveal(uriKey) {
+  const session = richEditorSessions.get(uriKey);
+  if (!session?.ready) {
+    // A new webview takes it in its initial HTML; a reloading one asks with
+    // its "ready" message.
+    return;
+  }
+  const target = takePendingReveal(uriKey);
+  if (target) {
+    session.postMessage({ type: 'reveal', target });
+  }
+}
+
+function takePendingReveal(uriKey) {
+  const pending = pendingReveals.get(uriKey);
+  pendingReveals.delete(uriKey);
+  return pending && Date.now() - pending.time <= pendingRevealLifetimeMs
+    ? pending.target
+    : undefined;
+}
+
+function scheduleChatEditRefresh() {
+  clearTimeout(chatEditRefreshTimer);
+  chatEditRefreshTimer = setTimeout(() => {
+    chatEditRefreshTimer = undefined;
+    for (const session of richEditorSessions.values()) {
+      session.refreshChatEdits();
+    }
+    void returnFinishedReviewsToRichdown();
+  }, 100);
+}
+
+async function returnFinishedReviewsToRichdown() {
+  for (const uriKey of [...chatEditReviewUris]) {
+    if (isUriWithPendingChatEdits(uriKey)) {
+      continue;
+    }
+    chatEditReviewUris.delete(uriKey);
+
+    // Only switch the text editor the reader is looking at; a review tab in
+    // the background stays as it is.
+    const editor = vscode.window.activeTextEditor;
+    const tab = vscode.window.tabGroups.activeTabGroup?.activeTab;
+    if (
+      !editor ||
+      editor.document.uri.toString() !== uriKey ||
+      !isTextTab(tab) ||
+      tab.input.uri.toString() !== uriKey
+    ) {
+      continue;
+    }
+    const target = createSelectionRevealTarget(editor.selection);
+    if (target) {
+      queueReveal(uriKey, target);
+    }
+    try {
+      await vscode.commands.executeCommand('reopenActiveEditorWith', richEditorViewType);
+      deliverPendingReveal(uriKey);
+    } catch (error) {
+      pendingReveals.delete(uriKey);
+    }
+  }
+}
+
+function isUriWithPendingChatEdits(uriKey) {
+  const document = vscode.workspace.textDocuments.find(candidate =>
+    candidate.uri.toString() === uriKey
+  );
+  return Boolean(document) && hasPendingChatEdits(vscode.workspace.textDocuments, document);
+}
+
+async function runChatEditAction(document, action) {
+  if (action === 'review') {
+    // Copilot's inline diff and Keep/Undo controls exist only in the text
+    // editor. Richdown takes the file back once every edit is kept or undone.
+    chatEditReviewUris.add(document.uri.toString());
+    await openInTextEditor(document.uri);
+    return;
+  }
+
+  const command = action === 'keep'
+    ? 'chatEditing.acceptFile'
+    : action === 'undo'
+      ? 'chatEditing.discardFile'
+      : undefined;
+  if (!command) {
+    return;
+  }
+  try {
+    await vscode.commands.executeCommand(command, document.uri);
+  } catch (error) {
+    // Reported below: the edits are still pending.
+  }
+  await new Promise(resolve => setTimeout(resolve, 300));
+  if (hasPendingChatEdits(vscode.workspace.textDocuments, document)) {
+    const review = await vscode.window.showWarningMessage(
+      `Richdown could not ${action} the Copilot edits for this file. Review them in the text editor instead.`,
+      'Review Changes'
+    );
+    if (review) {
+      await runChatEditAction(document, 'review');
+    }
+  }
+}
+
+async function openInTextEditor(uri) {
+  markdownEditorRouter.expectTextTab(uri.toString());
+  const activeTab = vscode.window.tabGroups.activeTabGroup?.activeTab;
+  if (isRichdownTab(activeTab) && isSameUri(activeTab.input.uri, uri)) {
+    try {
+      await vscode.commands.executeCommand('reopenActiveEditorWith', 'default');
+      return;
+    } catch (error) {
+      // Fall back to opening the text editor explicitly.
+    }
+  }
+  await vscode.commands.executeCommand('vscode.openWith', uri, 'default');
+}
 
 async function toggleMarkdownOpenMode(resource) {
   const config = vscode.workspace.getConfiguration('richdown');
@@ -435,7 +793,12 @@ async function syncMarkdownEditorAssociations(value) {
       .getConfiguration('richdown')
       .get('openMarkdownAsRichEditor', true);
   const workbenchConfig = vscode.workspace.getConfiguration('workbench');
-  await updateEditorAssociations(workbenchConfig, useRichEditor);
+  // An editor association makes VS Code skip the text editor, and with it the
+  // position jumpToOpenedPosition reads, so that mode routes opens itself.
+  await updateEditorAssociations(
+    workbenchConfig,
+    useRichEditor && !isJumpToOpenedPositionEnabled(useRichEditor)
+  );
   await updateDiffEditorAssociations(workbenchConfig);
 }
 
@@ -782,7 +1145,31 @@ class RichdownEditorProvider {
     externalFileWatcher?.onDidChange(handleWatchedFileChange);
     externalFileWatcher?.onDidCreate(handleWatchedFileChange);
 
-    webviewPanel.webview.html = getRichEditorHtml(this.context, webviewPanel.webview, normalizeToLf(document.getText()), getRichEditorSettings());
+    let lastChatEditsPending;
+    const session = {
+      ready: false,
+      postMessage: message => webviewPanel.webview.postMessage(message),
+      refreshChatEdits: () => {
+        const pending = hasPendingChatEdits(vscode.workspace.textDocuments, document);
+        if (pending === lastChatEditsPending) {
+          return;
+        }
+        lastChatEditsPending = pending;
+        webviewPanel.webview.postMessage({ type: 'chatEdits', pending });
+      }
+    };
+    const documentKey = document.uri.toString();
+    richEditorSessions.set(documentKey, session);
+
+    webviewPanel.webview.html = getRichEditorHtml(
+      this.context,
+      webviewPanel.webview,
+      normalizeToLf(document.getText()),
+      getRichEditorSettings(),
+      // Revealed before the first paint, so the editor does not draw the top
+      // of the document and then jump.
+      takePendingReveal(documentKey)
+    );
     scheduleGitDiffUpdate(document.getText(), 0);
 
     const changeDocumentSubscription = vscode.workspace.onDidChangeTextDocument(event => {
@@ -832,6 +1219,9 @@ class RichdownEditorProvider {
     });
 
     webviewPanel.onDidDispose(() => {
+      if (richEditorSessions.get(documentKey) === session) {
+        richEditorSessions.delete(documentKey);
+      }
       if (gitDiffUpdateTimer) {
         clearTimeout(gitDiffUpdateTimer);
       }
@@ -850,8 +1240,18 @@ class RichdownEditorProvider {
 
     webviewPanel.webview.onDidReceiveMessage(async event => {
       if (event.type === 'ready') {
+        session.ready = true;
+        // A reloaded webview starts without the banner state.
+        lastChatEditsPending = undefined;
+        session.refreshChatEdits();
+        deliverPendingReveal(documentKey);
         scheduleGitDiffUpdate(document.getText(), 0);
         scheduleExternalFileRefresh(0);
+        return;
+      }
+
+      if (event.type === 'chatEditAction') {
+        await runChatEditAction(document, event.action);
         return;
       }
 
@@ -864,7 +1264,7 @@ class RichdownEditorProvider {
       }
 
       if (event.type === 'openLink') {
-        await openMarkdownLink(document, event.href);
+        await openMarkdownLink(document, event.href, { fromRichEditor: true });
         return;
       }
 
@@ -1271,7 +1671,7 @@ function makeTextSignature(text) {
   return `${text.length}:${hash >>> 0}`;
 }
 
-async function openMarkdownLink(document, href) {
+async function openMarkdownLink(document, href, { fromRichEditor = false } = {}) {
   if (!href || typeof href !== 'string') {
     return;
   }
@@ -1282,7 +1682,9 @@ async function openMarkdownLink(document, href) {
     return;
   }
 
-  const [pathPart, fragment] = href.split('#');
+  const hashIndex = href.indexOf('#');
+  const pathPart = hashIndex >= 0 ? href.slice(0, hashIndex) : href;
+  const fragment = hashIndex >= 0 ? href.slice(hashIndex + 1) : '';
   let targetUri = document.uri;
   if (pathPart) {
     let decodedPath;
@@ -1299,11 +1701,29 @@ async function openMarkdownLink(document, href) {
     targetUri = vscode.Uri.file(resolved);
   }
 
-  await vscode.commands.executeCommand('vscode.open', targetUri);
-
-  if (fragment) {
-    vscode.window.showInformationMessage(`Opened link target: #${fragment}`);
+  const target = parseLinkFragment(fragment);
+  const targetKey = targetUri.toString();
+  if (shouldOpenWithRichdown(targetUri)) {
+    if (target) {
+      queueReveal(targetKey, target);
+    }
+    // A link within the open Richdown document only needs to scroll it.
+    if (!(fromRichEditor && isSameUri(targetUri, document.uri))) {
+      await vscode.commands.executeCommand('vscode.openWith', targetUri, richEditorViewType);
+    }
+    deliverPendingReveal(targetKey);
+    return;
   }
+
+  const selection = target?.selection
+    ? new vscode.Range(
+      target.selection.start.line,
+      target.selection.start.character,
+      target.selection.end.line,
+      Math.min(target.selection.end.character, 100000)
+    )
+    : undefined;
+  await vscode.commands.executeCommand('vscode.open', targetUri, selection ? { selection } : undefined);
 }
 
 async function collectHostCompletionItems(document, request) {
@@ -1443,7 +1863,7 @@ function resolveMarkdownImageUri(document, webview, src) {
   }
 }
 
-function getRichEditorHtml(context, webview, initialText, settings) {
+function getRichEditorHtml(context, webview, initialText, settings, initialReveal) {
   const nonce = getNonce();
   const scriptUri = getWebviewMediaUri(context, webview, 'richEditor.js');
   const mermaidScriptUri = getWebviewMediaUri(context, webview, 'mermaid.js');
@@ -1475,6 +1895,7 @@ function getRichEditorHtml(context, webview, initialText, settings) {
   <script type="application/json" id="initial-settings">${serializeForScript(settings)}</script>
   <script type="application/json" id="mermaid-script-uri">${serializeForScript(mermaidScriptUri.toString())}</script>
   <script type="application/json" id="initial-git-diff">${serializeForScript([])}</script>
+  <script type="application/json" id="initial-reveal">${serializeForScript(initialReveal ?? null)}</script>
   <script nonce="${nonce}" src="${scriptUri}"></script>
 </body>
 </html>`;
