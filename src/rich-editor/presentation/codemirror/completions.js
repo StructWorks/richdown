@@ -277,10 +277,28 @@ function getFenceLanguageOptions() {
 }
 
 export function collectHeadingAnchors(doc) {
+  return scanHeadingAnchors(doc).map(({ slug, title }) => ({ slug, title }));
+}
+
+// Finds the heading a `#anchor` link points to. Exact GitHub slugs win; an
+// anchor written as heading text ("#Getting Started") is slugified as a
+// fallback.
+export function findHeadingAnchor(doc, anchor) {
+  const anchors = scanHeadingAnchors(doc);
+  const wanted = String(anchor || "").toLowerCase();
+  return (
+    anchors.find((candidate) => candidate.slug === wanted) ||
+    anchors.find((candidate) => candidate.slug === slugifyHeading(wanted)) ||
+    null
+  );
+}
+
+function scanHeadingAnchors(doc) {
   const anchors = [];
   const seen = new Map();
   for (let lineNumber = 1; lineNumber <= doc.lines; lineNumber += 1) {
-    const heading = doc.line(lineNumber).text.match(/^\s{0,3}#{1,6}\s+(.*?)\s*#*\s*$/);
+    const line = doc.line(lineNumber);
+    const heading = line.text.match(/^\s{0,3}#{1,6}\s+(.*?)\s*#*\s*$/);
     if (!heading || !heading[1]) {
       continue;
     }
@@ -295,7 +313,7 @@ export function collectHeadingAnchors(doc) {
     if (count > 0) {
       slug = `${slug}-${count}`;
     }
-    anchors.push({ slug, title });
+    anchors.push({ slug, title, from: line.from });
   }
   return anchors;
 }

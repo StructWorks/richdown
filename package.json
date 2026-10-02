@@ -2,7 +2,7 @@
   "name": "richdown",
   "displayName": "Richdown",
   "description": "Edit Markdown with a rich inline preview, editable tables, colored Mermaid diagrams, Gherkin boards, HTML/PDF export, Richdown diffs, and a focused writing flow in VS Code.",
-  "version": "0.8.4",
+  "version": "0.9.0",
   "publisher": "mytooyodev",
   "license": "SEE LICENSE IN LICENSE",
   "repository": {
@@ -123,6 +123,11 @@
           "type": "boolean",
           "default": true,
           "description": "Open regular Markdown files with Richdown by default, including files opened over a remote connection such as WSL, SSH, Dev Containers, or Codespaces. Source Control diffs continue to use VS Code's native diff editor."
+        },
+        "richdown.jumpToOpenedPosition": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "Also jump to the requested position for VS Code Search results and links in Copilot Chat, and highlight the match. Links that extensions such as Claude Code and Codex open already jump without this. VS Code passes the position only to text editors, so with this on, every Markdown file opens in the text editor first and switches to Richdown right away, which causes a visible flicker. Requires `#richdown.openMarkdownAsRichEditor#`."
         },
         "richdown.richTheme": {
           "type": "string",

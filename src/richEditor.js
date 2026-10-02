@@ -39,9 +39,14 @@ import { createGitDiffGutter } from "./rich-editor/presentation/codemirror/gitDi
 import { findLinkAtClick } from "./rich-editor/presentation/codemirror/links.js";
 import { createSlashCommandController } from "./rich-editor/presentation/codemirror/slashCommands.js";
 import { createPreviewExtensions } from "./rich-editor/presentation/codemirror/previewExtensions.js";
+import { createChatEditsBanner } from "./rich-editor/presentation/chatEdits/chatEditsBanner.js";
 import { createFallbackEditor } from "./rich-editor/presentation/fallback/fallbackEditor.js";
 import { createInlineMarkdownSupport } from "./rich-editor/presentation/markdown/inlineMarkdown.js";
 import { createOutlineNavigation } from "./rich-editor/presentation/outline/outlineNavigation.js";
+import {
+  revealHighlightField,
+  revealInEditor,
+} from "./rich-editor/presentation/reveal/revealTarget.js";
 import {
   createSearchExtensions,
   getSearchKeymap,
@@ -69,6 +74,7 @@ const initialSettings = readJsonScript("initial-settings", {});
 const mermaidScriptUri = readJsonScript("mermaid-script-uri", "");
 const initialGitDiffChanges = readJsonScript("initial-git-diff", []);
 const exportImageMap = readJsonScript("initial-image-map", {});
+const initialReveal = readJsonScript("initial-reveal", null);
 
 let applyingExternalUpdate = false;
 let settings = normalizeRichEditorSettings(initialSettings);
@@ -79,6 +85,9 @@ const fallbackEditor = createFallbackEditor({
   postMessage: (message) => vscodePort.postMessage(message),
 });
 const slashCommands = createSlashCommandController();
+const chatEditsBanner = createChatEditsBanner({
+  postMessage: (message) => vscodePort.postMessage(message),
+});
 const gitDiffGutter = createGitDiffGutter(initialGitDiffChanges);
 const settingsMenu = createSettingsMenuController({
   getSettings: () => settings,
@@ -197,6 +206,7 @@ queueMicrotask(() => {
                 highlightActiveLine(),
                 highlightActiveLineGutter(),
                 markdownCompletion.extension,
+                revealHighlightField,
                 ...createSearchExtensions(),
               ]),
           syntaxHighlighting(markdownHighlightStyle),
@@ -285,6 +295,11 @@ queueMicrotask(() => {
       settingsMenu.render();
       outlineNavigation.render(view);
       gitDiffGutter.update(view, latestGitDiffChanges);
+      if (initialReveal) {
+        // Applied before the first paint, so the editor opens at the target
+        // instead of drawing the top of the document and then jumping.
+        revealInEditor(view, initialReveal);
+      }
     }
     vscodePort.postMessage({ type: "ready" });
   } catch (error) {
@@ -310,6 +325,18 @@ window.addEventListener("message", (event) => {
 
   if (event.data.type === "linkCompletions") {
     markdownCompletion.handleLinkCompletions(event.data);
+    return;
+  }
+
+  if (event.data.type === "reveal") {
+    if (view) {
+      revealInEditor(view, event.data.target);
+    }
+    return;
+  }
+
+  if (event.data.type === "chatEdits") {
+    chatEditsBanner.update(event.data.pending === true);
     return;
   }
 

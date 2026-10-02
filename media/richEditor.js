@@ -23656,10 +23656,10 @@
         while (stack.stack.length > 6e3 && stack.forceReduce()) {
         }
       }
-      let actions = this.tokens.getActions(stack);
-      for (let i2 = 0; i2 < actions.length; ) {
-        let action = actions[i2++], term = actions[i2++], end = actions[i2++];
-        let last = i2 == actions.length || !split;
+      let actions2 = this.tokens.getActions(stack);
+      for (let i2 = 0; i2 < actions2.length; ) {
+        let action = actions2[i2++], term = actions2[i2++], end = actions2[i2++];
+        let last = i2 == actions2.length || !split;
         let localStack = last ? stack : stack.split();
         let main = this.tokens.mainToken;
         localStack.apply(action, term, main ? main.start : localStack.pos, end);
@@ -46582,10 +46582,19 @@
     return fenceLanguageOptions;
   }
   function collectHeadingAnchors(doc2) {
+    return scanHeadingAnchors(doc2).map(({ slug, title }) => ({ slug, title }));
+  }
+  function findHeadingAnchor(doc2, anchor) {
+    const anchors = scanHeadingAnchors(doc2);
+    const wanted = String(anchor || "").toLowerCase();
+    return anchors.find((candidate) => candidate.slug === wanted) || anchors.find((candidate) => candidate.slug === slugifyHeading(wanted)) || null;
+  }
+  function scanHeadingAnchors(doc2) {
     const anchors = [];
     const seen = /* @__PURE__ */ new Map();
     for (let lineNumber = 1; lineNumber <= doc2.lines; lineNumber += 1) {
-      const heading2 = doc2.line(lineNumber).text.match(/^\s{0,3}#{1,6}\s+(.*?)\s*#*\s*$/);
+      const line = doc2.line(lineNumber);
+      const heading2 = line.text.match(/^\s{0,3}#{1,6}\s+(.*?)\s*#*\s*$/);
       if (!heading2 || !heading2[1]) {
         continue;
       }
@@ -46599,7 +46608,7 @@
       if (count2 > 0) {
         slug = `${slug}-${count2}`;
       }
-      anchors.push({ slug, title });
+      anchors.push({ slug, title, from: line.from });
     }
     return anchors;
   }
@@ -47574,22 +47583,22 @@
           createStat(`${this.parsed.scenarioCount}`, "scenarios")
         );
         stats.appendChild(createStat(`${this.parsed.stepCount}`, "steps"));
-        const actions = document.createElement("div");
-        actions.className = "cm-gherkin-actions";
-        actions.appendChild(
+        const actions2 = document.createElement("div");
+        actions2.className = "cm-gherkin-actions";
+        actions2.appendChild(
           this.createModeButton("Board", "board", "Show as BDD board", view2)
         );
-        actions.appendChild(
+        actions2.appendChild(
           this.createModeButton("Source", "source", "Show highlighted source", view2)
         );
-        actions.appendChild(
+        actions2.appendChild(
           createGherkinButton(
             "Edit",
             "Edit Gherkin source",
             () => this.focusSource(view2)
           )
         );
-        toolbar.append(title, stats, actions);
+        toolbar.append(title, stats, actions2);
         return toolbar;
       }
       createModeButton(label, mode, title, view2) {
@@ -48320,20 +48329,20 @@
         return false;
       }
     }
-    function createMermaidPreviewToolbar(actions) {
+    function createMermaidPreviewToolbar(actions2) {
       const toolbar = document.createElement("div");
       toolbar.className = "cm-mermaid-toolbar";
       toolbar.addEventListener("mousedown", stopInteractiveEvent3);
       toolbar.addEventListener("click", stopInteractiveEvent3);
       toolbar.appendChild(
-        createMermaidToolButton("-", "Zoom out", actions.onZoomOut)
+        createMermaidToolButton("-", "Zoom out", actions2.onZoomOut)
       );
       toolbar.appendChild(
-        createMermaidToolButton("+", "Zoom in", actions.onZoomIn)
+        createMermaidToolButton("+", "Zoom in", actions2.onZoomIn)
       );
-      toolbar.appendChild(createMermaidToolButton("Fit", "Fit diagram", actions.onFit));
+      toolbar.appendChild(createMermaidToolButton("Fit", "Fit diagram", actions2.onFit));
       toolbar.appendChild(
-        createMermaidToolButton("\u25A1", "Open diagram", actions.onOpen)
+        createMermaidToolButton("\u25A1", "Open diagram", actions2.onOpen)
       );
       return toolbar;
     }
@@ -48518,7 +48527,7 @@
           };
           const centerX = this.container.scrollLeft + anchor2.x;
           const centerY = this.container.scrollTop + anchor2.y;
-          const nextScale2 = clamp(
+          const nextScale2 = clamp2(
             this.scale * factor,
             // Fitting a very wide diagram can land below minScale; never let a
             // zoom-out request bounce the scale back up to minScale.
@@ -48536,7 +48545,7 @@
           x: bounds.width / 2,
           y: bounds.height / 2
         };
-        const nextScale = clamp(
+        const nextScale = clamp2(
           this.scale * factor,
           Math.min(this.minScale, this.scale),
           this.maxScale
@@ -48622,7 +48631,7 @@
         this.container.addEventListener("pointercancel", stopDrag);
       }
     }
-    function clamp(value, min, max) {
+    function clamp2(value, min, max) {
       return Math.max(min, Math.min(max, value));
     }
     function openMermaidModal(svgMarkup) {
@@ -48736,9 +48745,9 @@
       const fittedHeight = height * Math.min(1, availableWidth / width);
       const isLarge = previewSize === "large";
       const minimumHeight = isLarge ? 280 : 140;
-      const maximumHeight = isLarge ? clamp(viewportHeight * 1.15, 760, 1200) : clamp(viewportHeight * 0.82, 560, 900);
+      const maximumHeight = isLarge ? clamp2(viewportHeight * 1.15, 760, 1200) : clamp2(viewportHeight * 0.82, 560, 900);
       return Math.round(
-        clamp(fittedHeight + 22, minimumHeight, maximumHeight)
+        clamp2(fittedHeight + 22, minimumHeight, maximumHeight)
       );
     }
     function estimateLargeMermaidPreviewHeight(code3) {
@@ -51179,6 +51188,47 @@ ${rowText}`;
     };
   }
 
+  // src/rich-editor/presentation/chatEdits/chatEditsBanner.js
+  var actions = [
+    { action: "review", label: "Review Changes", primary: true },
+    { action: "keep", label: "Keep" },
+    { action: "undo", label: "Undo" }
+  ];
+  function createChatEditsBanner({ postMessage }) {
+    let banner = null;
+    function update(pending) {
+      if (!pending) {
+        banner?.remove();
+        banner = null;
+        return;
+      }
+      if (banner) {
+        return;
+      }
+      banner = document.createElement("div");
+      banner.className = "richdown-chat-edits-banner";
+      banner.setAttribute("role", "status");
+      const message = document.createElement("span");
+      message.className = "richdown-chat-edits-message";
+      message.textContent = "Copilot has pending edits to this file.";
+      banner.appendChild(message);
+      for (const { action, label, primary } of actions) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = primary ? "richdown-chat-edits-button is-primary" : "richdown-chat-edits-button";
+        button.textContent = label;
+        button.addEventListener("click", (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          postMessage({ type: "chatEditAction", action });
+        });
+        banner.appendChild(button);
+      }
+      document.body.appendChild(banner);
+    }
+    return { update };
+  }
+
   // src/rich-editor/presentation/fallback/fallbackEditor.js
   function createFallbackEditor({ root: root2, postMessage }) {
     let textarea = null;
@@ -51256,7 +51306,7 @@ ${rowText}`;
       return true;
     }
     function appendInlineMarkdown2(parent, text2, options = {}) {
-      const pattern = /!\[(?<imageAlt>[^\]]*)\]\(\s*(?:<(?<imageSrcAngle>[^>]+)>|(?<imageSrc>[^)\s]+))(?:\s+(?:"[^"]*"|'[^']*'))?\s*\)|`(?<code>[^`]+)`|\*\*(?<boldStar>[^*]+)\*\*|(?<![\p{L}\p{N}\p{M}_])__(?<boldUnderscore>[^_\s](?:[^_]*?[^_\s])?)__(?![\p{L}\p{N}\p{M}_])|\*(?<italicStar>[^*\s][^*]*?)\*|(?<![\p{L}\p{N}\p{M}_])_(?<italicUnderscore>[^_\s](?:[^_]*?[^_\s])?)_(?![\p{L}\p{N}\p{M}_])|~~(?<strike>[^~]+)~~|\[(?<linkText>[^\]]+)\]\(\s*(?:<(?<linkHrefAngle>[^>]+)>|(?<linkHref>[^)\s]+))(?:\s+(?:"[^"]*"|'[^']*'))?\s*\)|(?<bareUrl>https?:\/\/[^\s)]+)/gu;
+      const pattern = /!\[(?<imageAlt>[^\]]*)\]\(\s*(?:<(?<imageSrcAngle>[^>]+)>|(?<imageSrc>[^)\s]+))(?:\s+(?:"[^"]*"|'[^']*'))?\s*\)|`(?<code>[^`]+)`|(?<lineBreak><[Bb][Rr]\s*\/?>)|\*\*(?<boldStar>[^*]+)\*\*|(?<![\p{L}\p{N}\p{M}_])__(?<boldUnderscore>[^_\s](?:[^_]*?[^_\s])?)__(?![\p{L}\p{N}\p{M}_])|\*(?<italicStar>[^*\s][^*]*?)\*|(?<![\p{L}\p{N}\p{M}_])_(?<italicUnderscore>[^_\s](?:[^_]*?[^_\s])?)_(?![\p{L}\p{N}\p{M}_])|~~(?<strike>[^~]+)~~|\[(?<linkText>[^\]]+)\]\(\s*(?:<(?<linkHrefAngle>[^>]+)>|(?<linkHref>[^)\s]+))(?:\s+(?:"[^"]*"|'[^']*'))?\s*\)|(?<bareUrl>https?:\/\/[^\s)]+)/gu;
       let lastIndex = 0;
       for (const match2 of text2.matchAll(pattern)) {
         const groups = match2.groups || {};
@@ -51278,6 +51328,8 @@ ${rowText}`;
           const code3 = document.createElement("code");
           code3.textContent = groups.code;
           parent.appendChild(code3);
+        } else if (groups.lineBreak !== void 0) {
+          parent.appendChild(document.createElement("br"));
         } else if (groups.boldStar !== void 0 || groups.boldUnderscore !== void 0) {
           const strong = document.createElement("strong");
           strong.textContent = groups.boldStar ?? groups.boldUnderscore;
@@ -51661,6 +51713,80 @@ ${rowText}`;
   }
   function cleanOutlineHeadingText(text2) {
     return text2.replace(/!\[([^\]]*)\]\([^)]+\)/g, "$1").replace(/\[([^\]]+)\]\([^)]+\)/g, "$1").replace(/`([^`]+)`/g, "$1").replace(/\*\*([^*]+)\*\*/g, "$1").replace(/__([^_]+)__/g, "$1").replace(/\*([^*]+)\*/g, "$1").replace(/_([^_]+)_/g, "$1").replace(/~~([^~]+)~~/g, "$1").trim();
+  }
+
+  // src/rich-editor/presentation/reveal/revealTarget.js
+  var setRevealHighlight = StateEffect.define();
+  var revealMark = Decoration.mark({ class: "cm-richdown-reveal-match" });
+  var revealHighlightField = StateField.define({
+    create() {
+      return Decoration.none;
+    },
+    update(highlight, transaction) {
+      for (const effect of transaction.effects) {
+        if (effect.is(setRevealHighlight)) {
+          return effect.value ? Decoration.set([revealMark.range(effect.value.from, effect.value.to)]) : Decoration.none;
+        }
+      }
+      if (transaction.docChanged || transaction.isUserEvent("select")) {
+        return Decoration.none;
+      }
+      return highlight;
+    },
+    provide: (field) => EditorView.decorations.from(field)
+  });
+  function resolveRevealRange(doc2, target) {
+    if (target?.selection) {
+      const anchor = toOffset(doc2, target.selection.start);
+      const head = toOffset(doc2, target.selection.end);
+      return {
+        anchor,
+        head,
+        from: Math.min(anchor, head),
+        to: Math.max(anchor, head),
+        heading: false
+      };
+    }
+    if (typeof target?.anchor === "string") {
+      const heading2 = findHeadingAnchor(doc2, target.anchor);
+      return heading2 ? {
+        anchor: heading2.from,
+        head: heading2.from,
+        from: heading2.from,
+        to: heading2.from,
+        heading: true
+      } : null;
+    }
+    return null;
+  }
+  function revealInEditor(view2, target) {
+    const range = resolveRevealRange(view2.state.doc, target);
+    if (!range) {
+      return false;
+    }
+    view2.dispatch({
+      selection: { anchor: range.anchor, head: range.head },
+      effects: [
+        EditorView.scrollIntoView(range.from, {
+          y: range.heading ? "start" : "center"
+        }),
+        setRevealHighlight.of(
+          range.from < range.to ? { from: range.from, to: range.to } : null
+        )
+      ]
+    });
+    if (document.hasFocus()) {
+      view2.focus();
+    }
+    return true;
+  }
+  function toOffset(doc2, position) {
+    const lineNumber = clamp(Math.trunc(Number(position?.line) || 0) + 1, 1, doc2.lines);
+    const line = doc2.line(lineNumber);
+    return line.from + clamp(Math.trunc(Number(position?.character) || 0), 0, line.to - line.from);
+  }
+  function clamp(value, min, max) {
+    return Math.min(Math.max(value, min), max);
   }
 
   // node_modules/@codemirror/search/dist/index.js
@@ -53414,6 +53540,11 @@ ${rowText}`;
       ".cm-richdown-search-match": {
         backgroundColor: "color-mix(in srgb, var(--vscode-editor-findMatchHighlightBackground, #ea5c0055) 82%, transparent)",
         boxShadow: "inset 0 -2px 0 var(--vscode-editor-findMatchHighlightBorder, color-mix(in srgb, var(--rip-syntax-orange) 70%, transparent))"
+      },
+      ".cm-richdown-reveal-match": {
+        backgroundColor: "var(--vscode-editor-findMatchBackground, color-mix(in srgb, var(--rip-syntax-orange) 45%, transparent))",
+        outline: "1px solid var(--vscode-editor-findMatchBorder, color-mix(in srgb, var(--rip-syntax-orange) 80%, transparent))",
+        borderRadius: "2px"
       },
       ".cm-selectionMatch": {
         backgroundColor: "color-mix(in srgb, var(--rip-link) 24%, transparent)"
@@ -55188,6 +55319,50 @@ ${rowText}`;
       border-color: var(--rip-focus);
       background: var(--rip-hover);
     }
+    .richdown-chat-edits-banner {
+      position: fixed;
+      left: 18px;
+      bottom: 18px;
+      z-index: 10001;
+      max-width: calc(100vw - 92px);
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px 8px;
+      border: 1px solid var(--rip-focus);
+      border-radius: 8px;
+      padding: 8px 10px;
+      color: var(--rip-fg);
+      background: var(--rip-panel);
+      box-shadow: 0 14px 36px rgba(0, 0, 0, 0.3);
+      font: 12px var(--vscode-font-family);
+    }
+    .richdown-chat-edits-message {
+      margin-right: 4px;
+    }
+    .richdown-chat-edits-button {
+      height: 26px;
+      border: 1px solid var(--rip-border);
+      border-radius: 6px;
+      padding: 0 10px;
+      color: var(--rip-fg);
+      background: var(--rip-input-bg);
+      font: 12px var(--vscode-font-family);
+      cursor: pointer;
+    }
+    .richdown-chat-edits-button:hover {
+      border-color: var(--rip-focus);
+      background: var(--rip-hover);
+    }
+    .richdown-chat-edits-button.is-primary {
+      border-color: var(--rip-accent);
+      color: var(--rip-button-fg);
+      background: var(--rip-accent);
+    }
+    .richdown-chat-edits-button:focus-visible {
+      outline: 2px solid var(--rip-focus);
+      outline-offset: 1px;
+    }
     .cm-mermaid-modal-canvas {
       min-width: 0;
       min-height: 0;
@@ -55233,6 +55408,7 @@ ${rowText}`;
   var mermaidScriptUri = readJsonScript("mermaid-script-uri", "");
   var initialGitDiffChanges = readJsonScript("initial-git-diff", []);
   var exportImageMap = readJsonScript("initial-image-map", {});
+  var initialReveal = readJsonScript("initial-reveal", null);
   var applyingExternalUpdate = false;
   var settings = normalizeRichEditorSettings(initialSettings);
   var latestGitDiffChanges = initialGitDiffChanges;
@@ -55242,6 +55418,9 @@ ${rowText}`;
     postMessage: (message) => vscodePort.postMessage(message)
   });
   var slashCommands2 = createSlashCommandController();
+  var chatEditsBanner = createChatEditsBanner({
+    postMessage: (message) => vscodePort.postMessage(message)
+  });
   var gitDiffGutter = createGitDiffGutter(initialGitDiffChanges);
   var settingsMenu = createSettingsMenuController({
     getSettings: () => settings,
@@ -55348,6 +55527,7 @@ ${rowText}`;
               highlightActiveLine(),
               highlightActiveLineGutter(),
               markdownCompletion.extension,
+              revealHighlightField,
               ...createSearchExtensions()
             ],
             syntaxHighlighting(markdownHighlightStyle),
@@ -55432,6 +55612,9 @@ ${rowText}`;
         settingsMenu.render();
         outlineNavigation.render(view);
         gitDiffGutter.update(view, latestGitDiffChanges);
+        if (initialReveal) {
+          revealInEditor(view, initialReveal);
+        }
       }
       vscodePort.postMessage({ type: "ready" });
     } catch (error) {
@@ -55453,6 +55636,16 @@ ${rowText}`;
     }
     if (event.data.type === "linkCompletions") {
       markdownCompletion.handleLinkCompletions(event.data);
+      return;
+    }
+    if (event.data.type === "reveal") {
+      if (view) {
+        revealInEditor(view, event.data.target);
+      }
+      return;
+    }
+    if (event.data.type === "chatEdits") {
+      chatEditsBanner.update(event.data.pending === true);
       return;
     }
     if (event.data.type === "gitDiff") {

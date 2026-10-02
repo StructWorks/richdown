@@ -35,6 +35,13 @@ describe("appendInlineMarkdown", () => {
     );
   });
 
+  it("renders <br> variants as line breaks but leaves them literal in code", () => {
+    expect(render("a<br>b<br/>c<BR />d").parent.innerHTML).toBe(
+      "a<br>b<br>c<br>d",
+    );
+    expect(render("`<br>`").parent.innerHTML).toBe("<code>&lt;br&gt;</code>");
+  });
+
   it("keeps plain text between constructs", () => {
     const { parent } = render("before **bold** after");
     expect(parent.textContent).toBe("before bold after");

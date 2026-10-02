@@ -2,6 +2,14 @@
 
 All notable changes to Richdown will be documented in this file.
 
+## 0.9.0 - 2026-10-02
+
+- Fixed `<br>` tags inside table cells showing as literal text in rich tables, Richdown Diff, and HTML/PDF export; they now render as line breaks.
+- Links inside Richdown and Richdown Diff to `#heading` anchors and `#L12` lines now scroll to the target instead of only opening the file.
+- Markdown file links opened by AI extensions such as Claude Code and Codex now open in Richdown at the linked line with the match highlighted. Those extensions open files with `showTextDocument`, which always uses the text editor, so Richdown takes such new text editors over and carries their position. Ordinary opens still go straight to Richdown. "Reopen Editor With > Text Editor" keeps a file in the text editor.
+- Added the `richdown.jumpToOpenedPosition` setting (off by default) to also jump to VS Code Search results and Copilot Chat links. VS Code passes the position only to text editors, so in this mode every Markdown file opens in the text editor first and switches to Richdown right away, which causes a visible flicker, and Richdown does not add its `workbench.editorAssociations` entries.
+- Added a banner for pending GitHub Copilot edits to the open file, with Keep, Undo, and Review Changes. Copilot's inline diff and Keep/Undo controls exist only in the text editor, so Review Changes reopens the file there, and Richdown takes it back once every edit is kept or undone.
+
 ## 0.8.4 - 2026-08-20
 
 - Fixed Richdown failing to open any Markdown file after 0.8.3. The line-ending module added in that release was excluded from the packaged extension, so the extension host threw while loading and the rich editor never started.
