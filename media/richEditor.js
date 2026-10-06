@@ -12416,6 +12416,302 @@
   var showTooltip = /* @__PURE__ */ Facet.define({
     enables: [tooltipPlugin, baseTheme]
   });
+  var showHoverTooltip = /* @__PURE__ */ Facet.define({
+    combine: (inputs) => inputs.reduce((a2, i2) => a2.concat(i2), [])
+  });
+  var HoverTooltipHost = class _HoverTooltipHost {
+    // Needs to be static so that host tooltip instances always match
+    static create(view2) {
+      return new _HoverTooltipHost(view2);
+    }
+    constructor(view2) {
+      this.view = view2;
+      this.mounted = false;
+      this.dom = document.createElement("div");
+      this.dom.classList.add("cm-tooltip-hover");
+      this.manager = new TooltipViewManager(view2, showHoverTooltip, (t2, p) => this.createHostedView(t2, p), (t2) => t2.dom.remove());
+    }
+    createHostedView(tooltip, prev) {
+      let hostedView = tooltip.create(this.view);
+      hostedView.dom.classList.add("cm-tooltip-section");
+      this.dom.insertBefore(hostedView.dom, prev ? prev.dom.nextSibling : this.dom.firstChild);
+      if (this.mounted && hostedView.mount)
+        hostedView.mount(this.view);
+      return hostedView;
+    }
+    mount(view2) {
+      for (let hostedView of this.manager.tooltipViews) {
+        if (hostedView.mount)
+          hostedView.mount(view2);
+      }
+      this.mounted = true;
+    }
+    positioned(space6) {
+      for (let hostedView of this.manager.tooltipViews) {
+        if (hostedView.positioned)
+          hostedView.positioned(space6);
+      }
+    }
+    update(update) {
+      this.manager.update(update);
+    }
+    destroy() {
+      var _a2;
+      for (let t2 of this.manager.tooltipViews)
+        (_a2 = t2.destroy) === null || _a2 === void 0 ? void 0 : _a2.call(t2);
+    }
+    passProp(name2) {
+      let value = void 0;
+      for (let view2 of this.manager.tooltipViews) {
+        let given = view2[name2];
+        if (given !== void 0) {
+          if (value === void 0)
+            value = given;
+          else if (value !== given)
+            return void 0;
+        }
+      }
+      return value;
+    }
+    get offset() {
+      return this.passProp("offset");
+    }
+    get getCoords() {
+      return this.passProp("getCoords");
+    }
+    get overlap() {
+      return this.passProp("overlap");
+    }
+    get resize() {
+      return this.passProp("resize");
+    }
+  };
+  var showHoverTooltipHost = /* @__PURE__ */ showTooltip.compute([showHoverTooltip], (state) => {
+    let tooltips = state.facet(showHoverTooltip);
+    if (tooltips.length === 0)
+      return null;
+    return {
+      pos: Math.min(...tooltips.map((t2) => t2.pos)),
+      end: Math.max(...tooltips.map((t2) => {
+        var _a2;
+        return (_a2 = t2.end) !== null && _a2 !== void 0 ? _a2 : t2.pos;
+      })),
+      create: HoverTooltipHost.create,
+      above: tooltips[0].above,
+      arrow: tooltips.some((t2) => t2.arrow)
+    };
+  });
+  var hoverPlugin = /* @__PURE__ */ Facet.define();
+  var HoverPlugin = class {
+    constructor(view2, source, field, locked, setHover, hoverTime) {
+      this.view = view2;
+      this.source = source;
+      this.field = field;
+      this.locked = locked;
+      this.setHover = setHover;
+      this.hoverTime = hoverTime;
+      this.hoverTimeout = -1;
+      this.restartTimeout = -1;
+      this.pending = null;
+      this.lastMove = { x: 0, y: 0, target: view2.dom, time: 0 };
+      this.checkHover = this.checkHover.bind(this);
+      view2.dom.addEventListener("mouseleave", this.mouseleave = this.mouseleave.bind(this));
+      view2.dom.addEventListener("mousemove", this.mousemove = this.mousemove.bind(this));
+    }
+    update(update) {
+      if (this.pending) {
+        this.pending = null;
+        clearTimeout(this.restartTimeout);
+        this.restartTimeout = setTimeout(() => this.startHover(), 20);
+      }
+    }
+    get active() {
+      return this.view.state.field(this.field);
+    }
+    checkHover() {
+      this.hoverTimeout = -1;
+      if (this.active.length)
+        return;
+      let hovered = Date.now() - this.lastMove.time;
+      if (hovered < this.hoverTime)
+        this.hoverTimeout = setTimeout(this.checkHover, this.hoverTime - hovered);
+      else
+        this.startHover();
+    }
+    startHover() {
+      clearTimeout(this.restartTimeout);
+      let { view: view2, lastMove } = this;
+      let tile = view2.docView.tile.nearest(lastMove.target);
+      if (!tile)
+        return;
+      let pos, side = 1;
+      if (tile.isWidget()) {
+        pos = tile.posAtStart;
+      } else {
+        pos = view2.posAtCoords(lastMove);
+        if (pos == null)
+          return;
+        let posCoords = view2.coordsAtPos(pos);
+        if (!posCoords || lastMove.y < posCoords.top || lastMove.y > posCoords.bottom || lastMove.x < posCoords.left - view2.defaultCharacterWidth || lastMove.x > posCoords.right + view2.defaultCharacterWidth)
+          return;
+        let bidi = view2.bidiSpans(view2.state.doc.lineAt(pos)).find((s) => s.from <= pos && s.to >= pos);
+        let rtl = bidi && bidi.dir == Direction.RTL ? -1 : 1;
+        side = lastMove.x < posCoords.left ? -rtl : rtl;
+      }
+      this.activateHover(view2, pos, side);
+    }
+    activateHover(view2, pos, side, locked) {
+      let open = this.source(view2, pos, side);
+      let done = (value) => {
+        if (value && !(Array.isArray(value) && !value.length)) {
+          let tooltips = Array.isArray(value) ? value : [value];
+          if (locked)
+            this.locked.set(tooltips, locked);
+          view2.dispatch({ effects: this.setHover.of(tooltips) });
+        }
+      };
+      if (open && "then" in open) {
+        let pending = this.pending = { pos };
+        open.then((result) => {
+          if (this.pending == pending) {
+            this.pending = null;
+            done(result);
+          }
+        }, (e) => logException(view2.state, e, "hover tooltip"));
+      } else {
+        done(open);
+      }
+    }
+    get tooltip() {
+      let plugin = this.view.plugin(tooltipPlugin);
+      let index = plugin ? plugin.manager.tooltips.findIndex((t2) => t2.create == HoverTooltipHost.create) : -1;
+      return index > -1 ? plugin.manager.tooltipViews[index] : null;
+    }
+    mousemove(event) {
+      var _a2, _b2;
+      this.lastMove = { x: event.clientX, y: event.clientY, target: event.target, time: Date.now() };
+      if (this.hoverTimeout < 0)
+        this.hoverTimeout = setTimeout(this.checkHover, this.hoverTime);
+      let { active, tooltip } = this;
+      if (active.length && !this.locked.has(active) && tooltip && !isInTooltip(tooltip.dom, event) || this.pending) {
+        let { pos } = active[0] || this.pending, end = (_b2 = (_a2 = active[0]) === null || _a2 === void 0 ? void 0 : _a2.end) !== null && _b2 !== void 0 ? _b2 : pos;
+        if (pos == end ? this.view.posAtCoords(this.lastMove) != pos : !isOverRange(this.view, pos, end, event.clientX, event.clientY)) {
+          this.view.dispatch({ effects: this.setHover.of([]) });
+          this.pending = null;
+        }
+      }
+    }
+    mouseleave(event) {
+      clearTimeout(this.hoverTimeout);
+      this.hoverTimeout = -1;
+      let { active } = this;
+      if (active.length && !this.locked.has(active)) {
+        let { tooltip } = this;
+        let inTooltip = tooltip && tooltip.dom.contains(event.relatedTarget);
+        if (!inTooltip)
+          this.view.dispatch({ effects: this.setHover.of([]) });
+        else
+          this.watchTooltipLeave(tooltip.dom);
+      }
+    }
+    watchTooltipLeave(tooltip) {
+      let watch = (event) => {
+        tooltip.removeEventListener("mouseleave", watch);
+        let { active } = this;
+        if (active.length && !this.locked.has(active) && !this.view.dom.contains(event.relatedTarget))
+          this.view.dispatch({ effects: this.setHover.of([]) });
+      };
+      tooltip.addEventListener("mouseleave", watch);
+    }
+    destroy() {
+      clearTimeout(this.hoverTimeout);
+      clearTimeout(this.restartTimeout);
+      this.view.dom.removeEventListener("mouseleave", this.mouseleave);
+      this.view.dom.removeEventListener("mousemove", this.mousemove);
+    }
+  };
+  var tooltipMargin = 4;
+  function isInTooltip(tooltip, event) {
+    let { left, right, top: top2, bottom } = tooltip.getBoundingClientRect(), arrow;
+    if (arrow = tooltip.querySelector(".cm-tooltip-arrow")) {
+      let arrowRect = arrow.getBoundingClientRect();
+      top2 = Math.min(arrowRect.top, top2);
+      bottom = Math.max(arrowRect.bottom, bottom);
+    }
+    return event.clientX >= left - tooltipMargin && event.clientX <= right + tooltipMargin && event.clientY >= top2 - tooltipMargin && event.clientY <= bottom + tooltipMargin;
+  }
+  function isOverRange(view2, from3, to, x, y, margin) {
+    let rect = view2.scrollDOM.getBoundingClientRect();
+    let docBottom = view2.documentTop + view2.documentPadding.top + view2.contentHeight;
+    if (rect.left > x || rect.right < x || rect.top > y || Math.min(rect.bottom, docBottom) < y)
+      return false;
+    let pos = view2.posAtCoords({ x, y }, false);
+    return pos >= from3 && pos <= to;
+  }
+  function hoverTooltip(source, options = {}) {
+    let setHover = StateEffect.define();
+    let locked = /* @__PURE__ */ new WeakMap();
+    let hoverState = StateField.define({
+      create() {
+        return [];
+      },
+      update(value, tr) {
+        let lock = locked.get(value);
+        if (value.length) {
+          if (options.hideOnChange && (tr.docChanged || tr.selection))
+            value = [];
+          else if (lock && lock(tr))
+            value = [];
+          else if (options.hideOn)
+            value = value.filter((v) => !options.hideOn(tr, v));
+        }
+        if (tr.docChanged && value.length) {
+          let mapped = [];
+          for (let tooltip of value) {
+            let newPos = tr.changes.mapPos(tooltip.pos, -1, MapMode.TrackDel);
+            if (newPos != null) {
+              let copy = Object.assign(/* @__PURE__ */ Object.create(null), tooltip);
+              copy.pos = newPos;
+              if (copy.end != null)
+                copy.end = tr.changes.mapPos(copy.end);
+              mapped.push(copy);
+            }
+          }
+          value = mapped;
+        }
+        for (let effect of tr.effects) {
+          if (effect.is(setHover)) {
+            value = effect.value;
+            lock = void 0;
+          }
+          if (effect.is(closeHoverTooltipEffect) && !effect.value || effect.value == hoverState)
+            value = [];
+        }
+        if (value.length && lock)
+          locked.set(value, lock);
+        return value;
+      },
+      provide: (f) => showHoverTooltip.from(f)
+    });
+    const plugin = ViewPlugin.define((view2) => new HoverPlugin(
+      view2,
+      source,
+      hoverState,
+      locked,
+      setHover,
+      options.hoverTime || 300
+      /* Hover.Time */
+    ));
+    return {
+      active: hoverState,
+      extension: [
+        hoverState,
+        plugin,
+        hoverPlugin.of(plugin),
+        showHoverTooltipHost
+      ]
+    };
+  }
   function getTooltip(view2, tooltip) {
     let plugin = view2.plugin(tooltipPlugin);
     if (!plugin)
@@ -12423,6 +12719,7 @@
     let found = plugin.manager.tooltips.indexOf(tooltip);
     return found < 0 ? null : plugin.manager.tooltipViews[found];
   }
+  var closeHoverTooltipEffect = /* @__PURE__ */ StateEffect.define();
   var panelConfig = /* @__PURE__ */ Facet.define({
     combine(configs) {
       let topContainer, bottomContainer;
@@ -46729,6 +47026,123 @@
     );
   }
 
+  // src/rich-editor/presentation/codemirror/lintDecorations.js
+  var severities = /* @__PURE__ */ new Set(["error", "warning", "info", "hint"]);
+  function createLintDecorations(initialDiagnostics = []) {
+    const setLintDiagnostics = StateEffect.define();
+    const lintField = StateField.define({
+      create(state) {
+        return buildLintDecorations(state, initialDiagnostics);
+      },
+      update(decorations2, transaction) {
+        for (const effect of transaction.effects) {
+          if (effect.is(setLintDiagnostics)) {
+            return buildLintDecorations(transaction.state, effect.value);
+          }
+        }
+        return transaction.docChanged ? decorations2.map(transaction.changes) : decorations2;
+      },
+      provide: (field) => EditorView.decorations.from(field)
+    });
+    const lintTooltip = hoverTooltip((view2, pos) => {
+      const found = findDiagnosticsAt(view2.state, view2.state.field(lintField), pos);
+      if (found.diagnostics.length === 0) {
+        return null;
+      }
+      return {
+        pos: found.from,
+        end: found.to,
+        above: true,
+        create: () => ({ dom: renderTooltip(found.diagnostics) })
+      };
+    });
+    function update(view2, diagnostics) {
+      if (!view2) return;
+      view2.dispatch({ effects: setLintDiagnostics.of(diagnostics) });
+    }
+    return {
+      extension: [lintField, lintTooltip],
+      update
+    };
+  }
+  function buildLintDecorations(state, diagnostics) {
+    const doc2 = state.doc;
+    const ranges = [];
+    for (const diagnostic of normalizeDiagnostics(diagnostics)) {
+      const line = doc2.line(Math.min(diagnostic.line + 1, doc2.lines));
+      const from3 = line.from + Math.min(diagnostic.from, line.length);
+      const to = line.from + Math.min(diagnostic.to, line.length);
+      if (to > from3) {
+        ranges.push(
+          Decoration.mark({
+            class: `cm-richdown-lint cm-richdown-lint-${diagnostic.severity}`,
+            diagnostic
+          }).range(from3, to)
+        );
+      } else {
+        ranges.push(
+          Decoration.line({
+            class: `cm-richdown-lint-line cm-richdown-lint-line-${diagnostic.severity}`,
+            diagnostic
+          }).range(line.from)
+        );
+      }
+    }
+    return Decoration.set(ranges, true);
+  }
+  function findDiagnosticsAt(state, decorations2, pos) {
+    const line = state.doc.lineAt(pos);
+    const diagnostics = [];
+    let from3 = pos;
+    let to = pos;
+    decorations2.between(line.from, line.to, (rangeFrom2, rangeTo2, decoration) => {
+      const diagnostic = decoration.spec.diagnostic;
+      if (!diagnostic) {
+        return;
+      }
+      const isLineMark = rangeFrom2 === rangeTo2;
+      if (!isLineMark && (pos < rangeFrom2 || pos > rangeTo2)) {
+        return;
+      }
+      diagnostics.push(diagnostic);
+      from3 = Math.min(from3, isLineMark ? line.from : rangeFrom2);
+      to = Math.max(to, isLineMark ? line.to : rangeTo2);
+    });
+    return { diagnostics, from: from3, to };
+  }
+  function normalizeDiagnostics(diagnostics) {
+    if (!Array.isArray(diagnostics)) {
+      return [];
+    }
+    return diagnostics.map((diagnostic) => ({
+      line: Number(diagnostic?.line),
+      from: Math.max(0, Number(diagnostic?.from) || 0),
+      to: Math.max(0, Number(diagnostic?.to) || 0),
+      severity: severities.has(diagnostic?.severity) ? diagnostic.severity : "warning",
+      message: String(diagnostic?.message || ""),
+      rule: String(diagnostic?.rule || "")
+    })).filter((diagnostic) => Number.isInteger(diagnostic.line) && diagnostic.line >= 0);
+  }
+  function renderTooltip(diagnostics) {
+    const dom = document.createElement("div");
+    dom.className = "cm-richdown-lint-tooltip";
+    for (const diagnostic of diagnostics) {
+      const item = document.createElement("div");
+      item.className = `cm-richdown-lint-message cm-richdown-lint-message-${diagnostic.severity}`;
+      const message = document.createElement("span");
+      message.textContent = diagnostic.message;
+      item.append(message);
+      if (diagnostic.rule) {
+        const rule = document.createElement("span");
+        rule.className = "cm-richdown-lint-rule";
+        rule.textContent = diagnostic.rule;
+        item.append(rule);
+      }
+      dom.append(item);
+    }
+    return dom;
+  }
+
   // src/rich-editor/presentation/codemirror/links.js
   function isMarkdownMarker(nodeName) {
     return [
@@ -53687,6 +54101,71 @@ ${rowText}`;
         backgroundColor: "var(--rip-panel)",
         color: "var(--rip-fg)"
       },
+      // Lint results from the extension host, colored like VS Code's own squiggles.
+      ".cm-richdown-lint": {
+        textDecorationLine: "underline",
+        textDecorationStyle: "wavy",
+        textDecorationSkipInk: "none",
+        textUnderlineOffset: "3px"
+      },
+      ".cm-richdown-lint-error": {
+        textDecorationColor: "var(--vscode-editorError-foreground, #f14c4c)"
+      },
+      ".cm-richdown-lint-warning": {
+        textDecorationColor: "var(--vscode-editorWarning-foreground, #cca700)"
+      },
+      ".cm-richdown-lint-info": {
+        textDecorationColor: "var(--vscode-editorInfo-foreground, #3794ff)"
+      },
+      ".cm-richdown-lint-hint": {
+        textDecorationStyle: "dotted",
+        textDecorationColor: "var(--vscode-editorHint-foreground, var(--rip-muted))"
+      },
+      ".cm-line.cm-richdown-lint-line": {
+        boxShadow: "inset 2px 0 0 var(--richdown-lint-color)",
+        backgroundColor: "color-mix(in srgb, var(--richdown-lint-color) 8%, transparent)"
+      },
+      ".cm-richdown-lint-line-error": {
+        "--richdown-lint-color": "var(--vscode-editorError-foreground, #f14c4c)"
+      },
+      ".cm-richdown-lint-line-warning": {
+        "--richdown-lint-color": "var(--vscode-editorWarning-foreground, #cca700)"
+      },
+      ".cm-richdown-lint-line-info": {
+        "--richdown-lint-color": "var(--vscode-editorInfo-foreground, #3794ff)"
+      },
+      ".cm-richdown-lint-line-hint": {
+        "--richdown-lint-color": "var(--vscode-editorHint-foreground, #808080)"
+      },
+      ".cm-tooltip .cm-richdown-lint-tooltip": {
+        maxWidth: "min(520px, 80vw)",
+        padding: "4px 0",
+        font: "12px var(--vscode-font-family)"
+      },
+      ".cm-richdown-lint-message": {
+        display: "flex",
+        gap: "10px",
+        alignItems: "baseline",
+        padding: "3px 10px",
+        borderLeft: "3px solid var(--richdown-lint-color)"
+      },
+      ".cm-richdown-lint-message-error": {
+        "--richdown-lint-color": "var(--vscode-editorError-foreground, #f14c4c)"
+      },
+      ".cm-richdown-lint-message-warning": {
+        "--richdown-lint-color": "var(--vscode-editorWarning-foreground, #cca700)"
+      },
+      ".cm-richdown-lint-message-info": {
+        "--richdown-lint-color": "var(--vscode-editorInfo-foreground, #3794ff)"
+      },
+      ".cm-richdown-lint-message-hint": {
+        "--richdown-lint-color": "var(--vscode-editorHint-foreground, #808080)"
+      },
+      ".cm-richdown-lint-rule": {
+        marginLeft: "auto",
+        color: "var(--rip-muted)",
+        whiteSpace: "nowrap"
+      },
       ".cm-tooltip.cm-tooltip-autocomplete": {
         borderRadius: "8px",
         overflow: "hidden",
@@ -55412,6 +55891,7 @@ ${rowText}`;
   var applyingExternalUpdate = false;
   var settings = normalizeRichEditorSettings(initialSettings);
   var latestGitDiffChanges = initialGitDiffChanges;
+  var latestLintDiagnostics = [];
   var outlineNavigation = createOutlineNavigation();
   var fallbackEditor = createFallbackEditor({
     root,
@@ -55422,6 +55902,7 @@ ${rowText}`;
     postMessage: (message) => vscodePort.postMessage(message)
   });
   var gitDiffGutter = createGitDiffGutter(initialGitDiffChanges);
+  var lintDecorations = createLintDecorations();
   var settingsMenu = createSettingsMenuController({
     getSettings: () => settings,
     postMessage: (message) => vscodePort.postMessage(message),
@@ -55522,6 +56003,7 @@ ${rowText}`;
               EditorView.editable.of(false)
             ] : [
               gitDiffGutter.extension,
+              lintDecorations.extension,
               lineNumbers(),
               history(),
               highlightActiveLine(),
@@ -55585,6 +56067,16 @@ ${rowText}`;
             }),
             ...exportMode ? [] : [
               keymap.of([
+                {
+                  // VS Code's Format Document shortcut, which the text
+                  // editor binds; a custom editor has to ask for it.
+                  key: "Shift-Alt-f",
+                  preventDefault: true,
+                  run: () => {
+                    vscodePort.postMessage({ type: "formatDocument" });
+                    return true;
+                  }
+                },
                 indentWithTab,
                 ...slashCommands2.keymap,
                 ...getSearchKeymap(),
@@ -55612,6 +56104,7 @@ ${rowText}`;
         settingsMenu.render();
         outlineNavigation.render(view);
         gitDiffGutter.update(view, latestGitDiffChanges);
+        lintDecorations.update(view, latestLintDiagnostics);
         if (initialReveal) {
           revealInEditor(view, initialReveal);
         }
@@ -55651,6 +56144,11 @@ ${rowText}`;
     if (event.data.type === "gitDiff") {
       latestGitDiffChanges = event.data.changes || [];
       gitDiffGutter.update(view, latestGitDiffChanges);
+      return;
+    }
+    if (event.data.type === "lintDiagnostics") {
+      latestLintDiagnostics = event.data.diagnostics || [];
+      lintDecorations.update(view, latestLintDiagnostics);
       return;
     }
     if (event.data.type === "theme") {

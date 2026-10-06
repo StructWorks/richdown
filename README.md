@@ -36,6 +36,8 @@ Richdown Diff gives Markdown changes a rendered side-by-side review view while k
 - Edit Markdown tables as rich tables, including cell editing, row/column insertion, and row/column deletion. `<br>` inside a cell renders as a line break.
 - Render Mermaid diagrams lazily with optional Richdown colorization, fit, zoom, pan, and modal viewing controls. Richdown supports both Markdown fences and Azure DevOps-style `::: mermaid` blocks.
 - Render `gherkin`, `feature`, and `cucumber` fenced code blocks as switchable BDD boards with highlighted source view.
+- Format Markdown with configurable rules — heading style, list markers and numbering, aligned tables (East Asian wide characters count as two columns), blank lines around blocks, and whitespace — from the command palette, `Shift+Alt+F`, or on save.
+- Check Markdown with lint rules and show the problems in the Problems panel and as squiggles with hover messages in the Richdown editor. Each formatter and lint rule can be turned on or off in a `.richdownrc.json` file.
 - Choose the preview width and theme from the in-editor settings button.
 - Switch between the default VS Code theme and several built-in dark/light themes.
 
@@ -46,6 +48,8 @@ Richdown Diff gives Markdown changes a rendered side-by-side review view while k
 - `Richdown: Open Git Diff`: Open the VS Code Git diff for the current Markdown file.
 - `Richdown: Export HTML`: Export the current local Markdown file as a standalone Richdown preview. The HTML uses the same rich table, Mermaid, Gherkin, image, task, code, and theme UI as the editor.
 - `Richdown: Export PDF`: Export the current local Markdown file by printing the standalone Richdown preview through an installed Chromium-based browser.
+- `Richdown: Format Document`: Format the current Markdown file with the rules enabled in `.richdownrc.json`. `Shift+Alt+F` runs it in the Richdown editor; in the text editor, VS Code's own Format Document uses Richdown when it is chosen as the Markdown formatter.
+- `Richdown: Create Formatter and Lint Configuration`: Create a `.richdownrc.json` in the workspace folder that lists every rule at its default, with a description of each, and open it.
 
 ## Settings
 
@@ -57,6 +61,80 @@ Richdown Diff gives Markdown changes a rendered side-by-side review view while k
 - `richdown.mermaidPreviewSize`: Choose the Mermaid preview height behavior.
 - `richdown.gherkinPreview`: Render Gherkin code blocks as BDD boards.
 - `richdown.previewWidth`: Choose the Richdown content width.
+- `richdown.lint.enabled`: Check Markdown files and report problems (on by default).
+- `richdown.formatOnSave`: Format Markdown files when they are saved (off by default). Auto save after a delay does not format.
+
+## Formatter and Lint
+
+Rules are turned on or off in a `.richdownrc.json` file. Richdown uses the nearest one found by walking up from the Markdown file to its workspace folder; without one, every rule uses its default. The file is JSON with comments, and VS Code completes and validates rule names in it. Run `Richdown: Create Formatter and Lint Configuration` to start from a file that lists every rule.
+
+```jsonc
+{
+  "format": {
+    "rules": {
+      "table-format": false,              // turn a rule off
+      "list-marker": { "style": "*" }     // turn a rule on with options
+    }
+  },
+  "lint": {
+    "rules": {
+      "no-hard-tabs": false,              // turn a rule off
+      "heading-increment": "error",       // turn a rule on with a severity: error, warning, info, hint
+      "line-length": { "severity": "info", "max": 100 }
+    }
+  }
+}
+```
+
+- A rule's value is `true`/`false`, an options object (`{ "enabled": false }` also turns it off), or, for lint rules, a severity.
+- `"default": false` (or `true`) next to `"rules"` turns every rule that is not listed off (or on), so you can opt in to a few rules only.
+- `"format": false` or `"lint": false` turns the formatter or the linter off for every file under that configuration.
+- Lint rules can be silenced inside a document with `<!-- richdown-lint-disable-next-line rule-name -->`, or for a range with `<!-- richdown-lint-disable rule-name -->` … `<!-- richdown-lint-enable rule-name -->`. Without rule names, the comment applies to every rule.
+
+The formatter never changes fenced code, front matter, HTML blocks, or block quotes, and leaves a construct alone when rewriting it would change how it renders.
+
+| Formatter rule | Default | What it does |
+| --- | --- | --- |
+| `heading-style` | on | Converts single-line setext headings (`===` / `---` underlines) to `#` headings. |
+| `atx-heading` | on | One space after the `#` marks, no indentation or closing `#` marks; adds the missing space to a stand-alone `##Heading` line. |
+| `list-marker` | on (`"-"`) | Uses one bullet marker: `"-"`, `"*"`, `"+"`, or `"consistent"` (the document's first one). |
+| `ordered-list-numbering` | on (`"ordered"`) | Numbers ordered lists 1, 2, 3 from the first item's number; lists that repeat one number are kept. `"one"` numbers every item 1. |
+| `thematic-break` | on | Writes horizontal rules as `---`. |
+| `table-format` | on | Aligns table columns and pads short rows. |
+| `blank-lines-around-headings` | on | Blank line before and after headings. |
+| `blank-lines-around-fences` | on | Blank line before and after fenced code blocks. |
+| `blank-lines-around-lists` | on | Blank line before and after lists. |
+| `blank-lines-around-tables` | on | Blank line before and after tables. |
+| `trailing-whitespace` | on | Removes trailing whitespace, keeping two-space hard line breaks. |
+| `consecutive-blank-lines` | on | Collapses repeated blank lines and removes leading ones. |
+| `final-newline` | on | Ends the file with exactly one newline. |
+
+| Lint rule | Default | What it reports |
+| --- | --- | --- |
+| `heading-increment` | warning | Heading levels that skip a level. |
+| `single-h1` | warning | More than one top-level `#` heading. |
+| `no-duplicate-heading` | warning | Sibling headings with the same text. |
+| `no-empty-heading` | warning | Headings without text. |
+| `heading-space` | warning | Missing or extra spaces after the `#` marks. |
+| `blanks-around-headings` | warning | Headings without surrounding blank lines. |
+| `blanks-around-fences` | warning | Fenced code blocks without surrounding blank lines. |
+| `blanks-around-lists` | warning | Lists without surrounding blank lines. |
+| `blanks-around-tables` | warning | Tables without surrounding blank lines. |
+| `fenced-code-language` | warning | Fenced code blocks without a language. |
+| `unclosed-code-fence` | error | Code fences that are never closed. |
+| `list-marker-style` | warning | Bullet markers that differ from the first one, or from `"style"`. |
+| `ordered-list-numbering` | warning | Ordered list numbers out of sequence. |
+| `table-column-count` | warning | Table rows with a different cell count than the header. |
+| `no-empty-links` | warning | Links without a destination. |
+| `no-reversed-links` | warning | `(text)[url]` instead of `[text](url)`. |
+| `no-missing-image-alt` | info | Images without alternate text. |
+| `no-broken-anchors` | warning | `#anchor` links that match no heading in the document. |
+| `no-trailing-spaces` | warning | Trailing whitespace other than a two-space hard break. |
+| `no-hard-tabs` | warning | Tab characters outside code blocks. |
+| `no-multiple-blanks` | warning | More than one consecutive blank line. |
+| `final-newline` | warning | A missing final newline, or trailing blank lines. |
+| `no-bare-urls` | off | URLs not written as links or `<url>`. |
+| `line-length` | off (`"max": 120`) | Lines longer than `max` columns outside code and tables. |
 
 ## Development
 

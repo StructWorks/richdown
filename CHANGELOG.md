@@ -2,6 +2,12 @@
 
 All notable changes to Richdown will be documented in this file.
 
+## 0.9.1 - 2026-10-07
+
+- Added a Markdown formatter. `Richdown: Format Document` (also `Shift+Alt+F` in the Richdown editor, and VS Code's Format Document when Richdown is the Markdown formatter) converts setext headings, normalizes heading spacing, list markers and ordered list numbers, aligns tables with East Asian wide characters counted as two columns, adds blank lines around headings, code blocks, lists and tables, and cleans up whitespace. Set `richdown.formatOnSave` to format on save.
+- Added Markdown lint rules. Problems appear in the Problems panel and as squiggles with hover messages in the Richdown editor. Turn checking off with `richdown.lint.enabled`, or silence a rule in a document with `<!-- richdown-lint-disable-next-line rule-name -->`.
+- Each formatter and lint rule can be turned on or off, or given options and a severity, in a `.richdownrc.json` file, which VS Code completes and validates. `Richdown: Create Formatter and Lint Configuration` creates one that lists every rule.
+
 ## 0.9.0 - 2026-10-02
 
 - Fixed `<br>` tags inside table cells showing as literal text in rich tables, Richdown Diff, and HTML/PDF export; they now render as line breaks.

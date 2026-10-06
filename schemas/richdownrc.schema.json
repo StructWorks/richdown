@@ -1,0 +1,1194 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Richdown formatter and lint configuration",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "format": {
+      "description": "Formatter rules applied by \"Richdown: Format Document\" and on save.",
+      "anyOf": [
+        {
+          "type": "boolean",
+          "const": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": true,
+              "description": "Set to false to turn this off for every file under this configuration."
+            },
+            "default": {
+              "type": "boolean",
+              "description": "Turn every rule not listed in \"rules\" on (true) or off (false). Without it, unlisted rules keep their built-in default."
+            },
+            "rules": {
+              "type": "object",
+              "properties": {
+                "heading-style": {
+                  "description": "Convert single-line setext headings (underlined with === or ---) to ATX headings (# Heading).",
+                  "default": true,
+                  "anyOf": [
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "const": "off"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "enabled": {
+                          "type": "boolean"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  ]
+                },
+                "atx-heading": {
+                  "description": "Put exactly one space after the # marks of a heading, remove its indentation and closing # marks, and add the missing space in a stand-alone line such as \"##Heading\".",
+                  "default": true,
+                  "anyOf": [
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "const": "off"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "enabled": {
+                          "type": "boolean"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  ]
+                },
+                "list-marker": {
+                  "description": "Use one marker for bullet list items.",
+                  "default": {
+                    "style": "-"
+                  },
+                  "anyOf": [
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "const": "off"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "enabled": {
+                          "type": "boolean"
+                        },
+                        "style": {
+                          "enum": [
+                            "-",
+                            "*",
+                            "+",
+                            "consistent"
+                          ],
+                          "default": "-"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  ]
+                },
+                "ordered-list-numbering": {
+                  "description": "Number ordered list items sequentially from the first item's number. Lists that use the same number for every item are kept.",
+                  "default": {
+                    "style": "ordered"
+                  },
+                  "anyOf": [
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "const": "off"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "enabled": {
+                          "type": "boolean"
+                        },
+                        "style": {
+                          "enum": [
+                            "ordered",
+                            "one"
+                          ],
+                          "default": "ordered"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  ]
+                },
+                "thematic-break": {
+                  "description": "Write thematic breaks (horizontal rules) as ---.",
+                  "default": true,
+                  "anyOf": [
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "const": "off"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "enabled": {
+                          "type": "boolean"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  ]
+                },
+                "table-format": {
+                  "description": "Align table columns, counting East Asian wide characters as two columns, and pad short rows with empty cells. Extra cells beyond the header are kept as they are.",
+                  "default": true,
+                  "anyOf": [
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "const": "off"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "enabled": {
+                          "type": "boolean"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  ]
+                },
+                "blank-lines-around-headings": {
+                  "description": "Surround headings with blank lines.",
+                  "default": true,
+                  "anyOf": [
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "const": "off"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "enabled": {
+                          "type": "boolean"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  ]
+                },
+                "blank-lines-around-fences": {
+                  "description": "Surround fenced code blocks with blank lines.",
+                  "default": true,
+                  "anyOf": [
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "const": "off"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "enabled": {
+                          "type": "boolean"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  ]
+                },
+                "blank-lines-around-lists": {
+                  "description": "Surround lists with blank lines.",
+                  "default": true,
+                  "anyOf": [
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "const": "off"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "enabled": {
+                          "type": "boolean"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  ]
+                },
+                "blank-lines-around-tables": {
+                  "description": "Surround tables with blank lines.",
+                  "default": true,
+                  "anyOf": [
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "const": "off"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "enabled": {
+                          "type": "boolean"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  ]
+                },
+                "trailing-whitespace": {
+                  "description": "Remove trailing spaces and tabs. Two trailing spaces that make a hard line break are kept.",
+                  "default": true,
+                  "anyOf": [
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "const": "off"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "enabled": {
+                          "type": "boolean"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  ]
+                },
+                "consecutive-blank-lines": {
+                  "description": "Collapse consecutive blank lines into one and remove blank lines at the start of the document.",
+                  "default": true,
+                  "anyOf": [
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "const": "off"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "enabled": {
+                          "type": "boolean"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  ]
+                },
+                "final-newline": {
+                  "description": "End the document with exactly one newline.",
+                  "default": true,
+                  "anyOf": [
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "const": "off"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "enabled": {
+                          "type": "boolean"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  ]
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "lint": {
+      "description": "Lint rules reported in the Problems panel and the Richdown editor.",
+      "anyOf": [
+        {
+          "type": "boolean",
+          "const": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": true,
+              "description": "Set to false to turn this off for every file under this configuration."
+            },
+            "default": {
+              "type": "boolean",
+              "description": "Turn every rule not listed in \"rules\" on (true) or off (false). Without it, unlisted rules keep their built-in default."
+            },
+            "rules": {
+              "type": "object",
+              "properties": {
+                "heading-increment": {
+                  "description": "Heading levels should only increase by one level at a time. Default: warning.",
+                  "anyOf": [
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "enum": [
+                        "error",
+                        "warning",
+                        "info",
+                        "hint",
+                        "off"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "enabled": {
+                          "type": "boolean"
+                        },
+                        "severity": {
+                          "enum": [
+                            "error",
+                            "warning",
+                            "info",
+                            "hint"
+                          ]
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  ]
+                },
+                "single-h1": {
+                  "description": "A document should have only one top-level (#) heading. Default: warning.",
+                  "anyOf": [
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "enum": [
+                        "error",
+                        "warning",
+                        "info",
+                        "hint",
+                        "off"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "enabled": {
+                          "type": "boolean"
+                        },
+                        "severity": {
+                          "enum": [
+                            "error",
+                            "warning",
+                            "info",
+                            "hint"
+                          ]
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  ]
+                },
+                "no-duplicate-heading": {
+                  "description": "Sibling headings under the same parent should not share the same text. Default: warning.",
+                  "anyOf": [
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "enum": [
+                        "error",
+                        "warning",
+                        "info",
+                        "hint",
+                        "off"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "enabled": {
+                          "type": "boolean"
+                        },
+                        "severity": {
+                          "enum": [
+                            "error",
+                            "warning",
+                            "info",
+                            "hint"
+                          ]
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  ]
+                },
+                "no-empty-heading": {
+                  "description": "Headings should have text. Default: warning.",
+                  "anyOf": [
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "enum": [
+                        "error",
+                        "warning",
+                        "info",
+                        "hint",
+                        "off"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "enabled": {
+                          "type": "boolean"
+                        },
+                        "severity": {
+                          "enum": [
+                            "error",
+                            "warning",
+                            "info",
+                            "hint"
+                          ]
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  ]
+                },
+                "heading-space": {
+                  "description": "ATX headings need exactly one space after the # marks. Default: warning.",
+                  "anyOf": [
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "enum": [
+                        "error",
+                        "warning",
+                        "info",
+                        "hint",
+                        "off"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "enabled": {
+                          "type": "boolean"
+                        },
+                        "severity": {
+                          "enum": [
+                            "error",
+                            "warning",
+                            "info",
+                            "hint"
+                          ]
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  ]
+                },
+                "blanks-around-headings": {
+                  "description": "Headings should be surrounded by blank lines. Default: warning.",
+                  "anyOf": [
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "enum": [
+                        "error",
+                        "warning",
+                        "info",
+                        "hint",
+                        "off"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "enabled": {
+                          "type": "boolean"
+                        },
+                        "severity": {
+                          "enum": [
+                            "error",
+                            "warning",
+                            "info",
+                            "hint"
+                          ]
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  ]
+                },
+                "blanks-around-fences": {
+                  "description": "Fenced code blocks should be surrounded by blank lines. Default: warning.",
+                  "anyOf": [
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "enum": [
+                        "error",
+                        "warning",
+                        "info",
+                        "hint",
+                        "off"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "enabled": {
+                          "type": "boolean"
+                        },
+                        "severity": {
+                          "enum": [
+                            "error",
+                            "warning",
+                            "info",
+                            "hint"
+                          ]
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  ]
+                },
+                "blanks-around-lists": {
+                  "description": "Lists should be surrounded by blank lines. Default: warning.",
+                  "anyOf": [
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "enum": [
+                        "error",
+                        "warning",
+                        "info",
+                        "hint",
+                        "off"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "enabled": {
+                          "type": "boolean"
+                        },
+                        "severity": {
+                          "enum": [
+                            "error",
+                            "warning",
+                            "info",
+                            "hint"
+                          ]
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  ]
+                },
+                "blanks-around-tables": {
+                  "description": "Tables should be surrounded by blank lines. Default: warning.",
+                  "anyOf": [
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "enum": [
+                        "error",
+                        "warning",
+                        "info",
+                        "hint",
+                        "off"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "enabled": {
+                          "type": "boolean"
+                        },
+                        "severity": {
+                          "enum": [
+                            "error",
+                            "warning",
+                            "info",
+                            "hint"
+                          ]
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  ]
+                },
+                "fenced-code-language": {
+                  "description": "Fenced code blocks should name a language, which Richdown uses for highlighting and Mermaid/Gherkin previews. Default: warning.",
+                  "anyOf": [
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "enum": [
+                        "error",
+                        "warning",
+                        "info",
+                        "hint",
+                        "off"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "enabled": {
+                          "type": "boolean"
+                        },
+                        "severity": {
+                          "enum": [
+                            "error",
+                            "warning",
+                            "info",
+                            "hint"
+                          ]
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  ]
+                },
+                "unclosed-code-fence": {
+                  "description": "Fenced code blocks should be closed; an unclosed fence turns the rest of the document into code. Default: error.",
+                  "anyOf": [
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "enum": [
+                        "error",
+                        "warning",
+                        "info",
+                        "hint",
+                        "off"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "enabled": {
+                          "type": "boolean"
+                        },
+                        "severity": {
+                          "enum": [
+                            "error",
+                            "warning",
+                            "info",
+                            "hint"
+                          ]
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  ]
+                },
+                "list-marker-style": {
+                  "description": "Bullet lists should use one marker. Default: warning.",
+                  "anyOf": [
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "enum": [
+                        "error",
+                        "warning",
+                        "info",
+                        "hint",
+                        "off"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "enabled": {
+                          "type": "boolean"
+                        },
+                        "severity": {
+                          "enum": [
+                            "error",
+                            "warning",
+                            "info",
+                            "hint"
+                          ]
+                        },
+                        "style": {
+                          "enum": [
+                            "consistent",
+                            "-",
+                            "*",
+                            "+"
+                          ],
+                          "default": "consistent"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  ]
+                },
+                "ordered-list-numbering": {
+                  "description": "Ordered list items should be numbered sequentially, or all use the same number. Default: warning.",
+                  "anyOf": [
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "enum": [
+                        "error",
+                        "warning",
+                        "info",
+                        "hint",
+                        "off"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "enabled": {
+                          "type": "boolean"
+                        },
+                        "severity": {
+                          "enum": [
+                            "error",
+                            "warning",
+                            "info",
+                            "hint"
+                          ]
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  ]
+                },
+                "table-column-count": {
+                  "description": "Table rows should have as many cells as the header row. Default: warning.",
+                  "anyOf": [
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "enum": [
+                        "error",
+                        "warning",
+                        "info",
+                        "hint",
+                        "off"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "enabled": {
+                          "type": "boolean"
+                        },
+                        "severity": {
+                          "enum": [
+                            "error",
+                            "warning",
+                            "info",
+                            "hint"
+                          ]
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  ]
+                },
+                "no-empty-links": {
+                  "description": "Links should have a destination. Default: warning.",
+                  "anyOf": [
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "enum": [
+                        "error",
+                        "warning",
+                        "info",
+                        "hint",
+                        "off"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "enabled": {
+                          "type": "boolean"
+                        },
+                        "severity": {
+                          "enum": [
+                            "error",
+                            "warning",
+                            "info",
+                            "hint"
+                          ]
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  ]
+                },
+                "no-reversed-links": {
+                  "description": "Links should be written [text](url), not (text)[url]. Default: warning.",
+                  "anyOf": [
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "enum": [
+                        "error",
+                        "warning",
+                        "info",
+                        "hint",
+                        "off"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "enabled": {
+                          "type": "boolean"
+                        },
+                        "severity": {
+                          "enum": [
+                            "error",
+                            "warning",
+                            "info",
+                            "hint"
+                          ]
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  ]
+                },
+                "no-missing-image-alt": {
+                  "description": "Images should have alternate text. Default: info.",
+                  "anyOf": [
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "enum": [
+                        "error",
+                        "warning",
+                        "info",
+                        "hint",
+                        "off"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "enabled": {
+                          "type": "boolean"
+                        },
+                        "severity": {
+                          "enum": [
+                            "error",
+                            "warning",
+                            "info",
+                            "hint"
+                          ]
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  ]
+                },
+                "no-broken-anchors": {
+                  "description": "Links to #anchors in the same document should match a heading. Default: warning.",
+                  "anyOf": [
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "enum": [
+                        "error",
+                        "warning",
+                        "info",
+                        "hint",
+                        "off"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "enabled": {
+                          "type": "boolean"
+                        },
+                        "severity": {
+                          "enum": [
+                            "error",
+                            "warning",
+                            "info",
+                            "hint"
+                          ]
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  ]
+                },
+                "no-trailing-spaces": {
+                  "description": "Lines should not end with spaces or tabs, except two spaces for a hard line break. Default: warning.",
+                  "anyOf": [
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "enum": [
+                        "error",
+                        "warning",
+                        "info",
+                        "hint",
+                        "off"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "enabled": {
+                          "type": "boolean"
+                        },
+                        "severity": {
+                          "enum": [
+                            "error",
+                            "warning",
+                            "info",
+                            "hint"
+                          ]
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  ]
+                },
+                "no-hard-tabs": {
+                  "description": "Use spaces instead of tab characters outside code blocks. Default: warning.",
+                  "anyOf": [
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "enum": [
+                        "error",
+                        "warning",
+                        "info",
+                        "hint",
+                        "off"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "enabled": {
+                          "type": "boolean"
+                        },
+                        "severity": {
+                          "enum": [
+                            "error",
+                            "warning",
+                            "info",
+                            "hint"
+                          ]
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  ]
+                },
+                "no-multiple-blanks": {
+                  "description": "Do not use more than one consecutive blank line. Default: warning.",
+                  "anyOf": [
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "enum": [
+                        "error",
+                        "warning",
+                        "info",
+                        "hint",
+                        "off"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "enabled": {
+                          "type": "boolean"
+                        },
+                        "severity": {
+                          "enum": [
+                            "error",
+                            "warning",
+                            "info",
+                            "hint"
+                          ]
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  ]
+                },
+                "final-newline": {
+                  "description": "Documents should end with a single newline. Default: warning.",
+                  "anyOf": [
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "enum": [
+                        "error",
+                        "warning",
+                        "info",
+                        "hint",
+                        "off"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "enabled": {
+                          "type": "boolean"
+                        },
+                        "severity": {
+                          "enum": [
+                            "error",
+                            "warning",
+                            "info",
+                            "hint"
+                          ]
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  ]
+                },
+                "no-bare-urls": {
+                  "description": "URLs should be written as links or wrapped in <angle brackets>. Default: off.",
+                  "anyOf": [
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "enum": [
+                        "error",
+                        "warning",
+                        "info",
+                        "hint",
+                        "off"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "enabled": {
+                          "type": "boolean"
+                        },
+                        "severity": {
+                          "enum": [
+                            "error",
+                            "warning",
+                            "info",
+                            "hint"
+                          ]
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  ]
+                },
+                "line-length": {
+                  "description": "Lines outside code blocks and tables should not be longer than the limit. East Asian wide characters count as two columns. Default: off.",
+                  "anyOf": [
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "enum": [
+                        "error",
+                        "warning",
+                        "info",
+                        "hint",
+                        "off"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "enabled": {
+                          "type": "boolean"
+                        },
+                        "severity": {
+                          "enum": [
+                            "error",
+                            "warning",
+                            "info",
+                            "hint"
+                          ]
+                        },
+                        "max": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "default": 120
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  ]
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    }
+  },
+  "additionalProperties": false
+}

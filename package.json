@@ -2,7 +2,7 @@
   "name": "richdown",
   "displayName": "Richdown",
   "description": "Edit Markdown with a rich inline preview, editable tables, colored Mermaid diagrams, Gherkin boards, HTML/PDF export, Richdown diffs, and a focused writing flow in VS Code.",
-  "version": "0.9.0",
+  "version": "0.9.1",
   "publisher": "mytooyodev",
   "license": "SEE LICENSE IN LICENSE",
   "repository": {
@@ -54,6 +54,7 @@
     "build:mermaid": "esbuild src/mermaidLoader.js --bundle --format=iife --outfile=media/mermaid.js",
     "build:diff": "esbuild src/richDiff.js --bundle --format=iife --outfile=media/richDiff.js",
     "build:all": "npm run build && npm run build:mermaid && npm run build:diff",
+    "generate:schema": "node scripts/generate-config-schema.mjs",
     "package:vsix": "vsce package",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -99,6 +100,30 @@
         "title": "Richdown: Export PDF",
         "shortTitle": "Export PDF",
         "icon": "$(file-pdf)"
+      },
+      {
+        "command": "richdown.formatDocument",
+        "title": "Richdown: Format Document",
+        "shortTitle": "Format Document"
+      },
+      {
+        "command": "richdown.createConfig",
+        "title": "Richdown: Create Formatter and Lint Configuration",
+        "shortTitle": "Create .richdownrc.json"
+      }
+    ],
+    "languages": [
+      {
+        "id": "jsonc",
+        "filenames": [
+          ".richdownrc.json"
+        ]
+      }
+    ],
+    "jsonValidation": [
+      {
+        "fileMatch": ".richdownrc.json",
+        "url": "./schemas/richdownrc.schema.json"
       }
     ],
     "customEditors": [
@@ -199,6 +224,17 @@
             "Use the full editor width."
           ],
           "description": "Controls the content width used inside the Rich Editor."
+        },
+        "richdown.lint.enabled": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Check Markdown files and show problems in the Problems panel and the Rich Editor. Turn individual rules on or off in a `.richdownrc.json` file; run **Richdown: Create Formatter and Lint Configuration** to create one with every rule listed."
+        },
+        "richdown.formatOnSave": {
+          "type": "boolean",
+          "default": false,
+          "scope": "resource",
+          "markdownDescription": "Format Markdown files with Richdown's formatter when they are saved. Formatter rules are turned on or off in `.richdownrc.json`. Auto save after a delay does not format."
         }
       }
     },
@@ -252,6 +288,12 @@
         },
         {
           "command": "richdown.toggle"
+        },
+        {
+          "command": "richdown.formatDocument"
+        },
+        {
+          "command": "richdown.createConfig"
         }
       ]
     }

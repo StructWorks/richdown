@@ -12,6 +12,7 @@ const { CRLF, LF, applyLineEnding, normalizeToLf } = require('./src/host/lineEnd
 const { hasPendingChatEdits, isChatEditingOriginalUri } = require('./src/host/chatEditing');
 const { createMarkdownEditorRouter, createTabKey } = require('./src/host/markdownEditorRouter');
 const { createSelectionRevealTarget, parseLinkFragment } = require('./src/host/revealTarget');
+const { createMarkdownQuality } = require('./src/host/markdownQuality');
 
 const richEditorViewType = 'richdown.richEditor';
 const legacyMarkdownEditorAssociationPatterns = ['*.md', '*.markdown'];
@@ -49,6 +50,17 @@ let markdownEditorRoutingTimer;
 // Claude Code opens a file with showTextDocument and only then sets the
 // selection, so a text editor that arrives without one waits this long.
 const lateSelectionWaitMs = 150;
+// Formatter and linter (see src/host/markdownQuality.js). Lint results also go
+// to the Richdown editor showing the document.
+const markdownQuality = createMarkdownQuality(vscode, {
+  onDiagnostics: (uriKey, diagnostics) => {
+    const session = richEditorSessions.get(uriKey);
+    if (session?.ready) {
+      session.postMessage({ type: 'lintDiagnostics', diagnostics });
+    }
+  },
+  resolveMarkdownUri: resource => getMarkdownResourceUri(resource)
+});
 
 function activate(context) {
   context.subscriptions.push(vscode.commands.registerCommand('richdown.toggle', toggleMarkdownOpenMode));
@@ -79,6 +91,7 @@ function activate(context) {
   );
   registerMarkdownEditorRouting(context);
   registerChatEditTracking(context);
+  markdownQuality.register(context);
   void syncMarkdownEditorAssociations();
 }
 
@@ -1244,6 +1257,10 @@ class RichdownEditorProvider {
         // A reloaded webview starts without the banner state.
         lastChatEditsPending = undefined;
         session.refreshChatEdits();
+        session.postMessage({
+          type: 'lintDiagnostics',
+          diagnostics: markdownQuality.getWebviewDiagnostics(documentKey)
+        });
         deliverPendingReveal(documentKey);
         scheduleGitDiffUpdate(document.getText(), 0);
         scheduleExternalFileRefresh(0);
@@ -1260,6 +1277,11 @@ class RichdownEditorProvider {
           queuedWebviewText = event.text;
           void applyQueuedWebviewEdits();
         }
+        return;
+      }
+
+      if (event.type === 'formatDocument') {
+        await vscode.commands.executeCommand('richdown.formatDocument', document.uri);
         return;
       }
 

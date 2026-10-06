@@ -334,6 +334,71 @@ export function createEditorThemeExtension() {
     backgroundColor: "var(--rip-panel)",
     color: "var(--rip-fg)",
   },
+  // Lint results from the extension host, colored like VS Code's own squiggles.
+  ".cm-richdown-lint": {
+    textDecorationLine: "underline",
+    textDecorationStyle: "wavy",
+    textDecorationSkipInk: "none",
+    textUnderlineOffset: "3px",
+  },
+  ".cm-richdown-lint-error": {
+    textDecorationColor: "var(--vscode-editorError-foreground, #f14c4c)",
+  },
+  ".cm-richdown-lint-warning": {
+    textDecorationColor: "var(--vscode-editorWarning-foreground, #cca700)",
+  },
+  ".cm-richdown-lint-info": {
+    textDecorationColor: "var(--vscode-editorInfo-foreground, #3794ff)",
+  },
+  ".cm-richdown-lint-hint": {
+    textDecorationStyle: "dotted",
+    textDecorationColor: "var(--vscode-editorHint-foreground, var(--rip-muted))",
+  },
+  ".cm-line.cm-richdown-lint-line": {
+    boxShadow: "inset 2px 0 0 var(--richdown-lint-color)",
+    backgroundColor: "color-mix(in srgb, var(--richdown-lint-color) 8%, transparent)",
+  },
+  ".cm-richdown-lint-line-error": {
+    "--richdown-lint-color": "var(--vscode-editorError-foreground, #f14c4c)",
+  },
+  ".cm-richdown-lint-line-warning": {
+    "--richdown-lint-color": "var(--vscode-editorWarning-foreground, #cca700)",
+  },
+  ".cm-richdown-lint-line-info": {
+    "--richdown-lint-color": "var(--vscode-editorInfo-foreground, #3794ff)",
+  },
+  ".cm-richdown-lint-line-hint": {
+    "--richdown-lint-color": "var(--vscode-editorHint-foreground, #808080)",
+  },
+  ".cm-tooltip .cm-richdown-lint-tooltip": {
+    maxWidth: "min(520px, 80vw)",
+    padding: "4px 0",
+    font: "12px var(--vscode-font-family)",
+  },
+  ".cm-richdown-lint-message": {
+    display: "flex",
+    gap: "10px",
+    alignItems: "baseline",
+    padding: "3px 10px",
+    borderLeft: "3px solid var(--richdown-lint-color)",
+  },
+  ".cm-richdown-lint-message-error": {
+    "--richdown-lint-color": "var(--vscode-editorError-foreground, #f14c4c)",
+  },
+  ".cm-richdown-lint-message-warning": {
+    "--richdown-lint-color": "var(--vscode-editorWarning-foreground, #cca700)",
+  },
+  ".cm-richdown-lint-message-info": {
+    "--richdown-lint-color": "var(--vscode-editorInfo-foreground, #3794ff)",
+  },
+  ".cm-richdown-lint-message-hint": {
+    "--richdown-lint-color": "var(--vscode-editorHint-foreground, #808080)",
+  },
+  ".cm-richdown-lint-rule": {
+    marginLeft: "auto",
+    color: "var(--rip-muted)",
+    whiteSpace: "nowrap",
+  },
   ".cm-tooltip.cm-tooltip-autocomplete": {
     borderRadius: "8px",
     overflow: "hidden",

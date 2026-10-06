@@ -36,6 +36,7 @@ import {
 } from "./rich-editor/presentation/codemirror/language.js";
 import { createMarkdownCompletion } from "./rich-editor/presentation/codemirror/completions.js";
 import { createGitDiffGutter } from "./rich-editor/presentation/codemirror/gitDiffGutter.js";
+import { createLintDecorations } from "./rich-editor/presentation/codemirror/lintDecorations.js";
 import { findLinkAtClick } from "./rich-editor/presentation/codemirror/links.js";
 import { createSlashCommandController } from "./rich-editor/presentation/codemirror/slashCommands.js";
 import { createPreviewExtensions } from "./rich-editor/presentation/codemirror/previewExtensions.js";
@@ -79,6 +80,7 @@ const initialReveal = readJsonScript("initial-reveal", null);
 let applyingExternalUpdate = false;
 let settings = normalizeRichEditorSettings(initialSettings);
 let latestGitDiffChanges = initialGitDiffChanges;
+let latestLintDiagnostics = [];
 const outlineNavigation = createOutlineNavigation();
 const fallbackEditor = createFallbackEditor({
   root,
@@ -89,6 +91,7 @@ const chatEditsBanner = createChatEditsBanner({
   postMessage: (message) => vscodePort.postMessage(message),
 });
 const gitDiffGutter = createGitDiffGutter(initialGitDiffChanges);
+const lintDecorations = createLintDecorations();
 const settingsMenu = createSettingsMenuController({
   getSettings: () => settings,
   postMessage: (message) => vscodePort.postMessage(message),
@@ -201,6 +204,7 @@ queueMicrotask(() => {
               ]
             : [
                 gitDiffGutter.extension,
+                lintDecorations.extension,
                 lineNumbers(),
                 history(),
                 highlightActiveLine(),
@@ -268,6 +272,16 @@ queueMicrotask(() => {
             ? []
             : [
                 keymap.of([
+                  {
+                    // VS Code's Format Document shortcut, which the text
+                    // editor binds; a custom editor has to ask for it.
+                    key: "Shift-Alt-f",
+                    preventDefault: true,
+                    run: () => {
+                      vscodePort.postMessage({ type: "formatDocument" });
+                      return true;
+                    },
+                  },
                   indentWithTab,
                   ...slashCommands.keymap,
                   ...getSearchKeymap(),
@@ -295,6 +309,7 @@ queueMicrotask(() => {
       settingsMenu.render();
       outlineNavigation.render(view);
       gitDiffGutter.update(view, latestGitDiffChanges);
+      lintDecorations.update(view, latestLintDiagnostics);
       if (initialReveal) {
         // Applied before the first paint, so the editor opens at the target
         // instead of drawing the top of the document and then jumping.
@@ -343,6 +358,12 @@ window.addEventListener("message", (event) => {
   if (event.data.type === "gitDiff") {
     latestGitDiffChanges = event.data.changes || [];
     gitDiffGutter.update(view, latestGitDiffChanges);
+    return;
+  }
+
+  if (event.data.type === "lintDiagnostics") {
+    latestLintDiagnostics = event.data.diagnostics || [];
+    lintDecorations.update(view, latestLintDiagnostics);
     return;
   }
 
