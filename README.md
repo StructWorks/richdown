@@ -37,7 +37,7 @@ Richdown Diff gives Markdown changes a rendered side-by-side review view while k
 - Render Mermaid diagrams lazily with optional Richdown colorization, fit, zoom, pan, and modal viewing controls. Richdown supports both Markdown fences and Azure DevOps-style `::: mermaid` blocks.
 - Render `gherkin`, `feature`, and `cucumber` fenced code blocks as switchable BDD boards with highlighted source view.
 - Format Markdown with configurable rules — heading style, list markers and numbering, aligned tables (East Asian wide characters count as two columns), blank lines around blocks, and whitespace — from the command palette, `Shift+Alt+F`, or on save.
-- Check Markdown with lint rules and show the problems in the Problems panel and as squiggles with hover messages in the Richdown editor. Each formatter and lint rule can be turned on or off in a `.richdownrc.json` file.
+- Check Markdown with lint rules and show the problems in the Problems panel and as squiggles with hover messages in the Richdown editor. An overview ruler at the right edge marks where the problems are in the whole document; click a mark to scroll there, or press F8 / Shift+F8 to move to the next or previous problem. Each formatter and lint rule can be turned on or off in a `.richdownrc.json` file.
 - Choose the preview width and theme from the in-editor settings button.
 - Switch between the default VS Code theme and several built-in dark/light themes.
 

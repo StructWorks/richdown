@@ -63,6 +63,11 @@ export function injectStyles() {
     .richdown-outline-root * {
       box-sizing: border-box;
     }
+    /* Keep the floating buttons clear of the lint overview ruler. */
+    body.richdown-has-lint-ruler .cm-settings-root,
+    body.richdown-has-lint-ruler .richdown-outline-root {
+      right: 30px;
+    }
     .richdown-outline-button {
       width: 36px;
       height: 36px;

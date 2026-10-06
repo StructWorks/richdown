@@ -370,6 +370,42 @@ export function createEditorThemeExtension() {
   ".cm-richdown-lint-line-hint": {
     "--richdown-lint-color": "var(--vscode-editorHint-foreground, #808080)",
   },
+  // Overview ruler: problem positions across the whole document.
+  ".cm-richdown-lint-ruler": {
+    position: "absolute",
+    top: "0",
+    bottom: "0",
+    width: "8px",
+    zIndex: "250",
+    pointerEvents: "none",
+  },
+  ".cm-richdown-lint-ruler-mark": {
+    position: "absolute",
+    left: "1px",
+    right: "1px",
+    borderRadius: "1px",
+    backgroundColor: "var(--richdown-lint-color)",
+    opacity: "0.85",
+    pointerEvents: "auto",
+    cursor: "pointer",
+  },
+  ".cm-richdown-lint-ruler-mark:hover": {
+    left: "0",
+    right: "0",
+    opacity: "1",
+  },
+  ".cm-richdown-lint-ruler-mark-error": {
+    "--richdown-lint-color": "var(--vscode-editorOverviewRuler-errorForeground, var(--vscode-editorError-foreground, #f14c4c))",
+  },
+  ".cm-richdown-lint-ruler-mark-warning": {
+    "--richdown-lint-color": "var(--vscode-editorOverviewRuler-warningForeground, var(--vscode-editorWarning-foreground, #cca700))",
+  },
+  ".cm-richdown-lint-ruler-mark-info": {
+    "--richdown-lint-color": "var(--vscode-editorOverviewRuler-infoForeground, var(--vscode-editorInfo-foreground, #3794ff))",
+  },
+  ".cm-richdown-lint-ruler-mark-hint": {
+    "--richdown-lint-color": "var(--vscode-editorHint-foreground, #808080)",
+  },
   ".cm-tooltip .cm-richdown-lint-tooltip": {
     maxWidth: "min(520px, 80vw)",
     padding: "4px 0",

@@ -1,12 +1,18 @@
 // Draws the extension host's lint results (src/host/markdownLinter.js) in the
 // rich editor: a wavy underline under the reported text, or a tinted line when
 // the problem has no text of its own (an extra blank line, a missing blank
-// line), with the messages in a hover tooltip.
+// line), with the messages in a hover tooltip. An overview ruler at the right
+// edge shows where the problems are in the whole document, and F8 / Shift+F8
+// move to the next or previous one (see lintOverviewRuler.js).
 //
 // The host lints a little after each edit. Until the next results arrive, the
 // marks are mapped through the edits so they stay on the text they describe.
 import { StateEffect, StateField } from "@codemirror/state";
-import { Decoration, EditorView, hoverTooltip } from "@codemirror/view";
+import { Decoration, EditorView, hoverTooltip, keymap } from "@codemirror/view";
+import {
+  createLintOverviewRuler,
+  createProblemNavigation,
+} from "./lintOverviewRuler.js";
 
 const severities = new Set(["error", "warning", "info", "hint"]);
 
@@ -48,8 +54,15 @@ export function createLintDecorations(initialDiagnostics = []) {
     view.dispatch({ effects: setLintDiagnostics.of(diagnostics) });
   }
 
+  const getDecorations = (state) => state.field(lintField);
+
   return {
-    extension: [lintField, lintTooltip],
+    extension: [
+      lintField,
+      lintTooltip,
+      createLintOverviewRuler(getDecorations),
+      keymap.of(createProblemNavigation(getDecorations)),
+    ],
     update,
   };
 }

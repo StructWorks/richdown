@@ -47026,6 +47026,165 @@
     );
   }
 
+  // src/rich-editor/presentation/codemirror/lintOverviewRuler.js
+  var severityRank = { hint: 0, info: 1, warning: 2, error: 3 };
+  var minimumMarkHeight = 3;
+  function createLintOverviewRuler(getDecorations) {
+    return ViewPlugin.fromClass(
+      class {
+        constructor(view2) {
+          this.view = view2;
+          this.dom = document.createElement("div");
+          this.dom.className = "cm-richdown-lint-ruler";
+          this.dom.setAttribute("aria-hidden", "true");
+          this.dom.addEventListener("mousedown", (event) => this.onMouseDown(event));
+          view2.dom.appendChild(this.dom);
+          this.markers = [];
+          this.scheduleMeasure();
+        }
+        update(update) {
+          if (update.docChanged || update.geometryChanged || update.heightChanged || getDecorations(update.startState) !== getDecorations(update.state)) {
+            this.scheduleMeasure();
+          }
+        }
+        scheduleMeasure() {
+          this.view.requestMeasure({
+            key: this,
+            read: (view2) => measureRuler(view2, getDecorations(view2.state)),
+            write: (measured) => this.render(measured)
+          });
+        }
+        render({ markers, right }) {
+          this.markers = markers;
+          this.dom.style.right = `${right}px`;
+          this.dom.hidden = markers.length === 0;
+          this.view.dom.ownerDocument.body?.classList.toggle(
+            "richdown-has-lint-ruler",
+            markers.length > 0
+          );
+          this.dom.replaceChildren(
+            ...markers.map((marker, index) => {
+              const element = document.createElement("div");
+              element.className = `cm-richdown-lint-ruler-mark cm-richdown-lint-ruler-mark-${marker.severity}`;
+              element.style.top = `${marker.top}px`;
+              element.style.height = `${marker.height}px`;
+              element.dataset.index = String(index);
+              element.title = marker.messages.join("\n");
+              return element;
+            })
+          );
+        }
+        onMouseDown(event) {
+          const marker = this.markers[Number(event.target?.dataset?.index)];
+          if (!marker) {
+            return;
+          }
+          event.preventDefault();
+          this.view.dispatch({
+            effects: EditorView.scrollIntoView(marker.pos, { y: "center" })
+          });
+        }
+        destroy() {
+          this.dom.remove();
+          this.view.dom.ownerDocument.body?.classList.remove("richdown-has-lint-ruler");
+        }
+      }
+    );
+  }
+  function measureRuler(view2, decorations2) {
+    const scroller = view2.scrollDOM;
+    const entries = [];
+    decorations2.between(0, view2.state.doc.length, (from3, _to, decoration) => {
+      const diagnostic = decoration.spec.diagnostic;
+      if (!diagnostic) {
+        return;
+      }
+      const block2 = view2.lineBlockAt(from3);
+      entries.push({
+        pos: from3,
+        top: block2.top,
+        height: block2.height,
+        severity: diagnostic.severity,
+        message: diagnostic.message
+      });
+    });
+    return {
+      markers: layoutRulerMarkers(entries, {
+        contentHeight: view2.contentHeight,
+        rulerHeight: scroller.clientHeight
+      }),
+      // Sit just left of a classic scrollbar; overlay scrollbars take no width.
+      right: Math.max(0, scroller.offsetWidth - scroller.clientWidth)
+    };
+  }
+  function layoutRulerMarkers(entries, { contentHeight, rulerHeight }) {
+    if (entries.length === 0 || !(rulerHeight > 0)) {
+      return [];
+    }
+    const scale = rulerHeight / Math.max(contentHeight, rulerHeight, 1);
+    const sorted = [...entries].sort((left, right) => left.top - right.top || left.pos - right.pos);
+    const markers = [];
+    for (const entry of sorted) {
+      const height = Math.max(minimumMarkHeight, entry.height * scale);
+      const top2 = Math.min(entry.top * scale, rulerHeight - height);
+      const previous = markers[markers.length - 1];
+      if (previous && top2 <= previous.top + previous.height) {
+        previous.height = Math.max(previous.height, top2 + height - previous.top);
+        if (severityRank[entry.severity] > severityRank[previous.severity]) {
+          previous.severity = entry.severity;
+        }
+        previous.messages.push(entry.message);
+        continue;
+      }
+      markers.push({
+        pos: entry.pos,
+        top: top2,
+        height,
+        severity: entry.severity,
+        messages: [entry.message]
+      });
+    }
+    return markers;
+  }
+  function findAdjacentProblem(decorations2, docLength, pos, direction) {
+    const starts = [];
+    decorations2.between(0, docLength, (from3, _to, decoration) => {
+      if (decoration.spec.diagnostic && starts[starts.length - 1] !== from3) {
+        starts.push(from3);
+      }
+    });
+    if (starts.length === 0) {
+      return null;
+    }
+    if (direction > 0) {
+      return starts.find((start2) => start2 > pos) ?? starts[0];
+    }
+    return [...starts].reverse().find((start2) => start2 < pos) ?? starts[starts.length - 1];
+  }
+  function createProblemNavigation(getDecorations) {
+    const go2 = (direction) => (view2) => {
+      const target = findAdjacentProblem(
+        getDecorations(view2.state),
+        view2.state.doc.length,
+        view2.state.selection.main.head,
+        direction
+      );
+      if (target === null) {
+        return false;
+      }
+      view2.dispatch({
+        selection: EditorSelection.cursor(target),
+        effects: EditorView.scrollIntoView(target, { y: "center" }),
+        userEvent: "select"
+      });
+      return true;
+    };
+    return [
+      { key: "F8", run: go2(1), preventDefault: true },
+      { key: "Shift-F8", run: go2(-1), preventDefault: true }
+    ];
+  }
+
   // src/rich-editor/presentation/codemirror/lintDecorations.js
   var severities = /* @__PURE__ */ new Set(["error", "warning", "info", "hint"]);
   function createLintDecorations(initialDiagnostics = []) {
@@ -47060,8 +47219,14 @@
       if (!view2) return;
       view2.dispatch({ effects: setLintDiagnostics.of(diagnostics) });
     }
+    const getDecorations = (state) => state.field(lintField);
     return {
-      extension: [lintField, lintTooltip],
+      extension: [
+        lintField,
+        lintTooltip,
+        createLintOverviewRuler(getDecorations),
+        keymap.of(createProblemNavigation(getDecorations))
+      ],
       update
     };
   }
@@ -54137,6 +54302,42 @@ ${rowText}`;
       ".cm-richdown-lint-line-hint": {
         "--richdown-lint-color": "var(--vscode-editorHint-foreground, #808080)"
       },
+      // Overview ruler: problem positions across the whole document.
+      ".cm-richdown-lint-ruler": {
+        position: "absolute",
+        top: "0",
+        bottom: "0",
+        width: "8px",
+        zIndex: "250",
+        pointerEvents: "none"
+      },
+      ".cm-richdown-lint-ruler-mark": {
+        position: "absolute",
+        left: "1px",
+        right: "1px",
+        borderRadius: "1px",
+        backgroundColor: "var(--richdown-lint-color)",
+        opacity: "0.85",
+        pointerEvents: "auto",
+        cursor: "pointer"
+      },
+      ".cm-richdown-lint-ruler-mark:hover": {
+        left: "0",
+        right: "0",
+        opacity: "1"
+      },
+      ".cm-richdown-lint-ruler-mark-error": {
+        "--richdown-lint-color": "var(--vscode-editorOverviewRuler-errorForeground, var(--vscode-editorError-foreground, #f14c4c))"
+      },
+      ".cm-richdown-lint-ruler-mark-warning": {
+        "--richdown-lint-color": "var(--vscode-editorOverviewRuler-warningForeground, var(--vscode-editorWarning-foreground, #cca700))"
+      },
+      ".cm-richdown-lint-ruler-mark-info": {
+        "--richdown-lint-color": "var(--vscode-editorOverviewRuler-infoForeground, var(--vscode-editorInfo-foreground, #3794ff))"
+      },
+      ".cm-richdown-lint-ruler-mark-hint": {
+        "--richdown-lint-color": "var(--vscode-editorHint-foreground, #808080)"
+      },
       ".cm-tooltip .cm-richdown-lint-tooltip": {
         maxWidth: "min(520px, 80vw)",
         padding: "4px 0",
@@ -55427,6 +55628,11 @@ ${rowText}`;
     }
     .richdown-outline-root * {
       box-sizing: border-box;
+    }
+    /* Keep the floating buttons clear of the lint overview ruler. */
+    body.richdown-has-lint-ruler .cm-settings-root,
+    body.richdown-has-lint-ruler .richdown-outline-root {
+      right: 30px;
     }
     .richdown-outline-button {
       width: 36px;
