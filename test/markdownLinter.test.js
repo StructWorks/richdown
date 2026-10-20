@@ -215,6 +215,23 @@ describe("link rules", () => {
     expect(diagnostics[0].message).toContain("#missing");
   });
 
+  it("matches GitHub's slugs and skips headings in code", () => {
+    const text = [
+      "```bash",
+      "# install deps",
+      "```",
+      "",
+      "## `code` & Symbols!",
+      "",
+      "[ok](#code--symbols \"title\") [ok2](<#code--symbols> 'title') [collapsed](#code-symbols)",
+      "",
+    ].join("\n");
+    expect(lintWith("no-broken-anchors", text).map((problem) => problem.message)).toEqual([
+      'No heading or anchor matches "#code-symbols".',
+    ]);
+    expect(lintWith("no-broken-anchors", "```\n# install\n```\n\n[x](#install)\n")).toHaveLength(1);
+  });
+
   it("reports bare URLs when turned on", () => {
     const text = "See https://a.example and <https://b.example> and [x](https://c.example).\n\n[ref]: https://d.example\n";
     expect(summarize(lintWith("no-bare-urls", text))).toEqual(["1:no-bare-urls"]);

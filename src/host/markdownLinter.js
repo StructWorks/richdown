@@ -547,7 +547,7 @@ function checkAnchorLinks({ structure, lines }) {
   const anchors = collectAnchors(structure);
   const problems = [];
   for (const { info, text } of inlineLines(lines)) {
-    for (const match of text.matchAll(/\]\(\s*<?#([^)\s>]+)>?(?:\s+"[^"]*")?\s*\)/g)) {
+    for (const match of text.matchAll(/\]\(\s*<?#([^)\s>]+)>?(?:\s+(?:"[^"]*"|'[^']*'))?\s*\)/g)) {
       const fragment = match[1];
       const wanted = normalizeAnchor(fragment);
       // Like the rich editor, accept an anchor written as heading text.

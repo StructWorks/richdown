@@ -67,6 +67,22 @@ describe("resolveRevealRange", () => {
     });
     expect(resolveRevealRange(doc, { anchor: "missing" })).toBeNull();
   });
+
+  it("skips code comments and reaches HTML id anchors", () => {
+    const anchorDoc = createDocOf([
+      "```bash",
+      "# install deps",
+      "```",
+      "## Install Deps",
+      '<a id="custom-anchor"></a>',
+    ]);
+    expect(resolveRevealRange(anchorDoc, { anchor: "install-deps" })).toMatchObject({
+      from: anchorDoc.line(4).from,
+    });
+    expect(resolveRevealRange(anchorDoc, { anchor: "custom-anchor" })).toMatchObject({
+      from: anchorDoc.line(5).from,
+    });
+  });
 });
 
 describe("revealInEditor", () => {

@@ -46886,31 +46886,102 @@
     const wanted = String(anchor || "").toLowerCase();
     return anchors.find((candidate) => candidate.slug === wanted) || anchors.find((candidate) => candidate.slug === slugifyHeading(wanted)) || null;
   }
+  var ATX_HEADING_PATTERN = /^ {0,3}#{1,6}(?:[ \t]+(.*?))?(?:[ \t]+#+)?[ \t]*$/;
+  var SETEXT_UNDERLINE_PATTERN = /^ {0,3}(?:=+|-+)[ \t]*$/;
+  var ANCHOR_FENCE_OPENING_PATTERN = /^[ \t]*(`{3,}|~{3,})/;
+  var ANCHOR_FENCE_CLOSING_PATTERN = /^[ \t]*(`{3,}|~{3,})[ \t]*$/;
+  var LIST_ITEM_PATTERN = /^[ \t]*(?:[-*+]|\d{1,9}[.)])(?:[ \t]|$)/;
+  var BLOCK_QUOTE_PATTERN = /^ {0,3}>/;
+  var HTML_BLOCK_PATTERN = /^ {0,3}<\/?[A-Za-z][\w-]*(?:[\s/>]|$)/;
+  var HTML_ID_PATTERN = /<[A-Za-z][^>]*\b(?:id|name)\s*=\s*["']([^"']+)["'][^>]*>/g;
   function scanHeadingAnchors(doc2) {
     const anchors = [];
     const seen = /* @__PURE__ */ new Map();
-    for (let lineNumber = 1; lineNumber <= doc2.lines; lineNumber += 1) {
-      const line = doc2.line(lineNumber);
-      const heading2 = line.text.match(/^\s{0,3}#{1,6}\s+(.*?)\s*#*\s*$/);
-      if (!heading2 || !heading2[1]) {
-        continue;
-      }
-      const title = heading2[1];
+    const addHeading = (title, from3) => {
       let slug = slugifyHeading(title);
       if (!slug) {
-        continue;
+        return;
       }
       const count2 = seen.get(slug) || 0;
       seen.set(slug, count2 + 1);
       if (count2 > 0) {
         slug = `${slug}-${count2}`;
       }
-      anchors.push({ slug, title, from: line.from });
+      anchors.push({ slug, title, from: from3 });
+    };
+    const frontmatter = findFrontmatterBlock(doc2);
+    let lineNumber = frontmatter ? frontmatter.sourceLineCount + 1 : 1;
+    let fence = null;
+    let commentOpen = false;
+    let paragraph = null;
+    for (; lineNumber <= doc2.lines; lineNumber += 1) {
+      const line = doc2.line(lineNumber);
+      const text2 = line.text;
+      if (fence) {
+        const closing3 = text2.match(ANCHOR_FENCE_CLOSING_PATTERN);
+        if (closing3 && closing3[1][0] === fence[0] && closing3[1].length >= fence.length) {
+          fence = null;
+        }
+        continue;
+      }
+      if (commentOpen) {
+        commentOpen = !text2.includes("-->");
+        continue;
+      }
+      if (/^\s*$/.test(text2)) {
+        paragraph = null;
+        continue;
+      }
+      const fenceOpening = text2.match(ANCHOR_FENCE_OPENING_PATTERN);
+      if (fenceOpening) {
+        fence = fenceOpening[1];
+        paragraph = null;
+        continue;
+      }
+      if (/^\s*<!--/.test(text2)) {
+        commentOpen = !text2.slice(text2.indexOf("<!--") + 4).includes("-->");
+        paragraph = null;
+        continue;
+      }
+      for (const match2 of text2.matchAll(HTML_ID_PATTERN)) {
+        anchors.push({ slug: normalizeAnchor(match2[1]), title: match2[0], from: line.from });
+      }
+      if (SETEXT_UNDERLINE_PATTERN.test(text2)) {
+        if (paragraph?.eligible) {
+          addHeading(paragraph.lines.join(" "), paragraph.from);
+        }
+        paragraph = null;
+        continue;
+      }
+      const heading2 = text2.match(ATX_HEADING_PATTERN);
+      if (heading2) {
+        if (heading2[1]) {
+          addHeading(heading2[1], line.from);
+        }
+        paragraph = null;
+        continue;
+      }
+      if (LIST_ITEM_PATTERN.test(text2) || BLOCK_QUOTE_PATTERN.test(text2) || HTML_BLOCK_PATTERN.test(text2)) {
+        paragraph = { eligible: false };
+        continue;
+      }
+      if (paragraph) {
+        paragraph.lines?.push(text2.trim());
+      } else {
+        paragraph = { eligible: true, from: line.from, lines: [text2.trim()] };
+      }
     }
     return anchors;
   }
+  function normalizeAnchor(anchor) {
+    try {
+      return decodeURIComponent(anchor).toLowerCase();
+    } catch (error) {
+      return anchor.toLowerCase();
+    }
+  }
   function slugifyHeading(title) {
-    return title.toLowerCase().replace(/[^\p{L}\p{N}\s_-]/gu, "").trim().replace(/\s+/g, "-");
+    return String(title).trim().toLowerCase().replace(/[^\p{L}\p{M}\p{N}\p{Pc}\s-]/gu, "").replace(/\s/g, "-");
   }
 
   // src/rich-editor/presentation/codemirror/gitDiffGutter.js
@@ -47360,7 +47431,9 @@
   }
   function collectLineLinks(text2) {
     const links = [];
-    for (const match2 of text2.matchAll(/(!?)\[([^\]]+)\]\(([^)\s]+)\)/g)) {
+    for (const match2 of text2.matchAll(
+      /(!?)\[([^\]]+)\]\(\s*(?:<([^>]+)>|([^)\s]+))(?:\s+(?:"[^"]*"|'[^']*'))?\s*\)/g
+    )) {
       if (match2[1]) {
         continue;
       }
@@ -47368,7 +47441,7 @@
       const labelFrom = sourceFrom + 1;
       const labelTo = labelFrom + match2[2].length;
       links.push({
-        href: match2[3],
+        href: match2[3] ?? match2[4],
         sourceFrom,
         sourceTo: sourceFrom + match2[0].length,
         visibleFrom: labelFrom,

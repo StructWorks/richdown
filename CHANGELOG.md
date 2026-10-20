@@ -2,6 +2,10 @@
 
 All notable changes to Richdown will be documented in this file.
 
+## 0.9.2 - 2026-10-21
+
+- Fixed `#heading` links in the Richdown editor. They no longer jump to a `# comment` inside a code block, and they now reach setext headings and `<a id="...">` anchors. Heading anchors follow GitHub's rules, so `## C++ / C#` is `#c--c`, and the link checker uses the same rules. Links with a title (`[text](#anchor "title")`) or an `<...>` target can now be clicked.
+
 ## 0.9.1 - 2026-10-07
 
 - Added a Markdown formatter. `Richdown: Format Document` (also `Shift+Alt+F` in the Richdown editor, and VS Code's Format Document when Richdown is the Markdown formatter) converts setext headings, normalizes heading spacing, list markers and ordered list numbers, aligns tables with East Asian wide characters counted as two columns, adds blank lines around headings, code blocks, lists and tables, and cleans up whitespace. Set `richdown.formatOnSave` to format on save.

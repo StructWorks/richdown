@@ -630,14 +630,16 @@ function isBlank(text) {
   return /^\s*$/.test(text);
 }
 
-// GitHub's heading anchor rules, matching slugifyHeading in the webview's
-// completions module: lowercase, drop punctuation, join words with dashes.
+// GitHub's heading anchor rules (github-slugger), matching slugifyHeading in
+// the webview's completions module: lowercase, drop everything but letters,
+// marks, numbers, connector punctuation, spaces and dashes, then turn each
+// space into a dash without collapsing runs ("C++ / C#" -> "c--c").
 function slugifyHeading(title) {
   return String(title)
-    .toLowerCase()
-    .replace(/[^\p{L}\p{N}\s_-]/gu, "")
     .trim()
-    .replace(/\s+/g, "-");
+    .toLowerCase()
+    .replace(/[^\p{L}\p{M}\p{N}\p{Pc}\s-]/gu, "")
+    .replace(/\s/g, "-");
 }
 
 module.exports = {
