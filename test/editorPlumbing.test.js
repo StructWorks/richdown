@@ -396,6 +396,22 @@ describe("findLinkAtClick", () => {
     expect(clickAt(view, position)).toBeNull();
   });
 
+  it("finds a link that has a title", () => {
+    const doc = 'jump to [setup](#setup "Setup section") now';
+    const position = doc.indexOf("setup");
+    const view = viewFor(doc, position);
+
+    expect(clickAt(view, position).href).toBe("#setup");
+  });
+
+  it("finds a link whose target is wrapped in angle brackets", () => {
+    const doc = "open [notes](<my notes.md> 'Notes') now";
+    const position = doc.indexOf("notes");
+    const view = viewFor(doc, position);
+
+    expect(clickAt(view, position).href).toBe("my notes.md");
+  });
+
   it("hits the link target once the line is focused", () => {
     const doc = ["see [docs](notes.md)", "", "second line"].join("\n");
     const position = doc.indexOf("notes.md");

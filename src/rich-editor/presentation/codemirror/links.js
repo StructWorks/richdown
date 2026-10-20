@@ -60,7 +60,11 @@ export function findLinkAtClick(view, event) {
 function collectLineLinks(text) {
   const links = [];
 
-  for (const match of text.matchAll(/(!?)\[([^\]]+)\]\(([^)\s]+)\)/g)) {
+  // The target may be wrapped in <...> and followed by a "title", like the
+  // inline Markdown renderer accepts.
+  for (const match of text.matchAll(
+    /(!?)\[([^\]]+)\]\(\s*(?:<([^>]+)>|([^)\s]+))(?:\s+(?:"[^"]*"|'[^']*'))?\s*\)/g,
+  )) {
     if (match[1]) {
       continue;
     }
@@ -68,7 +72,7 @@ function collectLineLinks(text) {
     const labelFrom = sourceFrom + 1;
     const labelTo = labelFrom + match[2].length;
     links.push({
-      href: match[3],
+      href: match[3] ?? match[4],
       sourceFrom,
       sourceTo: sourceFrom + match[0].length,
       visibleFrom: labelFrom,

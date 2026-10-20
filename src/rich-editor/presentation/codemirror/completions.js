@@ -280,9 +280,9 @@ export function collectHeadingAnchors(doc) {
   return scanHeadingAnchors(doc).map(({ slug, title }) => ({ slug, title }));
 }
 
-// Finds the heading a `#anchor` link points to. Exact GitHub slugs win; an
-// anchor written as heading text ("#Getting Started") is slugified as a
-// fallback.
+// Finds the heading or HTML anchor a `#anchor` link points to. Exact GitHub
+// slugs win; an anchor written as heading text ("#Getting Started") is
+// slugified as a fallback.
 export function findHeadingAnchor(doc, anchor) {
   const anchors = scanHeadingAnchors(doc);
   const wanted = String(anchor || "").toLowerCase();
@@ -293,19 +293,26 @@ export function findHeadingAnchor(doc, anchor) {
   );
 }
 
+const ATX_HEADING_PATTERN = /^ {0,3}#{1,6}(?:[ \t]+(.*?))?(?:[ \t]+#+)?[ \t]*$/;
+const SETEXT_UNDERLINE_PATTERN = /^ {0,3}(?:=+|-+)[ \t]*$/;
+const ANCHOR_FENCE_OPENING_PATTERN = /^[ \t]*(`{3,}|~{3,})/;
+const ANCHOR_FENCE_CLOSING_PATTERN = /^[ \t]*(`{3,}|~{3,})[ \t]*$/;
+const LIST_ITEM_PATTERN = /^[ \t]*(?:[-*+]|\d{1,9}[.)])(?:[ \t]|$)/;
+const BLOCK_QUOTE_PATTERN = /^ {0,3}>/;
+const HTML_BLOCK_PATTERN = /^ {0,3}<\/?[A-Za-z][\w-]*(?:[\s/>]|$)/;
+const HTML_ID_PATTERN = /<[A-Za-z][^>]*\b(?:id|name)\s*=\s*["']([^"']+)["'][^>]*>/g;
+
+// Walks the document the way the host's Markdown structure scanner does, so a
+// link the linter accepts is one the editor can jump to: front matter, fenced
+// code and HTML comments hold no anchors, setext headings do, and so do
+// `<a id="...">` / `name="..."` attributes in HTML.
 function scanHeadingAnchors(doc) {
   const anchors = [];
   const seen = new Map();
-  for (let lineNumber = 1; lineNumber <= doc.lines; lineNumber += 1) {
-    const line = doc.line(lineNumber);
-    const heading = line.text.match(/^\s{0,3}#{1,6}\s+(.*?)\s*#*\s*$/);
-    if (!heading || !heading[1]) {
-      continue;
-    }
-    const title = heading[1];
+  const addHeading = (title, from) => {
     let slug = slugifyHeading(title);
     if (!slug) {
-      continue;
+      return;
     }
     // GitHub dedupes repeated heading slugs with -1, -2, ... suffixes.
     const count = seen.get(slug) || 0;
@@ -313,15 +320,103 @@ function scanHeadingAnchors(doc) {
     if (count > 0) {
       slug = `${slug}-${count}`;
     }
-    anchors.push({ slug, title, from: line.from });
+    anchors.push({ slug, title, from });
+  };
+
+  const frontmatter = findFrontmatterBlock(doc);
+  let lineNumber = frontmatter ? frontmatter.sourceLineCount + 1 : 1;
+  let fence = null;
+  let commentOpen = false;
+  // The paragraph a setext underline would turn into a heading. Text that
+  // continues a list item, quote or HTML block cannot become one.
+  let paragraph = null;
+
+  for (; lineNumber <= doc.lines; lineNumber += 1) {
+    const line = doc.line(lineNumber);
+    const text = line.text;
+
+    if (fence) {
+      const closing = text.match(ANCHOR_FENCE_CLOSING_PATTERN);
+      if (closing && closing[1][0] === fence[0] && closing[1].length >= fence.length) {
+        fence = null;
+      }
+      continue;
+    }
+    if (commentOpen) {
+      commentOpen = !text.includes("-->");
+      continue;
+    }
+    if (/^\s*$/.test(text)) {
+      paragraph = null;
+      continue;
+    }
+
+    const fenceOpening = text.match(ANCHOR_FENCE_OPENING_PATTERN);
+    if (fenceOpening) {
+      fence = fenceOpening[1];
+      paragraph = null;
+      continue;
+    }
+    if (/^\s*<!--/.test(text)) {
+      commentOpen = !text.slice(text.indexOf("<!--") + 4).includes("-->");
+      paragraph = null;
+      continue;
+    }
+
+    for (const match of text.matchAll(HTML_ID_PATTERN)) {
+      anchors.push({ slug: normalizeAnchor(match[1]), title: match[0], from: line.from });
+    }
+
+    if (SETEXT_UNDERLINE_PATTERN.test(text)) {
+      if (paragraph?.eligible) {
+        addHeading(paragraph.lines.join(" "), paragraph.from);
+      }
+      paragraph = null;
+      continue;
+    }
+
+    const heading = text.match(ATX_HEADING_PATTERN);
+    if (heading) {
+      if (heading[1]) {
+        addHeading(heading[1], line.from);
+      }
+      paragraph = null;
+      continue;
+    }
+
+    if (
+      LIST_ITEM_PATTERN.test(text) ||
+      BLOCK_QUOTE_PATTERN.test(text) ||
+      HTML_BLOCK_PATTERN.test(text)
+    ) {
+      paragraph = { eligible: false };
+      continue;
+    }
+    if (paragraph) {
+      paragraph.lines?.push(text.trim());
+    } else {
+      paragraph = { eligible: true, from: line.from, lines: [text.trim()] };
+    }
   }
   return anchors;
 }
 
+function normalizeAnchor(anchor) {
+  try {
+    return decodeURIComponent(anchor).toLowerCase();
+  } catch (error) {
+    return anchor.toLowerCase();
+  }
+}
+
+// GitHub's heading anchor rules (github-slugger): lowercase, drop everything
+// but letters, marks, numbers, connector punctuation (`_`), spaces and dashes,
+// then turn each space into a dash without collapsing runs, so
+// "C++ / C#" becomes "c--c".
 export function slugifyHeading(title) {
-  return title
-    .toLowerCase()
-    .replace(/[^\p{L}\p{N}\s_-]/gu, "")
+  return String(title)
     .trim()
-    .replace(/\s+/g, "-");
+    .toLowerCase()
+    .replace(/[^\p{L}\p{M}\p{N}\p{Pc}\s-]/gu, "")
+    .replace(/\s/g, "-");
 }
