@@ -8,11 +8,12 @@ const {
   createHtmlExport,
   writePdfExport
 } = require('./src/export/markdownExport');
-const { CRLF, LF, applyLineEnding, normalizeToLf } = require('./src/host/lineEndings');
+const { CRLF, LF, normalizeToLf } = require('./src/host/lineEndings');
 const { hasPendingChatEdits, isChatEditingOriginalUri } = require('./src/host/chatEditing');
 const { createMarkdownEditorRouter, createTabKey } = require('./src/host/markdownEditorRouter');
 const { createSelectionRevealTarget, parseLinkFragment } = require('./src/host/revealTarget');
 const { createMarkdownQuality } = require('./src/host/markdownQuality');
+const { createWebviewDocumentSync } = require('./src/host/webviewDocumentSync');
 
 const richEditorViewType = 'richdown.richEditor';
 const legacyMarkdownEditorAssociationPatterns = ['*.md', '*.markdown'];
@@ -56,7 +57,7 @@ const markdownQuality = createMarkdownQuality(vscode, {
   onDiagnostics: (uriKey, diagnostics) => {
     const session = richEditorSessions.get(uriKey);
     if (session?.ready) {
-      session.postMessage({ type: 'lintDiagnostics', diagnostics });
+      session.postLintDiagnostics(diagnostics);
     }
   },
   resolveMarkdownUri: resource => getMarkdownResourceUri(resource)
@@ -1003,64 +1004,24 @@ class RichdownEditorProvider {
       ]
     };
 
-    let queuedWebviewText;
-    let applyingWebviewEdit = false;
-    const pendingWebviewEditSignatures = new Set();
     let externalFileUpdateTimer;
     let externalFileUpdateSequence = 0;
     let hasDeferredExternalUpdate = false;
 
-    const updateWebview = text => {
-      webviewPanel.webview.postMessage({
-        type: 'update',
-        // The webview editor works in LF, so send the document without its
-        // carriage returns. Webview edits are converted back to the document's
-        // own EOL in applyQueuedWebviewEdits.
-        text: normalizeToLf(text ?? document.getText())
-      });
-    };
-    const rememberWebviewEdit = text => {
-      const signature = makeTextSignature(text);
-      pendingWebviewEditSignatures.add(signature);
-      if (pendingWebviewEditSignatures.size > 20) {
-        pendingWebviewEditSignatures.delete(pendingWebviewEditSignatures.values().next().value);
-      }
-      return signature;
-    };
-    const applyQueuedWebviewEdits = async () => {
-      if (applyingWebviewEdit) {
-        return;
-      }
-
-      applyingWebviewEdit = true;
-      try {
-        while (queuedWebviewText !== undefined) {
-          const nextText = applyLineEnding(queuedWebviewText, getDocumentLineEnding(document));
-          queuedWebviewText = undefined;
-
-          if (nextText === document.getText()) {
-            continue;
-          }
-
-          const signature = rememberWebviewEdit(nextText);
-          const edit = new vscode.WorkspaceEdit();
-          const fullRange = new vscode.Range(
-            document.positionAt(0),
-            document.positionAt(document.getText().length)
-          );
-          edit.replace(document.uri, fullRange, nextText);
-          const applied = await vscode.workspace.applyEdit(edit);
-          if (!applied) {
-            pendingWebviewEditSignatures.delete(signature);
-          }
-        }
-      } finally {
-        applyingWebviewEdit = false;
-        if (queuedWebviewText !== undefined) {
-          void applyQueuedWebviewEdits();
-        }
-      }
-    };
+    const documentSync = createWebviewDocumentSync({
+      getText: () => document.getText(),
+      getLineEnding: () => getDocumentLineEnding(document),
+      replaceText: nextText => {
+        const edit = new vscode.WorkspaceEdit();
+        const fullRange = new vscode.Range(
+          document.positionAt(0),
+          document.positionAt(document.getText().length)
+        );
+        edit.replace(document.uri, fullRange, nextText);
+        return vscode.workspace.applyEdit(edit);
+      },
+      postMessage: message => webviewPanel.webview.postMessage(message)
+    });
     const updateTheme = () => {
       webviewPanel.webview.postMessage({
         type: 'theme',
@@ -1125,7 +1086,7 @@ class RichdownEditorProvider {
         }
 
         hasDeferredExternalUpdate = false;
-        updateWebview(diskText);
+        documentSync.postUpdate(diskText);
         scheduleGitDiffUpdate(diskText, 0);
       } catch (error) {
         // The file may be between rename and create during an atomic write. The
@@ -1162,6 +1123,7 @@ class RichdownEditorProvider {
     const session = {
       ready: false,
       postMessage: message => webviewPanel.webview.postMessage(message),
+      postLintDiagnostics: diagnostics => documentSync.postLintDiagnostics(diagnostics),
       refreshChatEdits: () => {
         const pending = hasPendingChatEdits(vscode.workspace.textDocuments, document);
         if (pending === lastChatEditsPending) {
@@ -1187,14 +1149,13 @@ class RichdownEditorProvider {
 
     const changeDocumentSubscription = vscode.workspace.onDidChangeTextDocument(event => {
       if (event.document.uri.toString() === document.uri.toString()) {
-        const nextText = document.getText();
-        hasDeferredExternalUpdate = false;
-        if (pendingWebviewEditSignatures.delete(makeTextSignature(nextText))) {
-          scheduleGitDiffUpdate(nextText);
+        // Dirty-state flips arrive here without content changes; see
+        // src/host/webviewDocumentSync.js for why they must not be echoed.
+        if (documentSync.handleDocumentChange(event.contentChanges) === 'none') {
           return;
         }
-        updateWebview(nextText);
-        scheduleGitDiffUpdate(nextText);
+        hasDeferredExternalUpdate = false;
+        scheduleGitDiffUpdate(document.getText());
       }
     });
     const changeConfigurationSubscription = vscode.workspace.onDidChangeConfiguration(event => {
@@ -1254,13 +1215,12 @@ class RichdownEditorProvider {
     webviewPanel.webview.onDidReceiveMessage(async event => {
       if (event.type === 'ready') {
         session.ready = true;
-        // A reloaded webview starts without the banner state.
+        // A reloaded webview starts without the banner state and counts its
+        // edit versions from zero again.
         lastChatEditsPending = undefined;
+        documentSync.reset();
         session.refreshChatEdits();
-        session.postMessage({
-          type: 'lintDiagnostics',
-          diagnostics: markdownQuality.getWebviewDiagnostics(documentKey)
-        });
+        session.postLintDiagnostics(markdownQuality.getWebviewDiagnostics(documentKey));
         deliverPendingReveal(documentKey);
         scheduleGitDiffUpdate(document.getText(), 0);
         scheduleExternalFileRefresh(0);
@@ -1273,10 +1233,7 @@ class RichdownEditorProvider {
       }
 
       if (event.type === 'edit') {
-        if (typeof event.text === 'string') {
-          queuedWebviewText = event.text;
-          void applyQueuedWebviewEdits();
-        }
+        void documentSync.receiveEdit(event.text, event.version);
         return;
       }
 
@@ -1682,15 +1639,6 @@ function addLineChange(changesByLine, lineNumber, type, lineCount) {
 
 function getDocumentLineEnding(document) {
   return document.eol === vscode.EndOfLine.CRLF ? CRLF : LF;
-}
-
-function makeTextSignature(text) {
-  let hash = 2166136261;
-  for (let index = 0; index < text.length; index += 1) {
-    hash ^= text.charCodeAt(index);
-    hash = Math.imul(hash, 16777619);
-  }
-  return `${text.length}:${hash >>> 0}`;
 }
 
 async function openMarkdownLink(document, href, { fromRichEditor = false } = {}) {

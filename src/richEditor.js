@@ -36,6 +36,7 @@ import {
 } from "./rich-editor/presentation/codemirror/language.js";
 import { createMarkdownCompletion } from "./rich-editor/presentation/codemirror/completions.js";
 import { createGitDiffGutter } from "./rich-editor/presentation/codemirror/gitDiffGutter.js";
+import { createHeadingCursorFilter } from "./rich-editor/presentation/codemirror/headingCursor.js";
 import { createLintDecorations } from "./rich-editor/presentation/codemirror/lintDecorations.js";
 import { findLinkAtClick } from "./rich-editor/presentation/codemirror/links.js";
 import { createSlashCommandController } from "./rich-editor/presentation/codemirror/slashCommands.js";
@@ -78,6 +79,14 @@ const exportImageMap = readJsonScript("initial-image-map", {});
 const initialReveal = readJsonScript("initial-reveal", null);
 
 let applyingExternalUpdate = false;
+// Every edit sent to the host is numbered. The host echoes the number of the
+// last edit its document reflects, so an update with a lower number was taken
+// before keystrokes that are still on their way and would undo them.
+let lastSentEditVersion = 0;
+// Lint results that arrived during an IME composition. Redrawing the marks on
+// the composing line makes CodeMirror lose track of the composition, which
+// drops the "# " before it or doubles the composed text, so they wait.
+let deferredLintMessage = null;
 let settings = normalizeRichEditorSettings(initialSettings);
 let latestGitDiffChanges = initialGitDiffChanges;
 let latestLintDiagnostics = [];
@@ -210,6 +219,9 @@ queueMicrotask(() => {
                 highlightActiveLine(),
                 highlightActiveLineGutter(),
                 markdownCompletion.extension,
+                createHeadingCursorFilter({
+                  isLineFocused: previewExtensions.isLineFocused,
+                }),
                 revealHighlightField,
                 ...createSearchExtensions(),
               ]),
@@ -224,6 +236,10 @@ queueMicrotask(() => {
           }),
           ...previewExtensions.extensions,
           EditorView.domEventHandlers({
+            compositionend() {
+              setTimeout(flushDeferredLint, 0);
+              return false;
+            },
             blur(event, view) {
               slashCommands.close();
               previewExtensions.exitDetailsEditMode(view, true);
@@ -293,12 +309,18 @@ queueMicrotask(() => {
           EditorView.updateListener.of((update) => {
             slashCommands.sync(update);
             outlineNavigation.sync(update);
+            if (deferredLintMessage && !update.view.composing) {
+              // Dispatching is not allowed inside an update listener.
+              setTimeout(flushDeferredLint, 0);
+            }
             if (exportMode || !update.docChanged || applyingExternalUpdate) {
               return;
             }
+            lastSentEditVersion += 1;
             vscodePort.postMessage({
               type: "edit",
               text: update.state.doc.toString(),
+              version: lastSentEditVersion,
             });
           }),
           createEditorThemeExtension(),
@@ -362,8 +384,7 @@ window.addEventListener("message", (event) => {
   }
 
   if (event.data.type === "lintDiagnostics") {
-    latestLintDiagnostics = event.data.diagnostics || [];
-    lintDecorations.update(view, latestLintDiagnostics);
+    handleLintDiagnostics(event.data);
     return;
   }
 
@@ -388,6 +409,13 @@ window.addEventListener("message", (event) => {
 
   if (event.data.type !== "update") return;
 
+  if (isStaleHostMessage(event.data)) {
+    // The host will receive the newer edits and replace its document with
+    // them, so this text is already superseded. Applying it would revert the
+    // latest keystrokes and break an IME composition in progress.
+    return;
+  }
+
   // The host already sends LF text; normalizing again keeps a CRLF document
   // from turning into stray carriage returns inside the CodeMirror document.
   const nextText =
@@ -400,6 +428,37 @@ window.addEventListener("message", (event) => {
   }
   applyExternalDocumentUpdate(view, nextText);
 });
+
+function isStaleHostMessage(message) {
+  return (
+    Boolean(view) &&
+    typeof message.version === "number" &&
+    message.version < lastSentEditVersion
+  );
+}
+
+function handleLintDiagnostics(message) {
+  // Results for older text would land on the wrong characters. The host lints
+  // again after the newer edits arrive, so nothing is lost by dropping them.
+  if (isStaleHostMessage(message)) {
+    return;
+  }
+  if (view?.composing) {
+    deferredLintMessage = message;
+    return;
+  }
+  latestLintDiagnostics = message.diagnostics || [];
+  lintDecorations.update(view, latestLintDiagnostics);
+}
+
+function flushDeferredLint() {
+  if (!deferredLintMessage || !view || view.composing) {
+    return;
+  }
+  const message = deferredLintMessage;
+  deferredLintMessage = null;
+  handleLintDiagnostics(message);
+}
 
 function applyExternalDocumentUpdate(editorView, nextText) {
   if (typeof nextText !== "string") {

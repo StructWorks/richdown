@@ -320,6 +320,95 @@ describe("rich editor webview", () => {
     expect(root.textContent).toContain("Changed");
   });
 
+  async function editorView(root) {
+    // Imported after boot so it is the same module instance the editor uses.
+    const { EditorView } = await import("@codemirror/view");
+    return EditorView.findFromDOM(root.querySelector(".cm-editor"));
+  }
+
+  function sentEdits() {
+    return postMessage.mock.calls
+      .map(([message]) => message)
+      .filter((message) => message.type === "edit");
+  }
+
+  it("numbers each edit it sends to the host", async () => {
+    const root = await boot({ text: "" });
+    const view = await editorView(root);
+
+    view.dispatch({ changes: { from: 0, insert: "#" } });
+    view.dispatch({ changes: { from: 1, insert: " " } });
+
+    expect(sentEdits()).toEqual([
+      { type: "edit", text: "#", version: 1 },
+      { type: "edit", text: "# ", version: 2 },
+    ]);
+  });
+
+  it("ignores a host update taken before its latest edits", async () => {
+    // A new file turns dirty on the first keystroke, and VS Code echoes that
+    // state change with the document as it was then. Applying that copy used
+    // to undo the characters typed since, or double them mid-IME composition.
+    const root = await boot({ text: "" });
+    const view = await editorView(root);
+    view.dispatch({ changes: { from: 0, insert: "#" } });
+    view.dispatch({ changes: { from: 1, insert: " T" }, selection: { anchor: 3 } });
+
+    sendMessage({ type: "update", text: "#", version: 1 });
+
+    expect(view.state.doc.toString()).toBe("# T");
+    expect(view.state.selection.main.head).toBe(3);
+  });
+
+  it("applies a host update that includes its latest edit", async () => {
+    const root = await boot({ text: "" });
+    const view = await editorView(root);
+    view.dispatch({ changes: { from: 0, insert: "draft" } });
+
+    sendMessage({ type: "update", text: "# draft\n", version: 1 });
+
+    expect(view.state.doc.toString()).toBe("# draft\n");
+    // An external update must not be reported back as a webview edit.
+    expect(sentEdits()).toHaveLength(1);
+  });
+
+  const lintMessage = (version) => ({
+    type: "lintDiagnostics",
+    version,
+    diagnostics: [
+      { line: 0, from: 0, to: 2, severity: "warning", message: "m", rule: "r" },
+    ],
+  });
+
+  it("drops lint results taken before its latest edit", async () => {
+    const root = await boot({ text: "" });
+    const view = await editorView(root);
+    view.dispatch({ changes: { from: 0, insert: "##" } });
+    view.dispatch({ changes: { from: 2, insert: " a" } });
+
+    sendMessage(lintMessage(1));
+    expect(root.querySelector(".cm-richdown-lint")).toBeNull();
+
+    sendMessage(lintMessage(2));
+    expect(root.querySelector(".cm-richdown-lint")).toBeTruthy();
+  });
+
+  it("holds lint results back until an IME composition ends", async () => {
+    // Redrawing the marks on the composing line made CodeMirror lose the
+    // composition, which dropped the "## " or doubled the composed text.
+    const root = await boot({ text: "## a" });
+    const view = await editorView(root);
+    Object.defineProperty(view, "composing", { configurable: true, value: true });
+
+    sendMessage(lintMessage(0));
+    expect(root.querySelector(".cm-richdown-lint")).toBeNull();
+
+    Object.defineProperty(view, "composing", { configurable: true, value: false });
+    view.contentDOM.dispatchEvent(new CompositionEvent("compositionend", { bubbles: true }));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(root.querySelector(".cm-richdown-lint")).toBeTruthy();
+  });
+
   it("applies a CRLF host update without inserting extra line breaks", async () => {
     // New files on Windows use CRLF. CodeMirror stores the document in LF, so an
     // un-normalized update used to arrive as a lone "\r" insert, which the editor
