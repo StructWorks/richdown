@@ -2,6 +2,12 @@
 
 All notable changes to Richdown will be documented in this file.
 
+## 0.9.3 - 2026-10-24
+
+- Fixed typing in the Richdown editor losing or doubling characters, most often when writing a new file from the top or typing headings with a Japanese (IME) input method. When a file turned dirty or was saved, the editor could be sent the document as it was a few keystrokes earlier; applying it undid what had been typed since and broke an IME composition in progress. The editor now ignores any update that does not include its own latest edit.
+- Fixed lint squiggles arriving during an IME composition dropping the `##` marker and its space before the composed text or doubling it. Lint results now wait until the composition ends, and results computed for older text are dropped instead of landing on the wrong characters. CodeMirror is updated to 6.43.15, which fixes a crash in redrawing marks around a composition.
+- Fixed moving the caret up or down into a heading line placing it inside the hidden `##` marker, so typing turned `## Title` into `##xTitle`. The caret now lands at the start of the heading text.
+
 ## 0.9.2 - 2026-10-21
 
 - Fixed `#heading` links in the Richdown editor. They no longer jump to a `# comment` inside a code block, and they now reach setext headings and `<a id="...">` anchors. Heading anchors follow GitHub's rules, so `## C++ / C#` is `#c--c`, and the link checker uses the same rules. Links with a title (`[text](#anchor "title")`) or an `<...>` target can now be clicked.
