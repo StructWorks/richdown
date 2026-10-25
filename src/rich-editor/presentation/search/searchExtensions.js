@@ -85,7 +85,13 @@ export function installSearchShortcut({
     "keydown",
     (event) => {
       const view = getView();
-      if (!view || !isSearchShortcut(event)) {
+      // The Mermaid editor modal covers the document; searching it would open
+      // a panel behind the modal.
+      if (
+        !view ||
+        !isSearchShortcut(event) ||
+        event.target?.closest?.(".cm-mermaid-editor-backdrop")
+      ) {
         return;
       }
 

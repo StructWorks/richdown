@@ -158,7 +158,18 @@ describe("mermaid preview DOM", () => {
       [...dom.querySelectorAll(".cm-mermaid-tool-button")].map(
         (button) => button.title,
       ),
-    ).toEqual(["Zoom out", "Zoom in", "Fit diagram", "Open diagram"]);
+    ).toEqual([
+      "Zoom out",
+      "Zoom in",
+      "Fit diagram",
+      "Open diagram",
+      "Edit diagram",
+    ]);
+  });
+
+  it("offers no editor button in a read-only editor", () => {
+    const { dom } = mount({ readOnly: true });
+    expect(toolButton(dom, "Edit diagram")).toBeUndefined();
   });
 
   it("reserves a source height on the wrapper", () => {
