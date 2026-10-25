@@ -11,6 +11,9 @@ import {
 
 let tableContextMenu = null;
 let tableContextMenuAnchor = null;
+// Runs when the menu closes without an action and without returning focus to
+// its table, so cell edits held back while the menu was open still commit.
+let tableContextMenuOnDismiss = null;
 
 function stopInteractiveEvent(event) {
   event.preventDefault();
@@ -24,6 +27,7 @@ function showTableContextMenu({
   columnIndex,
   columnCount,
   onAction,
+  onDismiss = null,
   anchor = null,
 }) {
   closeTableContextMenu();
@@ -45,6 +49,8 @@ function showTableContextMenu({
       if (item.disabled) {
         return;
       }
+      // The action itself writes the pending cell edits.
+      tableContextMenuOnDismiss = null;
       closeTableContextMenu();
       onAction(action);
     });
@@ -64,8 +70,14 @@ function showTableContextMenu({
     addItem("Delete row", "delete-row");
   }
 
+  const sourceDivider = document.createElement("div");
+  sourceDivider.className = "cm-table-context-menu-divider";
+  menu.appendChild(sourceDivider);
+  addItem("Edit as Markdown", "edit-source");
+
   document.body.appendChild(menu);
   tableContextMenu = menu;
+  tableContextMenuOnDismiss = onDismiss;
   tableContextMenuAnchor = anchor
     ? {
         element: anchor,
@@ -182,16 +194,187 @@ function focusOutsideTable(wrapper, reverse = false) {
   return Boolean(target);
 }
 
+function activateRichTableCellEditor(editor, options = {}) {
+  const cell = editor.closest(".cm-rich-table-cell");
+  if (!cell) {
+    return;
+  }
+  const table = cell.closest(".cm-rich-table-preview");
+  if (table) {
+    for (const activeCell of table.querySelectorAll(
+      ".cm-rich-table-cell.is-editing",
+    )) {
+      if (activeCell !== cell) {
+        activeCell.classList.remove("is-editing");
+      }
+    }
+  }
+
+  cell.classList.add("is-editing");
+  if (options.focus !== false && document.activeElement !== editor) {
+    editor.focus({ preventScroll: true });
+  }
+  if (options.select) {
+    selectEditableText(editor);
+  } else if (options.caret === "start") {
+    placeCaretAtEdge(editor, "start");
+  } else if (options.focus !== false) {
+    placeCaretAtEnd(editor);
+  }
+}
+
+function isCaretAtEditableEdge(editor, edge) {
+  const selection = window.getSelection();
+  if (!selection || selection.rangeCount === 0 || !selection.isCollapsed) {
+    return false;
+  }
+  const range = selection.getRangeAt(0);
+  if (!editor.contains(range.startContainer)) {
+    return false;
+  }
+  const measure = range.cloneRange();
+  measure.selectNodeContents(editor);
+  measure.setEnd(range.startContainer, range.startOffset);
+  const caretOffset = measure.toString().length;
+  return edge === "start"
+    ? caretOffset === 0
+    : caretOffset === (editor.textContent || "").length;
+}
+
+function placeCaretAtEdge(element, edge) {
+  const selection = window.getSelection();
+  if (!selection) {
+    return;
+  }
+  const range = document.createRange();
+  range.selectNodeContents(element);
+  range.collapse(edge === "start");
+  selection.removeAllRanges();
+  selection.addRange(range);
+}
+
+function selectEditableText(element) {
+  const selection = window.getSelection();
+  if (!selection) {
+    return;
+  }
+  const range = document.createRange();
+  range.selectNodeContents(element);
+  selection.removeAllRanges();
+  selection.addRange(range);
+}
+
+function placeCaretAtEnd(element) {
+  placeCaretAtEdge(element, "end");
+}
+
+// Whether the caret sits on the first ("top") or last ("bottom") visual line of
+// a cell, so Up/Down only leave a cell whose text wraps once they reach its
+// edge. Without layout (no caret rectangle) a cell counts as a single line.
+function isCaretOnEdgeLine(editor, edge) {
+  const selection = window.getSelection();
+  if (!selection || selection.rangeCount === 0) {
+    return true;
+  }
+  const caretRect = selection.getRangeAt(0).getClientRects?.()[0];
+  const box = editor.getBoundingClientRect();
+  if (!caretRect || !box.height) {
+    return true;
+  }
+  const lineHeight =
+    Number.parseFloat(window.getComputedStyle(editor).lineHeight) ||
+    caretRect.height;
+  return edge === "top"
+    ? caretRect.top - box.top < lineHeight
+    : box.bottom - caretRect.bottom < lineHeight;
+}
+
+// The column under a horizontal screen position, so moving vertically into or
+// out of a table keeps roughly the same column. Falls back to the first one.
+function columnIndexAtX(cells, x) {
+  if (typeof x !== "number") {
+    return 0;
+  }
+  const index = cells.findIndex((cell) => {
+    const rect = cell.getBoundingClientRect();
+    return rect.width > 0 && x >= rect.left && x < rect.right;
+  });
+  if (index !== -1) {
+    return index;
+  }
+  const lastRect = cells.at(-1)?.getBoundingClientRect();
+  return lastRect?.width > 0 && x >= lastRect.right ? cells.length - 1 : 0;
+}
+
+function getCaretX(editor) {
+  const selection = window.getSelection();
+  const rect =
+    selection?.rangeCount > 0
+      ? selection.getRangeAt(0).getClientRects?.()[0]
+      : null;
+  return rect ? rect.left : editor.getBoundingClientRect().left;
+}
+
+// The position in `line` under screen x, on its first ("top") or last
+// ("bottom") visual line. Without layout it falls back to the line end.
+function positionInLineAtX(view, line, x, edge) {
+  if (typeof x !== "number") {
+    return line.to;
+  }
+  try {
+    const block = view.lineBlockAt(line.from);
+    const y =
+      view.documentTop + (edge === "top" ? block.top + 2 : block.bottom - 2);
+    const pos = view.posAtCoords({ x, y }, false);
+    return Math.max(line.from, Math.min(pos ?? line.to, line.to));
+  } catch {
+    return line.to;
+  }
+}
+
+// Moves keyboard editing into a rendered table from the surrounding text.
+// `row` and `column` are "first", "last" or an index; `x` picks the column
+// under that screen position instead.
+export function focusRichTableCell(wrapper, { row, column, x, caret = "end" }) {
+  const rows = [...wrapper.querySelectorAll(".cm-rich-table tr")];
+  const rowIndex =
+    row === "last" ? rows.length - 1 : row === "first" ? 0 : row;
+  const editors = [
+    ...(rows[rowIndex]?.querySelectorAll(".cm-rich-table-cell-editor") || []),
+  ];
+  if (editors.length === 0) {
+    return false;
+  }
+  const columnIndex =
+    column === "last"
+      ? editors.length - 1
+      : column === "first"
+        ? 0
+        : typeof column === "number"
+          ? column
+          : columnIndexAtX(
+              editors.map((editor) => editor.closest(".cm-rich-table-cell")),
+              x,
+            );
+  const editor = editors[Math.min(columnIndex, editors.length - 1)];
+  activateRichTableCellEditor(editor, { caret });
+  return true;
+}
+
 export function closeTableContextMenu({ restoreFocus = false } = {}) {
   if (!tableContextMenu) {
     return false;
   }
   const focusTarget = restoreFocus ? tableContextMenuAnchor : null;
+  const onDismiss = tableContextMenuOnDismiss;
   tableContextMenu.remove();
   tableContextMenu = null;
   tableContextMenuAnchor = null;
+  tableContextMenuOnDismiss = null;
   if (focusTarget) {
     scheduleTableCellFocus(focusTarget);
+  } else {
+    onDismiss?.();
   }
   return true;
 }
@@ -341,6 +524,7 @@ export function createTablePreviewWidgetClass({
           columnIndex,
           columnCount: this.tableBlock.columnCount,
           anchor: cell.querySelector(".cm-rich-table-cell-preview"),
+          onDismiss: () => this.scheduleCommit(view, wrapper),
           onAction: (action) => {
             this.applyTableContextAction(
               view,
@@ -356,11 +540,7 @@ export function createTablePreviewWidgetClass({
         if (readOnly) {
           return;
         }
-        window.setTimeout(() => {
-          if (!wrapper.contains(document.activeElement)) {
-            this.commitTableEdits(view, wrapper);
-          }
-        }, 0);
+        this.scheduleCommit(view, wrapper);
       });
   
       queueMicrotask(() => requestEditorMeasure(view));
@@ -533,15 +713,29 @@ export function createTablePreviewWidgetClass({
         return;
       }
 
+      if ((event.shiftKey && event.key === "F10") || event.key === "ContextMenu") {
+        event.preventDefault();
+        event.stopPropagation();
+        const cell = event.currentTarget.closest(".cm-rich-table-cell");
+        this.openCellActions(
+          view,
+          wrapper,
+          cell,
+          cell?.querySelector(".cm-rich-table-cell-preview") || event.currentTarget,
+        );
+        return;
+      }
+
+      const plainArrow =
+        !event.shiftKey && !event.altKey && !event.metaKey && !event.ctrlKey;
+
       // Arrow keys move the text caret inside the cell, but once the caret
       // reaches the cell edge they continue into the neighboring cell so the
-      // arrows navigate the whole table like Tab does.
+      // arrows navigate the whole table like Tab does. Past the table's first
+      // or last cell they hand the caret back to the surrounding text.
       if (
         (event.key === "ArrowRight" || event.key === "ArrowLeft") &&
-        !event.shiftKey &&
-        !event.altKey &&
-        !event.metaKey &&
-        !event.ctrlKey
+        plainArrow
       ) {
         const forward = event.key === "ArrowRight";
         if (
@@ -553,14 +747,41 @@ export function createTablePreviewWidgetClass({
           ...wrapper.querySelectorAll(".cm-rich-table-cell-editor"),
         ];
         const currentIndex = editors.indexOf(event.currentTarget);
-        const nextIndex = currentIndex + (forward ? 1 : -1);
-        if (currentIndex === -1 || nextIndex < 0 || nextIndex >= editors.length) {
+        if (currentIndex === -1) {
           return;
         }
         event.preventDefault();
+        const nextIndex = currentIndex + (forward ? 1 : -1);
+        if (nextIndex < 0 || nextIndex >= editors.length) {
+          this.exitToEditor(view, forward ? "right" : "left");
+          return;
+        }
         activateRichTableCellEditor(editors[nextIndex], {
           caret: forward ? "start" : "end",
         });
+        return;
+      }
+
+      // Up and Down move to the cell above or below. Left to the browser, they
+      // would push the caret out of the cell editor into the text around the
+      // table, skipping every other row.
+      if ((event.key === "ArrowUp" || event.key === "ArrowDown") && plainArrow) {
+        const forward = event.key === "ArrowDown";
+        if (!isCaretOnEdgeLine(event.currentTarget, forward ? "bottom" : "top")) {
+          return;
+        }
+        event.preventDefault();
+        const caretX = getCaretX(event.currentTarget);
+        const moved = this.focusRelativeCell(
+          wrapper,
+          event.currentTarget,
+          forward ? 1 : -1,
+          0,
+          { activate: true, caret: "end" },
+        );
+        if (!moved) {
+          this.exitToEditor(view, forward ? "down" : "up", caretX);
+        }
         return;
       }
 
@@ -606,12 +827,71 @@ export function createTablePreviewWidgetClass({
         return false;
       }
       if (options.activate) {
-        activateRichTableCellEditor(next, { select: true });
+        activateRichTableCellEditor(
+          next,
+          options.caret ? { caret: options.caret } : { select: true },
+        );
       } else {
         setRovingTableCell(wrapper, next);
         next.focus({ preventScroll: true });
       }
       return true;
+    }
+
+    // Returns the caret to the Markdown text next to the table: the line above
+    // for "up"/"left", the line below for "down"/"right". Pending cell edits
+    // are committed by the wrapper's focusout handler once the editor has
+    // focus. A table that ends the document gets a new line to land on.
+    exitToEditor(view, direction, x) {
+      const doc = view.state.doc;
+      const before = direction === "up" || direction === "left";
+      let spec;
+      if (before) {
+        if (this.tableBlock.from === 0) {
+          return false;
+        }
+        const line = doc.lineAt(this.tableBlock.from - 1);
+        const anchor =
+          direction === "left" ? line.to : positionInLineAtX(view, line, x, "bottom");
+        spec = { selection: { anchor } };
+      } else if (this.tableBlock.sourceTo >= doc.length) {
+        spec = {
+          changes: { from: doc.length, insert: "\n" },
+          selection: { anchor: doc.length + 1 },
+        };
+      } else {
+        const line = doc.lineAt(this.tableBlock.sourceTo + 1);
+        const anchor =
+          direction === "right" ? line.from : positionInLineAtX(view, line, x, "top");
+        spec = { selection: { anchor } };
+      }
+      view.dispatch({ ...spec, scrollIntoView: true });
+      view.focus();
+      return true;
+    }
+
+    // Shows the table as Markdown source with the caret in its first cell,
+    // keeping cell edits that were not committed yet.
+    editSource(view, wrapper) {
+      if (view.state.readOnly || this.isStale(view)) {
+        return;
+      }
+      const rows = collectEditableTableRows(wrapper, this.tableBlock);
+      const nextText = serializeMarkdownTable(this.tableBlock, rows);
+      const from = this.tableBlock.from;
+      const currentText = view.state.doc.sliceString(from, this.tableBlock.sourceTo);
+      const firstCellOffset = nextText.match(/^[\t ]*\|?[\t ]*/)[0].length;
+      wrapper.dataset.dirty = "false";
+      view.dispatch({
+        ...(nextText === currentText
+          ? {}
+          : { changes: { from, to: this.tableBlock.sourceTo, insert: nextText } }),
+        effects: setActiveTableEdit.of({ from, to: from + nextText.length }),
+        selection: { anchor: from + firstCellOffset },
+        scrollIntoView: true,
+      });
+      view.focus();
+      requestEditorMeasure(view);
     }
 
     openCellActions(view, wrapper, cell, anchor) {
@@ -620,7 +900,12 @@ export function createTablePreviewWidgetClass({
       }
       const rowIndex = Number.parseInt(cell.dataset.rowIndex || "0", 10);
       const columnIndex = Number.parseInt(cell.dataset.columnIndex || "0", 10);
-      const rect = anchor.getBoundingClientRect();
+      // A cell being edited hides its preview, which then has no box to
+      // place the menu under.
+      let rect = anchor.getBoundingClientRect();
+      if (!rect.width && !rect.height) {
+        rect = cell.getBoundingClientRect();
+      }
       showTableContextMenu({
         x: rect.left + Math.min(rect.width, 28),
         y: rect.bottom,
@@ -628,6 +913,7 @@ export function createTablePreviewWidgetClass({
         columnIndex,
         columnCount: this.tableBlock.columnCount,
         anchor,
+        onDismiss: () => this.scheduleCommit(view, wrapper),
         onAction: (action) => {
           this.applyTableContextAction(view, wrapper, rowIndex, columnIndex, action);
         },
@@ -733,6 +1019,10 @@ export function createTablePreviewWidgetClass({
       if (view.state.readOnly) {
         return;
       }
+      if (action === "edit-source") {
+        this.editSource(view, wrapper);
+        return;
+      }
       const rows = collectEditableTableRows(wrapper, this.tableBlock);
       const alignments = [...this.tableBlock.alignments];
       const columnCount = Math.max(1, this.tableBlock.columnCount);
@@ -779,6 +1069,19 @@ export function createTablePreviewWidgetClass({
       this.replaceTable(view, rows, alignments);
     }
   
+    // Commits cell edits once focus has settled outside the table. The table
+    // context menu does not count as outside: its action still needs the
+    // uncommitted cells, and dismissing it schedules this again.
+    scheduleCommit(view, wrapper) {
+      window.setTimeout(() => {
+        const active = document.activeElement;
+        if (wrapper.contains(active) || tableContextMenu?.contains(active)) {
+          return;
+        }
+        this.commitTableEdits(view, wrapper);
+      }, 0);
+    }
+
     commitTableEdits(view, wrapper) {
       if (view.state.readOnly) {
         return;
@@ -786,12 +1089,25 @@ export function createTablePreviewWidgetClass({
       if (wrapper.dataset.dirty !== "true") {
         return;
       }
+      // Clear the flag first: quick cell moves can queue several focusout
+      // commits for the same edits, and only the first may apply them.
+      wrapper.dataset.dirty = "false";
       const rows = collectEditableTableRows(wrapper, this.tableBlock);
       this.replaceTable(view, rows);
     }
+
+    // True once the document no longer holds the Markdown this widget was
+    // built from. Its offsets are then out of date, and writing through them
+    // would leave fragments of the old table behind.
+    isStale(view) {
+      return (
+        view.state.doc.sliceString(this.tableBlock.from, this.tableBlock.sourceTo) !==
+        this.tableBlock.signature
+      );
+    }
   
     replaceTable(view, rows, alignments = this.tableBlock.alignments) {
-      if (view.state.readOnly) {
+      if (view.state.readOnly || this.isStale(view)) {
         return;
       }
       const nextText = serializeMarkdownTable(this.tableBlock, rows, alignments);
@@ -831,65 +1147,6 @@ export function createTablePreviewWidgetClass({
   
   function isRichTablePreviewInteractiveTarget(target) {
     return Boolean(target.closest("a, img"));
-  }
-  
-  function activateRichTableCellEditor(editor, options = {}) {
-    const cell = editor.closest(".cm-rich-table-cell");
-    if (!cell) {
-      return;
-    }
-    const table = cell.closest(".cm-rich-table-preview");
-    if (table) {
-      for (const activeCell of table.querySelectorAll(
-        ".cm-rich-table-cell.is-editing",
-      )) {
-        if (activeCell !== cell) {
-          activeCell.classList.remove("is-editing");
-        }
-      }
-    }
-  
-    cell.classList.add("is-editing");
-    if (options.focus !== false && document.activeElement !== editor) {
-      editor.focus({ preventScroll: true });
-    }
-    if (options.select) {
-      selectEditableText(editor);
-    } else if (options.caret === "start") {
-      placeCaretAtEdge(editor, "start");
-    } else if (options.focus !== false) {
-      placeCaretAtEnd(editor);
-    }
-  }
-
-  function isCaretAtEditableEdge(editor, edge) {
-    const selection = window.getSelection();
-    if (!selection || selection.rangeCount === 0 || !selection.isCollapsed) {
-      return false;
-    }
-    const range = selection.getRangeAt(0);
-    if (!editor.contains(range.startContainer)) {
-      return false;
-    }
-    const measure = range.cloneRange();
-    measure.selectNodeContents(editor);
-    measure.setEnd(range.startContainer, range.startOffset);
-    const caretOffset = measure.toString().length;
-    return edge === "start"
-      ? caretOffset === 0
-      : caretOffset === (editor.textContent || "").length;
-  }
-
-  function placeCaretAtEdge(element, edge) {
-    const selection = window.getSelection();
-    if (!selection) {
-      return;
-    }
-    const range = document.createRange();
-    range.selectNodeContents(element);
-    range.collapse(edge === "start");
-    selection.removeAllRanges();
-    selection.addRange(range);
   }
   
   function deactivateRichTableCellEditor(editor) {
@@ -973,21 +1230,6 @@ export function createTablePreviewWidgetClass({
     return text
       .replace(/\r?\n/g, " ")
       .trim();
-  }
-
-  function selectEditableText(element) {
-    const selection = window.getSelection();
-    if (!selection) {
-      return;
-    }
-    const range = document.createRange();
-    range.selectNodeContents(element);
-    selection.removeAllRanges();
-    selection.addRange(range);
-  }
-  
-  function placeCaretAtEnd(element) {
-    placeCaretAtEdge(element, "end");
   }
 
   return TablePreviewWidget;
