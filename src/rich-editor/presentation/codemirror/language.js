@@ -117,6 +117,62 @@ const gherkinMode = {
   },
 };
 
+const MERMAID_HEADER =
+  /^(?:flowchart|graph|sequenceDiagram|classDiagram(?:-v2)?|stateDiagram(?:-v2)?|erDiagram|gantt|pie|mindmap|journey|gitGraph|timeline|quadrantChart|requirementDiagram|C4\w+|xychart(?:-beta)?|sankey(?:-beta)?|block(?:-beta)?|packet(?:-beta)?|architecture(?:-beta)?|kanban|radar(?:-beta)?)\b/;
+const MERMAID_KEYWORDS = new Set([
+  "subgraph", "end", "direction", "style", "classDef", "class", "click",
+  "linkStyle", "participant", "actor", "as", "loop", "alt", "else", "opt",
+  "par", "and", "critical", "break", "rect", "note", "Note", "over", "left",
+  "right", "of", "activate", "deactivate", "autonumber", "title", "section",
+  "dateFormat", "axisFormat", "excludes", "state", "accTitle", "accDescr",
+  "box", "create", "destroy", "namespace", "commit", "branch", "checkout",
+  "merge",
+]);
+
+// A light tokenizer for Mermaid: enough to tell structure (keywords, arrows,
+// labels, comments) from content in both the inline source and the editor
+// modal. Mermaid's grammar differs per diagram type, so this deliberately
+// stays generic.
+const mermaidMode = {
+  name: "mermaid",
+  startState: () => ({ header: false }),
+  token(stream, state) {
+    if (stream.eatSpace()) return null;
+    if (stream.match(/^%%\{.*\}%%/)) return "meta";
+    if (stream.match(/^%%.*/)) return "comment";
+    if (!state.header && stream.sol() && stream.match(MERMAID_HEADER)) {
+      state.header = true;
+      return "keyword";
+    }
+    if (stream.match(/^"(?:[^"\\]|\\.)*"?/)) return "string";
+    if (stream.match(/^\|[^|]*\|/)) return "string";
+    if (stream.match(/^:::[\w-]+/)) return "meta";
+    if (stream.match(/^#[0-9a-fA-F]{3,8}\b/)) return "number";
+    if (
+      stream.match(
+        /^(?:<<?|[ox*|}{]{0,2})?(?:-{2,}|={2,}|-\.+-|\.{2,}|~{3,}|-+(?=[>x)])|-\))(?:>>|[>|ox*{}]{0,2}\)?)/,
+      )
+    ) {
+      return "operator";
+    }
+    if (stream.match(/^-+>>?|^<<-+/)) return "operator";
+    if (stream.match(/^\b(?:TB|TD|BT|RL|LR)\b/)) return "atom";
+    if (stream.match(/^\d+(?:\.\d+)?\b/)) return "number";
+    if (stream.match(/^[[\](){}]/)) return "bracket";
+    // A dash continues a name only before more name characters, so the
+    // "--" of "A-->B" stays part of the arrow.
+    if (stream.match(/^[\p{L}\p{N}_]+(?:-[\p{L}\p{N}_]+)*/u)) {
+      return MERMAID_KEYWORDS.has(stream.current()) ? "keyword" : "variableName";
+    }
+    stream.next();
+    return null;
+  },
+};
+
+export function mermaidLanguage() {
+  return legacyMode(mermaidMode);
+}
+
 // Keep this list focused on common Markdown documentation and engineering
 // snippets. Diff highlighting registers the same names and aliases separately.
 export const codeLanguages = [
@@ -156,6 +212,14 @@ export const codeLanguages = [
     extensions: ["md", "markdown"],
     support: markdownLanguage(),
   }),
+  legacyCodeLanguage(
+    {
+      name: "Mermaid",
+      alias: ["mermaid", "mmd"],
+      extensions: ["mmd", "mermaid"],
+    },
+    mermaidMode,
+  ),
   legacyCodeLanguage(
     {
       name: "Gherkin",

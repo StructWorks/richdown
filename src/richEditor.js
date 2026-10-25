@@ -249,7 +249,11 @@ queueMicrotask(() => {
               previewExtensions.exitDetailsEditMode(view, true);
               previewExtensions.exitFrontmatterEditMode(view, true);
               previewExtensions.exitTableEditMode(view, true);
-              previewExtensions.exitMermaidEditMode(view, true);
+              // The live Mermaid editor's rename box and pickers sit inside
+              // the editor; focusing them must not end diagram edit mode.
+              if (!event.relatedTarget?.closest?.(".cm-mermaid-live")) {
+                previewExtensions.exitMermaidEditMode(view, true);
+              }
               previewExtensions.exitGherkinEditMode(view, true);
               return false;
             },

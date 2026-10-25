@@ -1544,10 +1544,10 @@
         throw new Error("Can't compute a static facet");
       return new FacetProvider(deps, this, 2, get);
     }
-    from(field, get) {
+    from(field2, get) {
       if (!get)
         get = (x) => x;
-      return this.compute([field], (state) => get(state.field(field)));
+      return this.compute([field2], (state) => get(state.field(field2)));
     }
   };
   function sameArray(a2, b) {
@@ -1691,10 +1691,10 @@
     Define a state field.
     */
     static define(config) {
-      let field = new _StateField(nextID++, config.create, config.update, config.compare || ((a2, b) => a2 === b), config);
+      let field2 = new _StateField(nextID++, config.create, config.update, config.compare || ((a2, b) => a2 === b), config);
       if (config.provide)
-        field.provides = config.provide(field);
-      return field;
+        field2.provides = config.provide(field2);
+      return field2;
     }
     create(state) {
       let init = state.facet(initField).find((i2) => i2.field == this);
@@ -1853,9 +1853,9 @@
       let address = /* @__PURE__ */ Object.create(null);
       let staticValues = [];
       let dynamicSlots = [];
-      for (let field of fields) {
-        address[field.id] = dynamicSlots.length << 1;
-        dynamicSlots.push((a2) => field.slot(a2));
+      for (let field2 of fields) {
+        address[field2.id] = dynamicSlots.length << 1;
+        dynamicSlots.push((a2) => field2.slot(a2));
       }
       let oldFacets = oldState === null || oldState === void 0 ? void 0 : oldState.config.facets;
       for (let id3 in facets) {
@@ -2307,8 +2307,8 @@
         ensureAddr(this, i2 << 1);
       this.computeSlot = null;
     }
-    field(field, require2 = true) {
-      let addr = this.config.address[field.id];
+    field(field2, require2 = true) {
+      let addr = this.config.address[field2.id];
       if (addr == null) {
         if (require2)
           throw new RangeError("Field is not present in this state");
@@ -2477,8 +2477,8 @@
       if (fields)
         for (let prop in fields) {
           if (Object.prototype.hasOwnProperty.call(json3, prop)) {
-            let field = fields[prop], value = json3[prop];
-            fieldInit.push(field.init((state) => field.spec.fromJSON(value, state)));
+            let field2 = fields[prop], value = json3[prop];
+            fieldInit.push(field2.init((state) => field2.spec.fromJSON(value, state)));
           }
         }
       return _EditorState.create({
@@ -8459,9 +8459,9 @@
       return true;
     let files = event.dataTransfer.files;
     if (files && files.length) {
-      let text2 = Array(files.length), read = 0;
+      let text2 = Array(files.length), read2 = 0;
       let finishFile = () => {
-        if (++read == files.length)
+        if (++read2 == files.length)
           dropText(view2, event, text2.filter((s) => s != null).join(view2.state.lineBreak), false);
       };
       for (let i2 = 0; i2 < files.length; i2++) {
@@ -10784,14 +10784,14 @@
         return buildSelectionRangeFromRange(view2, range);
     }
     let found = null;
-    function read(event) {
+    function read2(event) {
       event.preventDefault();
       event.stopImmediatePropagation();
       found = event.getTargetRanges()[0];
     }
-    view2.contentDOM.addEventListener("beforeinput", read, true);
+    view2.contentDOM.addEventListener("beforeinput", read2, true);
     view2.dom.ownerDocument.execCommand("indent");
-    view2.contentDOM.removeEventListener("beforeinput", read, true);
+    view2.contentDOM.removeEventListener("beforeinput", read2, true);
     return found ? buildSelectionRangeFromRange(view2, found) : null;
   }
   var EditContextManager = class {
@@ -12717,10 +12717,10 @@
   });
   var hoverPlugin = /* @__PURE__ */ Facet.define();
   var HoverPlugin = class {
-    constructor(view2, source, field, locked, setHover, hoverTime) {
+    constructor(view2, source, field2, locked, setHover, hoverTime) {
       this.view = view2;
       this.source = source;
-      this.field = field;
+      this.field = field2;
       this.locked = locked;
       this.setHover = setHover;
       this.hoverTime = hoverTime;
@@ -13796,8 +13796,8 @@
       if (typeof name2 == "string") {
         if (this.name == name2)
           return true;
-        let group = this.prop(NodeProp.group);
-        return group ? group.indexOf(name2) > -1 : false;
+        let group2 = this.prop(NodeProp.group);
+        return group2 ? group2.indexOf(name2) > -1 : false;
       }
       return this.id == name2;
     }
@@ -16571,8 +16571,8 @@
     }
   };
   function syntaxTree(state) {
-    let field = state.field(Language.state, false);
-    return field ? field.tree : Tree.empty;
+    let field2 = state.field(Language.state, false);
+    return field2 ? field2.tree : Tree.empty;
   }
   var DocInput = class {
     /**
@@ -16893,8 +16893,8 @@
     scheduleWork() {
       if (this.working)
         return;
-      let { state } = this.view, field = state.field(Language.state);
-      if (field.tree != field.context.tree || !field.context.isDone(state.doc.length))
+      let { state } = this.view, field2 = state.field(Language.state);
+      if (field2.tree != field2.context.tree || !field2.context.isDone(state.doc.length))
         this.working = requestIdle(this.work);
     }
     work(deadline) {
@@ -16906,25 +16906,25 @@
       }
       if (this.chunkBudget <= 0)
         return;
-      let { state, viewport: { to: vpTo } } = this.view, field = state.field(Language.state);
-      if (field.tree == field.context.tree && field.context.isDone(
+      let { state, viewport: { to: vpTo } } = this.view, field2 = state.field(Language.state);
+      if (field2.tree == field2.context.tree && field2.context.isDone(
         vpTo + 1e5
         /* Work.MaxParseAhead */
       ))
         return;
       let endTime = Date.now() + Math.min(this.chunkBudget, 100, deadline && !isInputPending ? Math.max(25, deadline.timeRemaining() - 5) : 1e9);
-      let viewportFirst = field.context.treeLen < vpTo && state.doc.length > vpTo + 1e3;
-      let done = field.context.work(() => {
+      let viewportFirst = field2.context.treeLen < vpTo && state.doc.length > vpTo + 1e3;
+      let done = field2.context.work(() => {
         return isInputPending && isInputPending() || Date.now() > endTime;
       }, vpTo + (viewportFirst ? 0 : 1e5));
       this.chunkBudget -= Date.now() - now;
       if (done || this.chunkBudget <= 0) {
-        field.context.takeTree();
-        this.view.dispatch({ effects: Language.setState.of(new LanguageState(field.context)) });
+        field2.context.takeTree();
+        this.view.dispatch({ effects: Language.setState.of(new LanguageState(field2.context)) });
       }
       if (this.chunkBudget > 0 && !(done && !viewportFirst))
         this.scheduleWork();
-      this.checkAsyncSchedule(field.context);
+      this.checkAsyncSchedule(field2.context);
     }
     checkAsyncSchedule(cx) {
       if (cx.scheduleOn) {
@@ -20416,11 +20416,11 @@
   var windows = typeof navigator == "object" && /* @__PURE__ */ /Win/.test(navigator.platform);
   var commitCharacters = /* @__PURE__ */ Prec.highest(/* @__PURE__ */ EditorView.domEventHandlers({
     keydown(event, view2) {
-      let field = view2.state.field(completionState, false);
-      if (!field || !field.open || field.open.disabled || field.open.selected < 0 || event.key.length > 1 || event.ctrlKey && !(windows && event.altKey) || event.metaKey)
+      let field2 = view2.state.field(completionState, false);
+      if (!field2 || !field2.open || field2.open.disabled || field2.open.selected < 0 || event.key.length > 1 || event.ctrlKey && !(windows && event.altKey) || event.metaKey)
         return false;
-      let option = field.open.options[field.open.selected];
-      let result = field.active.find((a2) => a2.source == option.source);
+      let option = field2.open.options[field2.open.selected];
+      let result = field2.active.find((a2) => a2.source == option.source);
       let commitChars = option.completion.commitCharacters || result.result.commitCharacters;
       if (commitChars && commitChars.indexOf(event.key) > -1)
         applyCompletion(view2, option);
@@ -20553,16 +20553,16 @@
     }
   });
   var FieldPos = class {
-    constructor(field, line, from3, to) {
-      this.field = field;
+    constructor(field2, line, from3, to) {
+      this.field = field2;
       this.line = line;
       this.from = from3;
       this.to = to;
     }
   };
   var FieldRange = class _FieldRange {
-    constructor(field, from3, to) {
-      this.field = field;
+    constructor(field2, from3, to) {
+      this.field = field2;
       this.from = from3;
       this.to = to;
     }
@@ -20695,8 +20695,8 @@
     },
     provide: (f) => EditorView.decorations.from(f, (val) => val ? val.deco : Decoration.none)
   });
-  function fieldSelection(ranges, field) {
-    return EditorSelection.create(ranges.filter((r2) => r2.field == field).map((r2) => EditorSelection.range(r2.from, r2.to)));
+  function fieldSelection(ranges, field2) {
+    return EditorSelection.create(ranges.filter((r2) => r2.field == field2).map((r2) => EditorSelection.range(r2.from, r2.to)));
   }
   function snippet(template) {
     let snippet2 = Snippet.parse(template);
@@ -21797,11 +21797,11 @@
           if (composite)
             skipContextMarkup[nodeTypes2.length] = (bl, cx, line) => composite(cx, line, bl.value);
           let id3 = nodeTypes2.length;
-          let group = composite ? ["Block", "BlockContext"] : !block2 ? void 0 : id3 >= Type.ATXHeading1 && id3 <= Type.SetextHeading2 ? ["Block", "LeafBlock", "Heading"] : ["Block", "LeafBlock"];
+          let group2 = composite ? ["Block", "BlockContext"] : !block2 ? void 0 : id3 >= Type.ATXHeading1 && id3 <= Type.SetextHeading2 ? ["Block", "LeafBlock", "Heading"] : ["Block", "LeafBlock"];
           nodeTypes2.push(NodeType.define({
             id: id3,
             name: name2,
-            props: group && [[NodeProp.group, group]]
+            props: group2 && [[NodeProp.group, group2]]
           }));
           if (style2) {
             if (!styles)
@@ -23718,8 +23718,8 @@
       this.extend = !!options.extend;
     }
   };
-  function readToken2(data2, input, stack, group, precTable, precOffset) {
-    let state = 0, groupMask = 1 << group, { dialect: dialect2 } = stack.p.parser;
+  function readToken2(data2, input, stack, group2, precTable, precOffset) {
+    let state = 0, groupMask = 1 << group2, { dialect: dialect2 } = stack.p.parser;
     scan: for (; ; ) {
       if ((groupMask & data2[state]) == 0)
         break;
@@ -40500,7 +40500,7 @@
 
   // node_modules/@codemirror/legacy-modes/mode/javascript.js
   function mkJavaScript(parserConfig2) {
-    var statementIndent = parserConfig2.statementIndent;
+    var statementIndent2 = parserConfig2.statementIndent;
     var jsonldMode = parserConfig2.jsonld;
     var jsonMode = parserConfig2.json || jsonldMode;
     var isTS = parserConfig2.typescript;
@@ -41463,14 +41463,14 @@
         }
         while ((lexical.type == "stat" || lexical.type == "form") && (firstChar == "}" || (top2 = state.cc[state.cc.length - 1]) && (top2 == maybeoperatorComma || top2 == maybeoperatorNoComma) && !/^[,\.=+\-*:?[\(]/.test(textAfter)))
           lexical = lexical.prev;
-        if (statementIndent && lexical.type == ")" && lexical.prev.type == "stat")
+        if (statementIndent2 && lexical.type == ")" && lexical.prev.type == "stat")
           lexical = lexical.prev;
         var type5 = lexical.type, closing3 = firstChar == type5;
         if (type5 == "vardef") return lexical.indented + (state.lastType == "operator" || state.lastType == "," ? lexical.info.length + 1 : 0);
         else if (type5 == "form" && firstChar == "{") return lexical.indented;
         else if (type5 == "form") return lexical.indented + cx2.unit;
         else if (type5 == "stat")
-          return lexical.indented + (isContinuedStatement(state, textAfter) ? statementIndent || cx2.unit : 0);
+          return lexical.indented + (isContinuedStatement(state, textAfter) ? statementIndent2 || cx2.unit : 0);
         else if (lexical.info == "switch" && !closing3 && parserConfig2.doubleIndentSwitch != false)
           return lexical.indented + (/^(?:case|default)\b/.test(textAfter) ? cx2.unit : 2 * cx2.unit);
         else if (lexical.align) return lexical.column + (closing3 ? 0 : 1);
@@ -45828,6 +45828,88 @@
       return null;
     }
   };
+  var MERMAID_HEADER = /^(?:flowchart|graph|sequenceDiagram|classDiagram(?:-v2)?|stateDiagram(?:-v2)?|erDiagram|gantt|pie|mindmap|journey|gitGraph|timeline|quadrantChart|requirementDiagram|C4\w+|xychart(?:-beta)?|sankey(?:-beta)?|block(?:-beta)?|packet(?:-beta)?|architecture(?:-beta)?|kanban|radar(?:-beta)?)\b/;
+  var MERMAID_KEYWORDS = /* @__PURE__ */ new Set([
+    "subgraph",
+    "end",
+    "direction",
+    "style",
+    "classDef",
+    "class",
+    "click",
+    "linkStyle",
+    "participant",
+    "actor",
+    "as",
+    "loop",
+    "alt",
+    "else",
+    "opt",
+    "par",
+    "and",
+    "critical",
+    "break",
+    "rect",
+    "note",
+    "Note",
+    "over",
+    "left",
+    "right",
+    "of",
+    "activate",
+    "deactivate",
+    "autonumber",
+    "title",
+    "section",
+    "dateFormat",
+    "axisFormat",
+    "excludes",
+    "state",
+    "accTitle",
+    "accDescr",
+    "box",
+    "create",
+    "destroy",
+    "namespace",
+    "commit",
+    "branch",
+    "checkout",
+    "merge"
+  ]);
+  var mermaidMode = {
+    name: "mermaid",
+    startState: () => ({ header: false }),
+    token(stream, state) {
+      if (stream.eatSpace()) return null;
+      if (stream.match(/^%%\{.*\}%%/)) return "meta";
+      if (stream.match(/^%%.*/)) return "comment";
+      if (!state.header && stream.sol() && stream.match(MERMAID_HEADER)) {
+        state.header = true;
+        return "keyword";
+      }
+      if (stream.match(/^"(?:[^"\\]|\\.)*"?/)) return "string";
+      if (stream.match(/^\|[^|]*\|/)) return "string";
+      if (stream.match(/^:::[\w-]+/)) return "meta";
+      if (stream.match(/^#[0-9a-fA-F]{3,8}\b/)) return "number";
+      if (stream.match(
+        /^(?:<<?|[ox*|}{]{0,2})?(?:-{2,}|={2,}|-\.+-|\.{2,}|~{3,}|-+(?=[>x)])|-\))(?:>>|[>|ox*{}]{0,2}\)?)/
+      )) {
+        return "operator";
+      }
+      if (stream.match(/^-+>>?|^<<-+/)) return "operator";
+      if (stream.match(/^\b(?:TB|TD|BT|RL|LR)\b/)) return "atom";
+      if (stream.match(/^\d+(?:\.\d+)?\b/)) return "number";
+      if (stream.match(/^[[\](){}]/)) return "bracket";
+      if (stream.match(/^[\p{L}\p{N}_]+(?:-[\p{L}\p{N}_]+)*/u)) {
+        return MERMAID_KEYWORDS.has(stream.current()) ? "keyword" : "variableName";
+      }
+      stream.next();
+      return null;
+    }
+  };
+  function mermaidLanguage() {
+    return legacyMode(mermaidMode);
+  }
   var codeLanguages = [
     codeLanguage({
       name: "JSON",
@@ -45865,6 +45947,14 @@
       extensions: ["md", "markdown"],
       support: markdown()
     }),
+    legacyCodeLanguage(
+      {
+        name: "Mermaid",
+        alias: ["mermaid", "mmd"],
+        extensions: ["mmd", "mermaid"]
+      },
+      mermaidMode
+    ),
     legacyCodeLanguage(
       {
         name: "Gherkin",
@@ -46621,11 +46711,17 @@
       if (closingLine) {
         signatureLines.push(closingLine.text);
       }
+      const contentFrom = codeLines.length ? doc2.line(openingLine.number + 1).from : closingLine ? closingLine.from : openingLine.to;
+      const contentTo = codeLines.length ? doc2.line(openingLine.number + codeLines.length).to : contentFrom;
       blocks.push({
         from: openingLine.from,
         to: endLine.to,
         sourceTo: endLine.to,
         sourceLineCount: endLine.number - openingLine.number + 1,
+        contentFrom,
+        contentTo,
+        hasContentLines: codeLines.length > 0,
+        firstContentLineNumber: openingLine.number + 1,
         code: codeLines.join("\n").trim(),
         signature: signatureLines.join("\n"),
         fenceChar: opening3.char,
@@ -47214,16 +47310,16 @@
         }
         return shouldRebuild ? buildGitDiffState(transaction.state, changes) : value;
       },
-      provide: (field) => gutter({
+      provide: (field2) => gutter({
         class: "cm-git-diff-gutter",
         renderEmptyElements: true,
-        markers: (view2) => view2.state.field(field).markers,
+        markers: (view2) => view2.state.field(field2).markers,
         // A preview widget (rich table, Mermaid diagram, Gherkin board, details
         // block, front matter card) replaces whole lines with a single block, and
         // CodeMirror asks for that block's marker here instead of reading the
         // line markers above. Without this, a change inside a previewed block
         // would leave no gutter mark at all.
-        widgetMarker: (view2, _widget, block2) => buildBlockMarker(view2.state, view2.state.field(field).changes, block2),
+        widgetMarker: (view2, _widget, block2) => buildBlockMarker(view2.state, view2.state.field(field2).changes, block2),
         // Widget markers are not part of the marker RangeSet the gutter diffs,
         // so tell it explicitly when a new change set arrives.
         lineMarkerChange: (update2) => update2.transactions.some(
@@ -47525,7 +47621,7 @@
         }
         return transaction.docChanged ? decorations2.map(transaction.changes) : decorations2;
       },
-      provide: (field) => EditorView.decorations.from(field)
+      provide: (field2) => EditorView.decorations.from(field2)
     });
     const lintTooltip = hoverTooltip((view2, pos) => {
       const found = findDiagnosticsAt(view2.state, view2.state.field(lintField), pos);
@@ -50061,11 +50157,11 @@ ${rowText}` },
       section.appendChild(renderScenarioGroup("Scenarios", feature.scenarios));
     }
     for (const rule of feature.rules) {
-      const group = renderScenarioGroup(rule.title, rule.scenarios, "Rule");
+      const group2 = renderScenarioGroup(rule.title, rule.scenarios, "Rule");
       if (rule.tags.length > 0) {
-        group.querySelector(".cm-gherkin-group-header")?.appendChild(renderTags(rule.tags));
+        group2.querySelector(".cm-gherkin-group-header")?.appendChild(renderTags(rule.tags));
       }
-      section.appendChild(group);
+      section.appendChild(group2);
     }
     return section;
   }
@@ -50091,8 +50187,8 @@ ${rowText}` },
     return card;
   }
   function renderScenarioGroup(title, scenarios, eyebrow = "") {
-    const group = document.createElement("section");
-    group.className = "cm-gherkin-group";
+    const group2 = document.createElement("section");
+    group2.className = "cm-gherkin-group";
     const header2 = document.createElement("div");
     header2.className = "cm-gherkin-group-header";
     const heading2 = document.createElement("div");
@@ -50107,14 +50203,14 @@ ${rowText}` },
     name2.textContent = title;
     heading2.appendChild(name2);
     header2.appendChild(heading2);
-    group.appendChild(header2);
+    group2.appendChild(header2);
     const list2 = document.createElement("div");
     list2.className = "cm-gherkin-scenario-grid";
     for (const scenario of scenarios) {
       list2.appendChild(renderScenarioCard(scenario));
     }
-    group.appendChild(list2);
-    return group;
+    group2.appendChild(list2);
+    return group2;
   }
   function renderScenarioCard(scenario) {
     const card = document.createElement("article");
@@ -50353,12 +50449,5871 @@ ${rowText}` },
     return String(text2 || "").replace(/\r\n?/g, "\n");
   }
 
+  // src/rich-editor/domain/mermaidSource.js
+  var MERMAID_TEMPLATES = [
+    {
+      key: "flowchart",
+      label: "Flowchart",
+      code: [
+        "flowchart TD",
+        "    A[Start] --> B{Decision}",
+        "    B -->|Yes| C[Do it]",
+        "    B -->|No| D[Skip]"
+      ].join("\n")
+    },
+    {
+      key: "sequence",
+      label: "Sequence",
+      code: [
+        "sequenceDiagram",
+        "    participant A as Alice",
+        "    participant B as Bob",
+        "    A->>B: Hello Bob",
+        "    B-->>A: Hi Alice"
+      ].join("\n")
+    },
+    {
+      key: "class",
+      label: "Class",
+      code: [
+        "classDiagram",
+        "    class Animal {",
+        "        +String name",
+        "        +move()",
+        "    }",
+        "    Animal <|-- Dog"
+      ].join("\n")
+    },
+    {
+      key: "state",
+      label: "State",
+      code: [
+        "stateDiagram-v2",
+        "    [*] --> Idle",
+        "    Idle --> Running: start",
+        "    Running --> Idle: stop",
+        "    Running --> [*]"
+      ].join("\n")
+    },
+    {
+      key: "er",
+      label: "ER",
+      code: [
+        "erDiagram",
+        "    CUSTOMER ||--o{ ORDER : places",
+        "    ORDER ||--|{ LINE_ITEM : contains"
+      ].join("\n")
+    },
+    {
+      key: "gantt",
+      label: "Gantt",
+      code: [
+        "gantt",
+        "    title Plan",
+        "    dateFormat YYYY-MM-DD",
+        "    section Build",
+        "    Design :a1, 2026-01-01, 5d",
+        "    Implement :after a1, 10d"
+      ].join("\n")
+    },
+    {
+      key: "pie",
+      label: "Pie",
+      code: ["pie title Share", '    "A" : 40', '    "B" : 35', '    "C" : 25'].join(
+        "\n"
+      )
+    },
+    {
+      key: "mindmap",
+      label: "Mindmap",
+      code: ["mindmap", "  root((Topic))", "    Idea A", "    Idea B"].join("\n")
+    }
+  ];
+  var FLOWCHART_DIRECTIONS = ["TD", "LR", "BT", "RL"];
+  var FLOWCHART_SHAPES = [
+    { key: "rect", label: "Rectangle", open: "[", close: "]" },
+    { key: "round", label: "Rounded", open: "(", close: ")" },
+    { key: "stadium", label: "Stadium", open: "([", close: "])" },
+    { key: "subroutine", label: "Subroutine", open: "[[", close: "]]" },
+    { key: "cylinder", label: "Database", open: "[(", close: ")]" },
+    { key: "circle", label: "Circle", open: "((", close: "))" },
+    { key: "doublecircle", label: "Double circle", open: "(((", close: ")))" },
+    { key: "rhombus", label: "Decision", open: "{", close: "}" },
+    { key: "hexagon", label: "Hexagon", open: "{{", close: "}}" },
+    { key: "parallelogram", label: "Parallelogram", open: "[/", close: "/]" },
+    {
+      key: "parallelogram-alt",
+      label: "Parallelogram (alt)",
+      open: "[\\",
+      close: "\\]"
+    },
+    { key: "trapezoid", label: "Trapezoid", open: "[/", close: "\\]" },
+    { key: "trapezoid-alt", label: "Trapezoid (alt)", open: "[\\", close: "/]" },
+    { key: "asymmetric", label: "Flag", open: ">", close: "]" }
+  ];
+  var FLOWCHART_COLORS = [
+    { key: "blue", label: "Blue", fill: "#dbeafe", stroke: "#2563eb" },
+    { key: "green", label: "Green", fill: "#dcfce7", stroke: "#16a34a" },
+    { key: "amber", label: "Amber", fill: "#fef3c7", stroke: "#d97706" },
+    { key: "pink", label: "Pink", fill: "#fce7f3", stroke: "#db2777" },
+    { key: "violet", label: "Violet", fill: "#ede9fe", stroke: "#7c3aed" },
+    { key: "teal", label: "Teal", fill: "#ccfbf1", stroke: "#0f766e" },
+    { key: "red", label: "Red", fill: "#fee2e2", stroke: "#dc2626" },
+    { key: "slate", label: "Slate", fill: "#f1f5f9", stroke: "#64748b" }
+  ];
+  var DIAGRAM_TYPES = [
+    [/^(?:flowchart|graph)(?:-elk)?\b/i, "flowchart"],
+    [/^sequenceDiagram\b/, "sequence"],
+    [/^classDiagram(?:-v2)?\b/, "class"],
+    [/^stateDiagram(?:-v2)?\b/, "state"],
+    [/^erDiagram\b/, "er"],
+    [/^gantt\b/, "gantt"],
+    [/^pie\b/, "pie"],
+    [/^mindmap\b/, "mindmap"],
+    [/^journey\b/, "journey"],
+    [/^gitGraph\b/, "git"],
+    [/^timeline\b/, "timeline"],
+    [/^quadrantChart\b/, "quadrant"]
+  ];
+  var WORD = String.raw`[\p{L}\p{N}_]`;
+  var ID_PATTERN = new RegExp(String.raw`${WORD}+(?:[.\-]${WORD}+)*`, "uy");
+  var LINK_ID_PREFIX = String.raw`(?:${WORD}+@)?`;
+  var PLAIN_LINK_PATTERN = new RegExp(
+    String.raw`${LINK_ID_PREFIX}[<ox]?(?:-{2,}>|-\.+->|-\.+-[ox](?!${WORD})|-\.+-|-{2,}[ox](?!${WORD})|-{3,}|={2,}>|={2,}[ox](?!${WORD})|={3,}|~{3,})`,
+    "uy"
+  );
+  var TEXT_LINK_OPENER = new RegExp(
+    String.raw`${LINK_ID_PREFIX}[<ox]?(--|==|-\.)(?=\s)`,
+    "uy"
+  );
+  var TEXT_LINK_CLOSERS = {
+    "--": /\s(-{2,}>|-{2,}[ox](?![\p{L}\p{N}_])|-{3,})/gu,
+    "==": /\s(={2,}>|={2,}[ox](?![\p{L}\p{N}_])|={3,})/gu,
+    "-.": /\s(\.-+>|\.-+[ox](?![\p{L}\p{N}_])|\.-+)/gu
+  };
+  var PIPE_LABEL_PATTERN = /\s*\|([^|]*)\|/y;
+  var CLASS_SUFFIX_PATTERN = new RegExp(String.raw`:::${WORD}[\p{L}\p{N}_-]*`, "uy");
+  var SHAPES_BY_OPENER = [...FLOWCHART_SHAPES].sort(
+    (left, right) => right.open.length - left.open.length
+  );
+  function readMermaidBlockContent(doc2, block2) {
+    return block2.hasContentLines ? doc2.sliceString(block2.contentFrom, block2.contentTo) : "";
+  }
+  function getMermaidBlockContentChange(block2, currentCode, nextCode) {
+    const next2 = String(nextCode ?? "");
+    if (next2 === currentCode) {
+      return null;
+    }
+    if (!block2.hasContentLines) {
+      return { from: block2.contentFrom, to: block2.contentFrom, insert: `${next2}
+` };
+    }
+    const change = getMinimalTextChange(currentCode, next2);
+    return {
+      from: block2.contentFrom + change.from,
+      to: block2.contentFrom + change.to,
+      insert: change.insert
+    };
+  }
+  function splitMermaidLines(code3) {
+    return String(code3 ?? "").split("\n");
+  }
+  function findMermaidHeaderLine(lines) {
+    let index = 0;
+    while (index < lines.length && !lines[index].trim()) {
+      index += 1;
+    }
+    if (index < lines.length && lines[index].trim() === "---") {
+      index += 1;
+      while (index < lines.length && lines[index].trim() !== "---") {
+        index += 1;
+      }
+      index += 1;
+    }
+    for (; index < lines.length; index += 1) {
+      const text2 = lines[index].trim();
+      if (!text2 || text2.startsWith("%%")) {
+        continue;
+      }
+      return index;
+    }
+    return -1;
+  }
+  function detectMermaidDiagramType(code3) {
+    const lines = splitMermaidLines(code3);
+    const headerIndex = findMermaidHeaderLine(lines);
+    if (headerIndex < 0) {
+      return null;
+    }
+    const header2 = lines[headerIndex].trim();
+    for (const [pattern, type4] of DIAGRAM_TYPES) {
+      if (pattern.test(header2)) {
+        return type4;
+      }
+    }
+    return "other";
+  }
+  function getMermaidErrorLine(error, code3) {
+    const lines = splitMermaidLines(code3);
+    const match2 = String(error?.message ?? error ?? "").match(/\bline (\d+)/i);
+    let lineNumber = match2 ? Number(match2[1]) : null;
+    if (lineNumber === null) {
+      const hashLine = error?.hash?.loc?.first_line;
+      lineNumber = Number.isInteger(hashLine) ? hashLine : null;
+    }
+    if (!lineNumber || lineNumber < 1) {
+      return -1;
+    }
+    const parsedLines = getMermaidParsedLines(lines);
+    return parsedLines[lineNumber - 1] ?? parsedLines[parsedLines.length - 1] ?? -1;
+  }
+  function getMermaidParsedLines(lines) {
+    const parsed = [];
+    let blanks = [];
+    for (let index = Math.max(0, findMermaidHeaderLine(lines)); index < lines.length; index += 1) {
+      const text2 = lines[index];
+      if (!text2.trim()) {
+        blanks.push(index);
+        continue;
+      }
+      if (/^\s*%%(?!\{)./.test(text2)) {
+        blanks = [];
+        continue;
+      }
+      parsed.push(...blanks, index);
+      blanks = [];
+    }
+    parsed.push(...blanks);
+    return parsed;
+  }
+  function summarizeMermaidError(error) {
+    const message = String(error?.message ?? error ?? "Mermaid error");
+    const got = message.match(/got '([^']+)'/)?.[1];
+    const found = message.match(/but found:? [`']([^`']+)[`']/)?.[1];
+    if (/parse error|parsing failed|lexer error/i.test(message)) {
+      const token = got || found;
+      return token ? `Syntax error near ${token}` : "Syntax error";
+    }
+    return message.split("\n")[0];
+  }
+  function parseMermaidNodeDomId(domId, renderId = "") {
+    let value = String(domId ?? "");
+    if (renderId && value.startsWith(`${renderId}-`)) {
+      value = value.slice(renderId.length + 1);
+    }
+    const match2 = value.match(/^(flowchart|classId|state|entity)-(.+)-(\d+)$/);
+    if (!match2) {
+      return null;
+    }
+    return { kind: match2[1], id: match2[2] };
+  }
+  function parseFlowchartEdgeDomId(dataId, nodeIds) {
+    const match2 = String(dataId ?? "").match(/^L[_-](.+)[_-](\d+)$/);
+    if (!match2) {
+      return null;
+    }
+    const body2 = match2[1];
+    const known = nodeIds instanceof Set ? nodeIds : new Set(nodeIds || []);
+    for (let index = 1; index < body2.length - 1; index += 1) {
+      if (body2[index] !== "_" && body2[index] !== "-") {
+        continue;
+      }
+      const from3 = body2.slice(0, index);
+      const to = body2.slice(index + 1);
+      if (known.has(from3) && known.has(to)) {
+        return { from: from3, to, occurrence: Number(match2[2]) };
+      }
+    }
+    return null;
+  }
+  function parseFlowchart(code3) {
+    const lines = splitMermaidLines(code3);
+    const headerIndex = findMermaidHeaderLine(lines);
+    const statements = [];
+    const nodes = /* @__PURE__ */ new Map();
+    const edges = [];
+    let direction = null;
+    let depth = 0;
+    const lineDepths = [];
+    lines.forEach((text2, lineIndex) => {
+      lineDepths.push(depth);
+      if (lineIndex === headerIndex) {
+        const header2 = text2.match(
+          /^(\s*)(?:flowchart|graph)(?:-elk)?(?:\s+(TB|TD|BT|RL|LR))?\s*/i
+        );
+        direction = header2?.[2] ? header2[2].toUpperCase() : "TD";
+        const headerEnd = header2 ? header2[0].length : text2.length;
+        statements.push({
+          lineIndex,
+          start: 0,
+          end: headerEnd,
+          kind: "header"
+        });
+        if (text2[headerEnd] === ";") {
+          statements.push(...parseFlowchartLine(text2, lineIndex, headerEnd + 1));
+        }
+        return;
+      }
+      if (headerIndex < 0 || lineIndex < headerIndex) {
+        return;
+      }
+      for (const statement of parseFlowchartLine(text2, lineIndex)) {
+        statements.push(statement);
+        if (statement.kind === "subgraph") {
+          depth += 1;
+        } else if (statement.kind === "end") {
+          depth = Math.max(0, depth - 1);
+        }
+      }
+    });
+    for (const statement of statements) {
+      collectStatementNodes(statement, nodes);
+      if (statement.kind !== "chain") {
+        continue;
+      }
+      statement.links.forEach((link, linkIndex) => {
+        for (const fromRef of statement.groups[linkIndex]) {
+          for (const toRef of statement.groups[linkIndex + 1]) {
+            edges.push({
+              from: fromRef.id,
+              to: toRef.id,
+              lineIndex: statement.lineIndex,
+              statement,
+              linkIndex,
+              link
+            });
+          }
+        }
+      });
+    }
+    return {
+      lines,
+      headerIndex,
+      direction,
+      statements,
+      nodes,
+      edges,
+      lineDepths
+    };
+  }
+  function collectStatementNodes(statement, nodes) {
+    if (statement.kind !== "chain") {
+      return;
+    }
+    for (const group2 of statement.groups) {
+      for (const ref of group2) {
+        let node = nodes.get(ref.id);
+        if (!node) {
+          node = { id: ref.id, refs: [], labeled: null };
+          nodes.set(ref.id, node);
+        }
+        node.refs.push({ lineIndex: statement.lineIndex, ref, statement });
+        if (!node.labeled && ref.shape) {
+          node.labeled = { lineIndex: statement.lineIndex, ref, statement };
+        }
+      }
+    }
+  }
+  function parseFlowchartLine(text2, lineIndex, startAt = 0) {
+    const statements = [];
+    let position = startAt;
+    while (position < text2.length) {
+      position = skipSpaces(text2, position);
+      if (position >= text2.length) {
+        break;
+      }
+      if (text2[position] === ";") {
+        position += 1;
+        continue;
+      }
+      const statement = parseFlowchartStatement(text2, position, lineIndex);
+      statements.push(statement);
+      position = statement.end;
+      if (statement.kind === "unknown") {
+        break;
+      }
+    }
+    return statements;
+  }
+  function parseFlowchartStatement(text2, start2, lineIndex) {
+    const rest = text2.slice(start2);
+    const whole = (kind, extra = {}) => ({
+      lineIndex,
+      start: start2,
+      end: text2.length,
+      kind,
+      ...extra
+    });
+    if (rest.startsWith("%%")) {
+      return whole("comment");
+    }
+    if (/^subgraph\b/.test(rest)) {
+      return whole("subgraph");
+    }
+    if (/^end\s*;?\s*$/.test(rest)) {
+      return whole("end");
+    }
+    if (/^direction\s+\w+/.test(rest)) {
+      return whole("direction");
+    }
+    const style2 = rest.match(/^style\s+(\S+)/);
+    if (style2) {
+      return whole("style", { target: style2[1] });
+    }
+    if (/^classDef\b/.test(rest)) {
+      return whole("classDef");
+    }
+    const classAssign = rest.match(/^class\s+(\S+)\s+(\S+)/);
+    if (classAssign) {
+      return whole("class", {
+        targets: classAssign[1].split(","),
+        className: classAssign[2]
+      });
+    }
+    const click = rest.match(/^click\s+(\S+)/);
+    if (click) {
+      return whole("click", { target: click[1] });
+    }
+    if (/^linkStyle\b/.test(rest)) {
+      return whole("linkStyle");
+    }
+    const chain3 = parseFlowchartChain(text2, start2);
+    if (!chain3) {
+      return whole("unknown");
+    }
+    return { lineIndex, start: start2, end: chain3.end, kind: "chain", ...chain3 };
+  }
+  function parseFlowchartChain(text2, start2) {
+    const groups = [];
+    const links = [];
+    let position = start2;
+    for (; ; ) {
+      const group2 = parseFlowchartGroup(text2, position);
+      if (!group2) {
+        return null;
+      }
+      groups.push(group2.refs);
+      position = skipSpaces(text2, group2.end);
+      if (position >= text2.length || text2[position] === ";") {
+        return { groups, links, end: position };
+      }
+      const link = parseFlowchartLink(text2, position);
+      if (!link) {
+        return null;
+      }
+      links.push(link);
+      position = skipSpaces(text2, link.end);
+    }
+  }
+  function parseFlowchartGroup(text2, start2) {
+    const refs = [];
+    let position = start2;
+    for (; ; ) {
+      const ref = parseFlowchartNodeRef(text2, position);
+      if (!ref) {
+        return null;
+      }
+      refs.push(ref);
+      const next2 = skipSpaces(text2, ref.end);
+      if (text2[next2] !== "&") {
+        return { refs, end: ref.end };
+      }
+      position = skipSpaces(text2, next2 + 1);
+    }
+  }
+  function parseFlowchartNodeRef(text2, start2) {
+    ID_PATTERN.lastIndex = start2;
+    const idMatch = ID_PATTERN.exec(text2);
+    if (!idMatch) {
+      return null;
+    }
+    const id3 = idMatch[0];
+    if (id3 === "end" || id3 === "subgraph") {
+      return null;
+    }
+    const idEnd = start2 + id3.length;
+    const ref = {
+      id: id3,
+      start: start2,
+      idEnd,
+      end: idEnd,
+      shape: null,
+      shapeEnd: idEnd,
+      labelStart: -1,
+      labelEnd: -1,
+      label: null
+    };
+    const shape = parseFlowchartShape(text2, idEnd);
+    if (shape) {
+      Object.assign(ref, shape);
+      ref.end = shape.shapeEnd;
+    }
+    CLASS_SUFFIX_PATTERN.lastIndex = ref.end;
+    const classSuffix = CLASS_SUFFIX_PATTERN.exec(text2);
+    if (classSuffix) {
+      ref.end += classSuffix[0].length;
+    }
+    return ref;
+  }
+  function parseFlowchartShape(text2, start2) {
+    if (text2.startsWith("@{", start2)) {
+      return parseFlowchartAttributeShape(text2, start2);
+    }
+    let best = null;
+    for (const shape of SHAPES_BY_OPENER) {
+      if (!text2.startsWith(shape.open, start2)) {
+        continue;
+      }
+      if (best && best.openLength > shape.open.length) {
+        break;
+      }
+      const labelStart = start2 + shape.open.length;
+      let labelEnd;
+      let closeStart;
+      if (text2[labelStart] === '"') {
+        const quoteEnd = text2.indexOf('"', labelStart + 1);
+        if (quoteEnd < 0 || !text2.startsWith(shape.close, quoteEnd + 1)) {
+          continue;
+        }
+        labelEnd = quoteEnd + 1;
+        closeStart = quoteEnd + 1;
+      } else {
+        closeStart = text2.indexOf(shape.close, labelStart);
+        if (closeStart < 0) {
+          continue;
+        }
+        labelEnd = closeStart;
+      }
+      if (!best || closeStart < best.closeStart) {
+        best = {
+          openLength: shape.open.length,
+          closeStart,
+          shape: shape.key,
+          labelStart,
+          labelEnd,
+          shapeEnd: closeStart + shape.close.length
+        };
+      }
+    }
+    if (!best) {
+      return null;
+    }
+    const raw = text2.slice(best.labelStart, best.labelEnd);
+    return {
+      shape: best.shape,
+      labelStart: best.labelStart,
+      labelEnd: best.labelEnd,
+      shapeEnd: best.shapeEnd,
+      label: unquoteFlowchartLabel(raw)
+    };
+  }
+  function parseFlowchartAttributeShape(text2, start2) {
+    let position = start2 + 2;
+    let quote2 = null;
+    for (; position < text2.length; position += 1) {
+      const character = text2[position];
+      if (quote2) {
+        if (character === quote2) quote2 = null;
+        continue;
+      }
+      if (character === '"' || character === "'") {
+        quote2 = character;
+        continue;
+      }
+      if (character === "}") {
+        break;
+      }
+    }
+    if (position >= text2.length) {
+      return null;
+    }
+    const body2 = text2.slice(start2 + 2, position);
+    const label = body2.match(/\blabel\s*:\s*("([^"]*)"|'([^']*)'|[^,}]+)/);
+    const labelOffset = label ? start2 + 2 + label.index + label[0].indexOf(label[1]) : -1;
+    return {
+      shape: "attrs",
+      labelStart: label ? labelOffset : -1,
+      labelEnd: label ? labelOffset + label[1].length : -1,
+      shapeEnd: position + 1,
+      label: label ? unquoteFlowchartLabel(label[1].trim()) : null
+    };
+  }
+  function parseFlowchartLink(text2, start2) {
+    PLAIN_LINK_PATTERN.lastIndex = start2;
+    const plain = PLAIN_LINK_PATTERN.exec(text2);
+    if (plain) {
+      const link = {
+        start: start2,
+        arrowEnd: start2 + plain[0].length,
+        end: start2 + plain[0].length,
+        arrow: plain[0],
+        label: null,
+        labelStart: -1,
+        labelEnd: -1,
+        labelKind: null
+      };
+      PIPE_LABEL_PATTERN.lastIndex = link.end;
+      const pipe = PIPE_LABEL_PATTERN.exec(text2);
+      if (pipe) {
+        link.labelKind = "pipe";
+        link.labelStart = link.end + pipe[0].indexOf("|") + 1;
+        link.labelEnd = link.labelStart + pipe[1].length;
+        link.label = unquoteFlowchartLabel(pipe[1].trim());
+        link.end += pipe[0].length;
+      }
+      return link;
+    }
+    TEXT_LINK_OPENER.lastIndex = start2;
+    const opener = TEXT_LINK_OPENER.exec(text2);
+    if (!opener) {
+      return null;
+    }
+    const closer = TEXT_LINK_CLOSERS[opener[1]];
+    closer.lastIndex = start2 + opener[0].length + 1;
+    const closing3 = closer.exec(text2);
+    if (!closing3) {
+      return null;
+    }
+    const rawStart = start2 + opener[0].length;
+    const rawEnd = closing3.index;
+    const raw = text2.slice(rawStart, rawEnd);
+    const leading = raw.length - raw.trimStart().length;
+    const labelText = raw.trim();
+    if (!labelText) {
+      return null;
+    }
+    const closeToken = closing3[1];
+    const end = closing3.index + 1 + closeToken.length;
+    return {
+      start: start2,
+      arrowEnd: end,
+      end,
+      arrow: text2.slice(start2, end),
+      closeToken,
+      label: unquoteFlowchartLabel(labelText),
+      labelStart: rawStart + leading,
+      labelEnd: rawStart + leading + labelText.length,
+      labelKind: "inline"
+    };
+  }
+  function skipSpaces(text2, position) {
+    while (position < text2.length && (text2[position] === " " || text2[position] === "	")) {
+      position += 1;
+    }
+    return position;
+  }
+  function unquoteFlowchartLabel(raw) {
+    const text2 = String(raw ?? "");
+    if (text2.length >= 2 && text2.startsWith('"') && text2.endsWith('"')) {
+      return text2.slice(1, -1).replace(/#quot;/g, '"');
+    }
+    if (text2.length >= 2 && text2.startsWith("'") && text2.endsWith("'")) {
+      return text2.slice(1, -1);
+    }
+    return text2;
+  }
+  function formatFlowchartLabel(label) {
+    const clean2 = String(label ?? "").replace(/\r?\n/g, " ").replace(/"/g, "'").trim();
+    if (!clean2) {
+      return "";
+    }
+    return /[[\](){}|<>;&#:@=]|^[\s-]|--|==/.test(clean2) ? `"${clean2}"` : clean2;
+  }
+  function getShape(key) {
+    return FLOWCHART_SHAPES.find((shape) => shape.key === key) || FLOWCHART_SHAPES[0];
+  }
+  function replaceInLine(lines, lineIndex, from3, to, insert2) {
+    const next2 = [...lines];
+    const text2 = next2[lineIndex];
+    next2[lineIndex] = text2.slice(0, from3) + insert2 + text2.slice(to);
+    return next2;
+  }
+  function getIndent(text2) {
+    return text2.match(/^\s*/)[0];
+  }
+  function getStatementIndent(model) {
+    for (const statement of model.statements) {
+      if (statement.kind === "chain" && model.lineDepths[statement.lineIndex] === 0) {
+        return getIndent(model.lines[statement.lineIndex]) || "    ";
+      }
+    }
+    return "    ";
+  }
+  function getInsertionLine(model) {
+    let index = model.headerIndex;
+    for (const statement of model.statements) {
+      const lineIndex = statement.lineIndex;
+      if ((statement.kind === "chain" || statement.kind === "end") && model.lineDepths[lineIndex] === (statement.kind === "end" ? 1 : 0)) {
+        index = Math.max(index, lineIndex);
+      }
+    }
+    return index + 1;
+  }
+  function insertLines(model, newLines) {
+    const at = getInsertionLine(model);
+    const lines = [...model.lines];
+    lines.splice(at, 0, ...newLines);
+    return lines.join("\n");
+  }
+  function getFlowchartNodeIds(code3) {
+    return new Set(parseFlowchart(code3).nodes.keys());
+  }
+  function getFlowchartNode(code3, id3) {
+    const model = parseFlowchart(code3);
+    const node = model.nodes.get(id3);
+    if (!node) {
+      return null;
+    }
+    return {
+      id: id3,
+      shape: node.labeled?.ref.shape ?? null,
+      label: node.labeled?.ref.label ?? id3,
+      lineIndex: (node.labeled || node.refs[0]).lineIndex
+    };
+  }
+  function getFlowchartDirection(code3) {
+    return parseFlowchart(code3).direction;
+  }
+  function setFlowchartDirection(code3, direction) {
+    const value = String(direction || "").toUpperCase();
+    if (!FLOWCHART_DIRECTIONS.includes(value) && value !== "TB") {
+      return code3;
+    }
+    const model = parseFlowchart(code3);
+    if (model.headerIndex < 0) {
+      return code3;
+    }
+    const lines = [...model.lines];
+    lines[model.headerIndex] = lines[model.headerIndex].replace(
+      /^(\s*(?:flowchart|graph)(?:-elk)?)(?:\s+(?:TB|TD|BT|RL|LR))?/i,
+      `$1 ${value}`
+    );
+    return lines.join("\n");
+  }
+  function nextFlowchartNodeId(code3) {
+    const ids = getFlowchartNodeIds(code3);
+    for (let index = 1; ; index += 1) {
+      const id3 = `N${index}`;
+      if (!ids.has(id3)) {
+        return id3;
+      }
+    }
+  }
+  function renameFlowchartNodeLabel(code3, id3, label) {
+    const text2 = formatFlowchartLabel(label);
+    const model = parseFlowchart(code3);
+    const node = model.nodes.get(id3);
+    if (!node || !text2) {
+      return code3;
+    }
+    if (node.labeled) {
+      const { lineIndex: lineIndex2, ref: ref2 } = node.labeled;
+      if (ref2.shape === "attrs") {
+        const quoted = `"${text2.replace(/^"|"$/g, "")}"`;
+        if (ref2.labelStart >= 0) {
+          return replaceInLine(model.lines, lineIndex2, ref2.labelStart, ref2.labelEnd, quoted).join("\n");
+        }
+        return replaceInLine(
+          model.lines,
+          lineIndex2,
+          ref2.shapeEnd - 1,
+          ref2.shapeEnd - 1,
+          `, label: ${quoted} `
+        ).join("\n");
+      }
+      return replaceInLine(model.lines, lineIndex2, ref2.labelStart, ref2.labelEnd, text2).join("\n");
+    }
+    const { lineIndex, ref } = node.refs[0];
+    return replaceInLine(model.lines, lineIndex, ref.idEnd, ref.idEnd, `[${text2}]`).join("\n");
+  }
+  function setFlowchartNodeShape(code3, id3, shapeKey) {
+    const shape = getShape(shapeKey);
+    const model = parseFlowchart(code3);
+    const node = model.nodes.get(id3);
+    if (!node) {
+      return code3;
+    }
+    if (node.labeled) {
+      const { lineIndex: lineIndex2, ref: ref2 } = node.labeled;
+      if (ref2.shape === "attrs") {
+        return code3;
+      }
+      const rawLabel = model.lines[lineIndex2].slice(ref2.labelStart, ref2.labelEnd);
+      return replaceInLine(
+        model.lines,
+        lineIndex2,
+        ref2.idEnd,
+        ref2.shapeEnd,
+        `${shape.open}${rawLabel}${shape.close}`
+      ).join("\n");
+    }
+    const { lineIndex, ref } = node.refs[0];
+    return replaceInLine(
+      model.lines,
+      lineIndex,
+      ref.idEnd,
+      ref.idEnd,
+      `${shape.open}${formatFlowchartLabel(id3) || id3}${shape.close}`
+    ).join("\n");
+  }
+  function getFlowchartNodeColor(code3, id3) {
+    const model = parseFlowchart(code3);
+    const style2 = model.statements.find(
+      (statement) => statement.kind === "style" && statement.target === id3
+    );
+    if (!style2) {
+      return null;
+    }
+    const fill = model.lines[style2.lineIndex].match(/fill:\s*(#[0-9a-f]{3,8})/i)?.[1];
+    return FLOWCHART_COLORS.find(
+      (color) => color.fill.toLowerCase() === String(fill).toLowerCase()
+    )?.key ?? null;
+  }
+  function setFlowchartNodeColor(code3, id3, colorKey) {
+    const model = parseFlowchart(code3);
+    if (!model.nodes.has(id3)) {
+      return code3;
+    }
+    const color = FLOWCHART_COLORS.find((entry) => entry.key === colorKey) || null;
+    const styleLines = new Set(
+      model.statements.filter((statement) => statement.kind === "style" && statement.target === id3).map((statement) => statement.lineIndex)
+    );
+    const indent4 = getStatementIndent(model);
+    const styleText2 = color ? `style ${id3} fill:${color.fill},stroke:${color.stroke},color:#172033` : null;
+    if (!styleLines.size) {
+      if (!styleText2) {
+        return code3;
+      }
+      const lines2 = [...model.lines];
+      let last2 = lines2.length - 1;
+      while (last2 > model.headerIndex && !lines2[last2].trim()) {
+        last2 -= 1;
+      }
+      lines2.splice(last2 + 1, 0, `${indent4}${styleText2}`);
+      return lines2.join("\n");
+    }
+    const lines = [];
+    let replaced = false;
+    model.lines.forEach((text2, lineIndex) => {
+      if (!styleLines.has(lineIndex)) {
+        lines.push(text2);
+        return;
+      }
+      if (styleText2 && !replaced) {
+        lines.push(`${getIndent(text2)}${styleText2}`);
+        replaced = true;
+      }
+    });
+    return lines.join("\n");
+  }
+  function addFlowchartNode(code3, { label = "New node", shape = "rect", from: from3 = null } = {}) {
+    const model = parseFlowchart(code3);
+    if (model.headerIndex < 0) {
+      return { code: code3, id: null };
+    }
+    const id3 = nextFlowchartNodeId(code3);
+    const shapeSpec = getShape(shape);
+    const nodeText = `${id3}${shapeSpec.open}${formatFlowchartLabel(label) || id3}${shapeSpec.close}`;
+    const statement = from3 && model.nodes.has(from3) ? `${from3} --> ${nodeText}` : nodeText;
+    return {
+      code: insertLines(model, [`${getStatementIndent(model)}${statement}`]),
+      id: id3
+    };
+  }
+  function addFlowchartEdge(code3, from3, to, label = "") {
+    const model = parseFlowchart(code3);
+    if (model.headerIndex < 0 || !from3 || !to || !model.nodes.has(from3) || !model.nodes.has(to)) {
+      return code3;
+    }
+    if (model.edges.some((edge) => edge.from === from3 && edge.to === to)) {
+      return code3;
+    }
+    const text2 = formatFlowchartLabel(label);
+    const arrow = text2 ? `-->|${text2}|` : "-->";
+    return insertLines(model, [`${getStatementIndent(model)}${from3} ${arrow} ${to}`]);
+  }
+  function findFlowchartEdge(model, from3, to, occurrence = 0) {
+    const matches = model.edges.filter((edge) => edge.from === from3 && edge.to === to);
+    return matches[occurrence] || matches[0] || null;
+  }
+  function renameFlowchartEdgeLabel(code3, from3, to, label, occurrence = 0) {
+    const model = parseFlowchart(code3);
+    const edge = findFlowchartEdge(model, from3, to, occurrence);
+    if (!edge) {
+      return code3;
+    }
+    const { link, lineIndex } = edge;
+    const text2 = formatFlowchartLabel(label);
+    const lineText = model.lines[lineIndex];
+    if (link.labelKind === "pipe") {
+      if (!text2) {
+        return replaceInLine(model.lines, lineIndex, link.arrowEnd, link.end, "").join("\n");
+      }
+      return replaceInLine(model.lines, lineIndex, link.labelStart, link.labelEnd, text2).join("\n");
+    }
+    if (link.labelKind === "inline") {
+      if (!text2) {
+        const head = lineText.slice(link.start, link.start + 1) === "<" ? "<" : "";
+        return replaceInLine(
+          model.lines,
+          lineIndex,
+          link.start,
+          link.end,
+          `${head}${link.closeToken.replace(/^\./, "-.")}`
+        ).join("\n");
+      }
+      return replaceInLine(model.lines, lineIndex, link.labelStart, link.labelEnd, text2).join("\n");
+    }
+    if (!text2) {
+      return code3;
+    }
+    return replaceInLine(model.lines, lineIndex, link.arrowEnd, link.arrowEnd, `|${text2}|`).join("\n");
+  }
+  function refText(lineText, ref) {
+    return lineText.slice(ref.start, ref.end);
+  }
+  function linkText(lineText, link) {
+    return lineText.slice(link.start, link.end);
+  }
+  function rebuildChain(model, statement, { removeId = null, removeLink = null }) {
+    const lineText = model.lines[statement.lineIndex];
+    const outputs = [];
+    let current = null;
+    let pendingLink = null;
+    const flush = () => {
+      if (current) {
+        outputs.push(current);
+      }
+      current = null;
+      pendingLink = null;
+    };
+    statement.groups.forEach((group2, groupIndex) => {
+      const kept = group2.filter((ref) => ref.id !== removeId);
+      if (!kept.length) {
+        flush();
+        return;
+      }
+      if (current && pendingLink) {
+        current.links.push(pendingLink);
+        current.groups.push(kept);
+      } else {
+        flush();
+        current = { groups: [kept], links: [] };
+      }
+      pendingLink = statement.links[groupIndex] || null;
+      if (!pendingLink || !removeLink || removeLink.linkIndex !== groupIndex) {
+        return;
+      }
+      const link = pendingLink;
+      const pairs = [];
+      for (const fromRef of kept) {
+        for (const toRef of statement.groups[groupIndex + 1]) {
+          if (!(fromRef.id === removeLink.from && toRef.id === removeLink.to)) {
+            pairs.push({ groups: [[fromRef], [toRef]], links: [link] });
+          }
+        }
+      }
+      flush();
+      outputs.push(...pairs);
+    });
+    flush();
+    const mentions = /* @__PURE__ */ new Map();
+    const mention = (id3) => mentions.set(id3, (mentions.get(id3) || 0) + 1);
+    for (const other of model.statements) {
+      if (other === statement || other.kind !== "chain") continue;
+      for (const group2 of other.groups) {
+        for (const ref of group2) mention(ref.id);
+      }
+    }
+    for (const output of outputs) {
+      if (output.groups.length > 1) {
+        for (const group2 of output.groups) {
+          for (const ref of group2) mention(ref.id);
+        }
+      }
+    }
+    return outputs.map((output) => {
+      if (output.groups.length > 1) {
+        return output;
+      }
+      const refs = output.groups[0].filter(
+        (ref) => ref.shape || !mentions.has(ref.id)
+      );
+      for (const ref of refs) mention(ref.id);
+      return refs.length ? { groups: [refs], links: [] } : null;
+    }).filter(Boolean).map(
+      (output) => output.groups.map((group2, index) => {
+        const groupText = group2.map((ref) => refText(lineText, ref)).join(" & ");
+        const link = output.links[index];
+        return link ? `${groupText} ${linkText(lineText, link)}` : groupText;
+      }).join(" ")
+    );
+  }
+  function rewriteStatements(model, rewrite) {
+    const byLine = /* @__PURE__ */ new Map();
+    for (const statement of model.statements) {
+      if (!byLine.has(statement.lineIndex)) {
+        byLine.set(statement.lineIndex, []);
+      }
+      byLine.get(statement.lineIndex).push(statement);
+    }
+    const lines = [];
+    model.lines.forEach((text2, lineIndex) => {
+      const statements = byLine.get(lineIndex);
+      if (!statements) {
+        lines.push(text2);
+        return;
+      }
+      let changed = false;
+      const parts = [];
+      for (const statement of statements) {
+        const result = rewrite(statement, text2);
+        if (result === void 0) {
+          parts.push(text2.slice(statement.start, statement.end).trim());
+          continue;
+        }
+        changed = true;
+        parts.push(...result);
+      }
+      if (!changed) {
+        lines.push(text2);
+        return;
+      }
+      const indent4 = getIndent(text2);
+      if (!parts.length) {
+        return;
+      }
+      if (statements.length === 1) {
+        for (const part of parts) {
+          lines.push(`${indent4}${part}`);
+        }
+        return;
+      }
+      lines.push(`${indent4}${parts.join("; ")}`);
+    });
+    return lines.join("\n");
+  }
+  function removeFlowchartNode(code3, id3) {
+    const model = parseFlowchart(code3);
+    if (!model.nodes.has(id3)) {
+      return code3;
+    }
+    return rewriteStatements(model, (statement, lineText) => {
+      if (statement.kind === "chain") {
+        const touches = statement.groups.some(
+          (group2) => group2.some((ref) => ref.id === id3)
+        );
+        return touches ? rebuildChain(model, statement, { removeId: id3 }) : void 0;
+      }
+      if ((statement.kind === "style" || statement.kind === "click") && statement.target === id3) {
+        return [];
+      }
+      if (statement.kind === "class" && statement.targets.includes(id3)) {
+        const targets = statement.targets.filter((target) => target !== id3);
+        if (!targets.length) {
+          return [];
+        }
+        const rest = lineText.slice(statement.start, statement.end).trim().replace(/^class\s+\S+/, `class ${targets.join(",")}`);
+        return [rest];
+      }
+      return void 0;
+    });
+  }
+  function removeFlowchartEdge(code3, from3, to, occurrence = 0) {
+    const model = parseFlowchart(code3);
+    const edge = findFlowchartEdge(model, from3, to, occurrence);
+    if (!edge) {
+      return code3;
+    }
+    return rewriteStatements(
+      model,
+      (statement) => statement === edge.statement ? rebuildChain(model, statement, {
+        removeLink: { linkIndex: edge.linkIndex, from: from3, to }
+      }) : void 0
+    );
+  }
+  function tokenPattern(text2) {
+    const escaped = String(text2).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return new RegExp(
+      `(?<![\\p{L}\\p{N}_])(?<![\\p{L}\\p{N}_]-)${escaped}(?![\\p{L}\\p{N}_])(?!-[\\p{L}\\p{N}_])`,
+      "gu"
+    );
+  }
+  function isIdentifierLike(text2) {
+    return /^[\p{L}\p{N}_]+$/u.test(String(text2 ?? ""));
+  }
+  function firstLineMatching(lines, startIndex, predicate) {
+    for (let index = Math.max(0, startIndex); index < lines.length; index += 1) {
+      if (predicate(lines[index], index)) {
+        return index;
+      }
+    }
+    return -1;
+  }
+  function replaceMermaidText(code3, oldText, newText) {
+    const from3 = String(oldText ?? "").trim();
+    const to = String(newText ?? "").replace(/\r?\n/g, " ").trim();
+    if (!from3 || !to || from3 === to) {
+      return code3;
+    }
+    const lines = splitMermaidLines(code3);
+    const headerIndex = Math.max(0, findMermaidHeaderLine(lines));
+    const messageLine = firstLineMatching(lines, headerIndex + 1, (line2) => {
+      const colon3 = line2.indexOf(":");
+      return colon3 >= 0 && line2.slice(colon3 + 1).trim() === from3;
+    });
+    if (messageLine >= 0) {
+      const line2 = lines[messageLine];
+      const at2 = line2.lastIndexOf(from3);
+      lines[messageLine] = line2.slice(0, at2) + to + line2.slice(at2 + from3.length);
+      return lines.join("\n");
+    }
+    if (isIdentifierLike(from3)) {
+      const pattern = tokenPattern(from3);
+      let changed = false;
+      const next2 = lines.map((line2, index) => {
+        if (index < headerIndex) return line2;
+        const replaced = line2.replace(pattern, () => to);
+        changed ||= replaced !== line2;
+        return replaced;
+      });
+      return changed ? next2.join("\n") : code3;
+    }
+    const lineIndex = firstLineMatching(lines, headerIndex, (line2) => line2.includes(from3));
+    if (lineIndex < 0) {
+      return code3;
+    }
+    const line = lines[lineIndex];
+    const at = line.indexOf(from3);
+    lines[lineIndex] = line.slice(0, at) + to + line.slice(at + from3.length);
+    return lines.join("\n");
+  }
+  function renameSequenceParticipant(code3, id3, newText) {
+    const to = String(newText ?? "").replace(/\r?\n/g, " ").trim();
+    if (!id3 || !to) {
+      return code3;
+    }
+    const lines = splitMermaidLines(code3);
+    const headerIndex = Math.max(0, findMermaidHeaderLine(lines));
+    const idPattern = tokenPattern(id3).source;
+    const declaration = new RegExp(
+      `^(\\s*(?:participant|actor)\\s+${idPattern})(?:\\s+as\\s+(.*))?$`,
+      "u"
+    );
+    const declarationLine = firstLineMatching(
+      lines,
+      headerIndex + 1,
+      (line) => declaration.test(line)
+    );
+    if (declarationLine >= 0) {
+      const match2 = lines[declarationLine].match(declaration);
+      if (match2[2] !== void 0 || !isIdentifierLike(to)) {
+        lines[declarationLine] = `${match2[1]} as ${to}`;
+        return lines.join("\n");
+      }
+    }
+    if (isIdentifierLike(to)) {
+      return replaceMermaidText(code3, id3, to);
+    }
+    const indent4 = getIndent(lines[headerIndex + 1] || "") || "    ";
+    lines.splice(headerIndex + 1, 0, `${indent4}participant ${id3} as ${to}`);
+    return lines.join("\n");
+  }
+
+  // src/rich-editor/domain/mermaidIndex.js
+  function buildMermaidSourceIndex(code3, type4 = detectMermaidDiagramType(code3)) {
+    const lines = splitMermaidLines(code3);
+    const headerIndex = findMermaidHeaderLine(lines);
+    const context = { code: code3, lines, headerIndex, type: type4, entries: [] };
+    if (headerIndex >= 0) {
+      const builder = BUILDERS[type4] || buildByLabels;
+      builder(context);
+    }
+    return { type: type4, lines, headerIndex, entries: context.entries };
+  }
+  function findMermaidSourceEntry(index, target) {
+    if (!target) {
+      return null;
+    }
+    for (const key of target.keys || []) {
+      const entry = index.entries.find((candidate) => candidate.keys.includes(key));
+      if (entry) {
+        return entry;
+      }
+    }
+    const text2 = normalizeLabel(target.text);
+    if (!text2) {
+      return null;
+    }
+    const exact = index.entries.find((entry) => normalizeLabel(entry.label) === text2);
+    if (exact) {
+      return exact;
+    }
+    const loose = index.entries.filter((entry) => {
+      const label = normalizeLabel(entry.label).toLowerCase();
+      const wanted = text2.toLowerCase();
+      return label.length > 1 && (label.includes(wanted) || wanted.includes(label));
+    }).sort((left, right) => right.label.length - left.label.length)[0];
+    if (loose) {
+      return loose;
+    }
+    const start2 = Math.max(0, index.headerIndex);
+    const raw = String(target.text).trim();
+    for (const candidate of [raw, text2, raw.split(/\s*\n\s*/)[0]]) {
+      if (!candidate) continue;
+      const lineIndex = firstLineMatching(index.lines, start2, (line) => line.includes(candidate));
+      if (lineIndex >= 0) {
+        const column = index.lines[lineIndex].indexOf(candidate);
+        return {
+          keys: [],
+          lineIndex,
+          start: column,
+          end: column + candidate.length,
+          label: candidate,
+          rename: "span",
+          format: "text"
+        };
+      }
+    }
+    return null;
+  }
+  function findMermaidSourceLine(code3, target, type4 = detectMermaidDiagramType(code3)) {
+    const entry = findMermaidSourceEntry(buildMermaidSourceIndex(code3, type4), normalizeTarget(target));
+    return entry ? entry.lineIndex : -1;
+  }
+  function getMermaidLineReferences(code3, lineIndex, type4 = detectMermaidDiagramType(code3)) {
+    const index = buildMermaidSourceIndex(code3, type4);
+    const keys = /* @__PURE__ */ new Set();
+    const texts = /* @__PURE__ */ new Set();
+    const ids = /* @__PURE__ */ new Set();
+    for (const entry of index.entries) {
+      if (entry.lineIndex !== lineIndex) continue;
+      for (const key of entry.keys) {
+        keys.add(key);
+        const id3 = key.match(/^(?:node|participant):(.+)$/)?.[1];
+        if (id3) ids.add(id3);
+      }
+      for (const id3 of entry.mentions || []) {
+        ids.add(id3);
+        keys.add(`node:${id3}`);
+        keys.add(`participant:${id3}`);
+      }
+      const label = normalizeLabel(entry.label);
+      if (label) texts.add(label);
+    }
+    return { keys, texts, ids };
+  }
+  function getMermaidTargetLabel(code3, target, type4 = detectMermaidDiagramType(code3)) {
+    const entry = findMermaidSourceEntry(buildMermaidSourceIndex(code3, type4), normalizeTarget(target));
+    if (!entry || !["span", "identifier", "participant", "csvField", "flowchart"].includes(entry.rename)) {
+      return "";
+    }
+    return entry.label;
+  }
+  function renameMermaidTarget(code3, target, newText, type4 = detectMermaidDiagramType(code3)) {
+    const normalized = normalizeTarget(target);
+    if (!normalized) {
+      return code3;
+    }
+    if (type4 === "flowchart") {
+      let renamed = code3;
+      if (normalized.kind === "node" && normalized.id) {
+        renamed = renameFlowchartNodeLabel(code3, normalized.id, newText);
+      } else if (normalized.kind === "edge" && normalized.from && normalized.to) {
+        renamed = renameFlowchartEdgeLabel(
+          code3,
+          normalized.from,
+          normalized.to,
+          newText,
+          normalized.occurrence
+        );
+      }
+      if (renamed !== code3) {
+        return renamed;
+      }
+    }
+    const index = buildMermaidSourceIndex(code3, type4);
+    const entry = findMermaidSourceEntry(index, normalized);
+    if (!entry) {
+      return replaceMermaidText(code3, normalized.text, newText);
+    }
+    return renameEntry(code3, index, entry, newText);
+  }
+  function normalizeLabel(text2) {
+    let value = String(text2 ?? "").replace(/\s+/g, " ").trim();
+    for (; ; ) {
+      const next2 = value.replace(/^\[(.*)\]$/, "$1").replace(/^<<(.*)>>$/, "$1").replace(/^"(.*)"$/, "$1").trim();
+      if (next2 === value) return value;
+      value = next2;
+    }
+  }
+  function normalizeTarget(target) {
+    if (!target) {
+      return null;
+    }
+    const keys = [...target.keys || []];
+    if (target.kind === "node" && target.id) {
+      keys.push(`node:${target.id}`, `participant:${target.id}`);
+    }
+    if (target.kind === "edge" && target.from && target.to) {
+      keys.push(`edge:${target.from}>${target.to}#${target.occurrence ?? 0}`);
+      keys.push(`edge:${target.from}>${target.to}`);
+    }
+    return { ...target, keys };
+  }
+  function renameEntry(code3, index, entry, newText) {
+    const text2 = String(newText ?? "").replace(/\r?\n/g, " ").trim();
+    if (entry.rename === "flowchart") {
+      return entry.edge ? renameFlowchartEdgeLabel(code3, entry.edge.from, entry.edge.to, text2, entry.edge.occurrence) : renameFlowchartNodeLabel(code3, entry.id, text2);
+    }
+    if (!text2) {
+      return code3;
+    }
+    const lines = [...index.lines];
+    const line = lines[entry.lineIndex];
+    switch (entry.rename) {
+      case "span": {
+        if (text2 === entry.label) return code3;
+        const value = formatSpan(text2, entry);
+        lines[entry.lineIndex] = line.slice(0, entry.start) + value + line.slice(entry.end);
+        return lines.join("\n");
+      }
+      case "appendLabel": {
+        lines[entry.lineIndex] = `${line.replace(/\s+$/, "")} : ${formatSpan(text2, entry)}`;
+        return lines.join("\n");
+      }
+      case "appendGitId": {
+        lines[entry.lineIndex] = `${line.replace(/\s+$/, "")} id: "${formatSpan(text2, { format: "quoted" })}"`;
+        return lines.join("\n");
+      }
+      case "participant":
+        return renameSequenceParticipant(code3, entry.id, text2);
+      case "identifier":
+        return renameIdentifier(code3, index, entry, text2);
+      case "csvField": {
+        const value = text2.replace(/,/g, " ").replace(/"/g, "'");
+        return index.lines.map(
+          (row, lineIndex) => lineIndex <= index.headerIndex ? row : row.split(",").map(
+            (field2) => field2.trim().replace(/^"(.*)"$/, "$1") === entry.label ? field2.replace(entry.label, value) : field2
+          ).join(",")
+        ).join("\n");
+      }
+      default:
+        return code3;
+    }
+  }
+  function formatSpan(text2, entry) {
+    switch (entry.format) {
+      case "quoted":
+        return text2.replace(/"/g, "'");
+      case "word":
+        return text2.replace(/\s+/g, "_");
+      case "field":
+        return text2.replace(/:/g, " -").replace(/,/g, entry.allowComma ? "," : " ");
+      case "bracket":
+        return text2.replace(/[[\](){}]/g, "");
+      case "erLabel":
+        return /\s/.test(text2) || entry.quoted ? `"${text2.replace(/"/g, "'")}"` : text2;
+      case "flowLabel":
+        return formatFlowchartLabel(text2) || text2;
+      default:
+        return text2;
+    }
+  }
+  function renameIdentifier(code3, index, entry, text2) {
+    if (text2 === entry.label) {
+      return code3;
+    }
+    if (isIdentifierLike(text2) || entry.allowPath && /^[\w./-]+$/.test(text2)) {
+      const pattern = tokenPattern(entry.label);
+      const lines2 = index.lines.map(
+        (line, lineIndex) => lineIndex < index.headerIndex ? line : line.replace(pattern, () => text2)
+      );
+      return lines2.join("\n");
+    }
+    const lines = [...index.lines];
+    const indent4 = getIndent(lines[index.headerIndex + 1] || "") || "    ";
+    const label = text2.replace(/"/g, "'");
+    if (index.type === "class") {
+      const declaration = new RegExp(
+        `^(\\s*class\\s+${tokenPattern(entry.label).source})(?:\\["[^"]*"\\])?`,
+        "u"
+      );
+      const lineIndex = firstLineMatching(
+        lines,
+        index.headerIndex + 1,
+        (line) => declaration.test(line)
+      );
+      if (lineIndex >= 0) {
+        lines[lineIndex] = lines[lineIndex].replace(declaration, `$1["${label}"]`);
+      } else {
+        lines.splice(index.headerIndex + 1, 0, `${indent4}class ${entry.label}["${label}"]`);
+      }
+      return lines.join("\n");
+    }
+    if (index.type === "state") {
+      const declaration = new RegExp(
+        `^(\\s*)state\\s+"[^"]*"\\s+as\\s+${tokenPattern(entry.label).source}\\s*$`,
+        "u"
+      );
+      const lineIndex = firstLineMatching(
+        lines,
+        index.headerIndex + 1,
+        (line) => declaration.test(line)
+      );
+      if (lineIndex >= 0) {
+        lines[lineIndex] = `${getIndent(lines[lineIndex])}state "${label}" as ${entry.label}`;
+      } else {
+        lines.splice(index.headerIndex + 1, 0, `${indent4}state "${label}" as ${entry.label}`);
+      }
+      return lines.join("\n");
+    }
+    return code3;
+  }
+  function addEntry(context, keys, lineIndex, start2, end, extra = {}) {
+    const line = context.lines[lineIndex];
+    const { start: spanStart, end: spanEnd, label, ...rest } = extra;
+    let from3 = Math.max(0, spanStart ?? start2);
+    let to = Math.min(line.length, spanEnd ?? end);
+    while (from3 < to && /\s/.test(line[from3])) from3 += 1;
+    while (to > from3 && /\s/.test(line[to - 1])) to -= 1;
+    const entry = {
+      keys,
+      lineIndex,
+      start: from3,
+      end: to,
+      label: label ?? line.slice(from3, to),
+      rename: "span",
+      format: "text",
+      ...rest
+    };
+    context.entries.push(entry);
+    return entry;
+  }
+  function dropImplicit(context, key) {
+    context.entries = context.entries.filter(
+      (entry) => !(entry.implicit && entry.keys.includes(key))
+    );
+  }
+  function addLineEntry(context, keys, lineIndex, extra = {}) {
+    return addEntry(context, keys, lineIndex, 0, context.lines[lineIndex].length, {
+      rename: null,
+      ...extra
+    });
+  }
+  function quotedOrTrimmed(line, from3, to) {
+    const slice = line.slice(from3, to);
+    const quote2 = slice.match(/"([^"]*)"/);
+    if (quote2) {
+      const start2 = from3 + quote2.index + 1;
+      return { start: start2, end: start2 + quote2[1].length, quoted: true };
+    }
+    return { start: from3, end: to, quoted: false };
+  }
+  function forEachBodyLine(context, callback) {
+    const { lines, headerIndex } = context;
+    for (let lineIndex = headerIndex + 1; lineIndex < lines.length; lineIndex += 1) {
+      const text2 = lines[lineIndex];
+      const trimmed = text2.trim();
+      if (!trimmed || trimmed.startsWith("%%")) continue;
+      if (callback(text2, lineIndex, trimmed) === false) break;
+    }
+  }
+  function addTitle(context, text2, lineIndex, allowKeywordPrefix = false) {
+    const match2 = text2.match(
+      allowKeywordPrefix ? /^(\s*\S+\s+title\s+)(.+)$/ : /^(\s*title\s+)(.+)$/
+    );
+    if (match2) {
+      addEntry(context, ["title"], lineIndex, match2[1].length, text2.length, {
+        ...quotedOrTrimmed(text2, match2[1].length, text2.length)
+      });
+      return true;
+    }
+    return false;
+  }
+  function addTitleFromHeader(context) {
+    const header2 = context.lines[context.headerIndex];
+    addTitle(context, header2, context.headerIndex, true);
+  }
+  var BUILDERS = {
+    flowchart: buildFlowchart,
+    sequence: buildSequence,
+    class: buildClass,
+    state: buildState,
+    er: buildEr,
+    gantt: buildGantt,
+    pie: buildPie,
+    mindmap: buildMindmap,
+    journey: buildJourney,
+    timeline: buildTimeline,
+    git: buildGit,
+    quadrant: buildQuadrant,
+    other: buildOther
+  };
+  function buildFlowchart(context) {
+    const model = parseFlowchart(context.code);
+    for (const node of model.nodes.values()) {
+      const { lineIndex, ref } = node.labeled || node.refs[0];
+      const labeled = Boolean(node.labeled && ref.labelStart >= 0);
+      addEntry(
+        context,
+        [`node:${node.id}`],
+        lineIndex,
+        labeled ? ref.labelStart : ref.start,
+        labeled ? ref.labelEnd : ref.idEnd,
+        { rename: "flowchart", id: node.id }
+      );
+    }
+    const seen = /* @__PURE__ */ new Map();
+    for (const edge of model.edges) {
+      const pair2 = `${edge.from}>${edge.to}`;
+      const occurrence = seen.get(pair2) || 0;
+      seen.set(pair2, occurrence + 1);
+      const { link } = edge;
+      addEntry(
+        context,
+        [`edge:${pair2}#${occurrence}`, `edge:${pair2}`],
+        edge.lineIndex,
+        link.labelStart >= 0 ? link.labelStart : link.start,
+        link.labelStart >= 0 ? link.labelEnd : link.arrowEnd,
+        {
+          rename: "flowchart",
+          label: link.label ?? "",
+          edge: { from: edge.from, to: edge.to, occurrence },
+          mentions: [edge.from, edge.to]
+        }
+      );
+    }
+    for (const statement of model.statements) {
+      if (statement.kind !== "subgraph") continue;
+      const line = context.lines[statement.lineIndex];
+      const match2 = line.match(/^(\s*subgraph\s+)([^\s[]+)(\s*\[)?/);
+      if (!match2) continue;
+      if (match2[3]) {
+        const open = match2[0].length;
+        const close = line.indexOf("]", open);
+        addEntry(context, [`node:${match2[2]}`], statement.lineIndex, open, close < 0 ? line.length : close, {
+          ...quotedOrTrimmed(line, open, close < 0 ? line.length : close),
+          format: "quoted"
+        });
+      } else {
+        addEntry(context, [`node:${match2[2]}`], statement.lineIndex, match2[1].length, line.length, {
+          format: "text"
+        });
+      }
+    }
+  }
+  var SEQUENCE_ARROW = /^(\s*)([^\s:>-][^:>]*?)\s*(<<-->>|<<->>|-->>|->>|-->|->|--x|-x|--\)|-\))\s*([+-]?)\s*([^:]+?)\s*:(.*)$/;
+  var SEQUENCE_BLOCK = /^(\s*)(loop|alt|opt|par_over|par|critical|break|rect)\b(.*)$/;
+  var SEQUENCE_BRANCH = /^(\s*)(else|and|option)\b(.*)$/;
+  function buildSequence(context) {
+    const { lines } = context;
+    let statement = 0;
+    const stack = [];
+    const participants = /* @__PURE__ */ new Map();
+    const mentions = [];
+    const declareParticipant = (id3, lineIndex, start2, end, alias) => {
+      if (participants.has(id3)) return;
+      const entry = addEntry(context, [`participant:${id3}`], lineIndex, start2, end, {
+        rename: "participant",
+        id: id3
+      });
+      if (alias) entry.keys.push(`participantLabel:${normalizeLabel(alias)}`);
+      entry.keys.push(`participantLabel:${id3}`);
+      participants.set(id3, entry);
+    };
+    forEachBodyLine(context, (text2, lineIndex, trimmed) => {
+      const participant = text2.match(
+        /^(\s*(?:create\s+)?(?:participant|actor)\s+)([^\s]+)(?:\s+as\s+(.+))?\s*$/
+      );
+      if (participant) {
+        const id3 = participant[2];
+        if (participant[3]) {
+          const aliasStart = text2.lastIndexOf(participant[3]);
+          declareParticipant(id3, lineIndex, aliasStart, aliasStart + participant[3].length, participant[3]);
+        } else {
+          const start2 = participant[1].length;
+          declareParticipant(id3, lineIndex, start2, start2 + id3.length, null);
+        }
+        return;
+      }
+      if (/^autonumber\b/.test(trimmed)) {
+        statement += 1;
+        return;
+      }
+      if (/^box\b/.test(trimmed)) {
+        stack.push({ kind: "box" });
+        return;
+      }
+      const message = text2.match(SEQUENCE_ARROW);
+      if (message) {
+        const from3 = message[2].trim();
+        const to = message[5].trim();
+        const colon3 = text2.indexOf(":", message[1].length + message[2].length);
+        addEntry(context, [`stmt:${statement}`, `message:${from3}>${to}`], lineIndex, colon3 + 1, text2.length, {
+          mentions: [from3, to]
+        });
+        mentions.push({ id: from3, lineIndex }, { id: to, lineIndex });
+        statement += message[4] ? 2 : 1;
+        return;
+      }
+      const note = text2.match(/^(\s*note\s+(?:left of|right of|over)\s+([^:]+?)\s*:)(.*)$/i);
+      if (note) {
+        addEntry(context, [`stmt:${statement}`], lineIndex, note[1].length, text2.length, {
+          mentions: note[2].split(",").map((id3) => id3.trim())
+        });
+        statement += 1;
+        return;
+      }
+      const block2 = text2.match(SEQUENCE_BLOCK);
+      if (block2) {
+        const start2 = block2[1].length + block2[2].length;
+        const entry = addEntry(context, [`stmt:${statement}`], lineIndex, start2, text2.length, {
+          rename: block2[2] === "rect" ? null : "span"
+        });
+        stack.push({ kind: "block", entry });
+        statement += 1;
+        return;
+      }
+      const branch = text2.match(SEQUENCE_BRANCH);
+      if (branch) {
+        addEntry(context, [`stmt:${statement}`], lineIndex, branch[1].length + branch[2].length, text2.length);
+        statement += 1;
+        return;
+      }
+      if (/^end\b/.test(trimmed)) {
+        const open = stack.pop();
+        if (open?.kind === "block") {
+          open.entry.keys.push(`stmt:${statement}`);
+        }
+        if (open?.kind !== "box") statement += 1;
+        return;
+      }
+      const activation = text2.match(/^\s*(activate|deactivate)\s+(\S+)/);
+      if (activation) {
+        addLineEntry(context, [`stmt:${statement}`], lineIndex, { mentions: [activation[2]] });
+        statement += 1;
+      }
+    });
+    for (const { id: id3, lineIndex } of mentions) {
+      if (participants.has(id3)) continue;
+      const line = lines[lineIndex];
+      const pattern = tokenPattern(id3);
+      const match2 = pattern.exec(line);
+      if (match2) {
+        declareParticipant(id3, lineIndex, match2.index, match2.index + id3.length, null);
+      }
+    }
+  }
+  var CLASS_RELATION = /^(\s*)([\p{L}\p{N}_.~-]+)\s*(?:"[^"]*"\s*)?(<\|--|\*--|o--|-->|--\*|--o|--\|>|\.\.>|<\.\.|\.\.\|>|<\|\.\.|--|\.\.|<-->|<--)\s*(?:"[^"]*"\s*)?([\p{L}\p{N}_.~-]+)\s*(?::(.*))?$/u;
+  function buildClass(context) {
+    let relation = 0;
+    let openClass = null;
+    const declared = /* @__PURE__ */ new Set();
+    const declare2 = (id3, lineIndex, start2, explicit = false) => {
+      if (explicit) {
+        dropImplicit(context, `node:${id3}`);
+      } else if (declared.has(id3)) {
+        return;
+      }
+      declared.add(id3);
+      addEntry(context, [`node:${id3}`], lineIndex, start2, start2 + id3.length, {
+        rename: "identifier",
+        format: "word",
+        implicit: !explicit
+      });
+    };
+    forEachBodyLine(context, (text2, lineIndex, trimmed) => {
+      if (openClass) {
+        if (trimmed === "}") {
+          openClass = null;
+          return;
+        }
+        addEntry(context, [`member:${openClass}:${normalizeLabel(trimmed)}`], lineIndex, 0, text2.length, {
+          mentions: [openClass]
+        });
+        return;
+      }
+      const declaration = text2.match(/^(\s*class\s+)([\p{L}\p{N}_.-]+)(~[^~]*~)?(\["([^"]*)"\])?.*?(\{)?\s*$/u);
+      if (declaration) {
+        const id3 = declaration[2];
+        if (declaration[4]) {
+          const start2 = text2.indexOf('"', declaration[1].length) + 1;
+          dropImplicit(context, `node:${id3}`);
+          declared.add(id3);
+          addEntry(context, [`node:${id3}`], lineIndex, start2, start2 + declaration[5].length, {
+            format: "quoted"
+          });
+        } else {
+          declare2(id3, lineIndex, declaration[1].length, true);
+        }
+        if (declaration[6]) openClass = id3;
+        return;
+      }
+      const memberLine = text2.match(/^(\s*)([\p{L}\p{N}_.-]+)\s*:(?!:)(.*)$/u);
+      if (memberLine && !CLASS_RELATION.test(text2)) {
+        const id3 = memberLine[2];
+        addEntry(
+          context,
+          [`member:${id3}:${normalizeLabel(memberLine[3])}`],
+          lineIndex,
+          text2.indexOf(":", memberLine[1].length) + 1,
+          text2.length,
+          { mentions: [id3] }
+        );
+        return;
+      }
+      const note = text2.match(/^\s*note\s+for\s+(\S+)\s+"([^"]*)"/);
+      if (note) {
+        const start2 = text2.indexOf('"') + 1;
+        addEntry(context, [`note:${note[1]}`], lineIndex, start2, start2 + note[2].length, {
+          format: "quoted",
+          mentions: [note[1]]
+        });
+        return;
+      }
+      const rel = text2.match(CLASS_RELATION);
+      if (rel) {
+        relation += 1;
+        const from3 = rel[2];
+        const to = rel[4];
+        const colon3 = rel[5] !== void 0 ? text2.lastIndexOf(":") : -1;
+        addEntry(
+          context,
+          [`rel:${relation}`, `edge:${from3}>${to}`],
+          lineIndex,
+          colon3 >= 0 ? colon3 + 1 : 0,
+          colon3 >= 0 ? text2.length : 0,
+          { rename: colon3 >= 0 ? "span" : "appendLabel", label: rel[5]?.trim() ?? "", mentions: [from3, to] }
+        );
+        declare2(from3, lineIndex, text2.indexOf(from3));
+        declare2(to, lineIndex, text2.indexOf(to, text2.indexOf(rel[3]) + rel[3].length));
+      }
+    });
+  }
+  function buildState(context) {
+    let edge = 0;
+    const scopes = ["root"];
+    const declared = /* @__PURE__ */ new Set();
+    const declare2 = (id3, lineIndex, start2, explicit = false) => {
+      if (id3 === "[*]") return;
+      if (explicit) {
+        dropImplicit(context, `node:${id3}`);
+      } else if (declared.has(id3)) {
+        return;
+      }
+      declared.add(id3);
+      addEntry(context, [`node:${id3}`], lineIndex, start2, start2 + id3.length, {
+        rename: "identifier",
+        format: "word",
+        implicit: !explicit
+      });
+    };
+    let openNote = null;
+    forEachBodyLine(context, (text2, lineIndex, trimmed) => {
+      if (openNote) {
+        if (/^end\s+note$/i.test(trimmed)) {
+          openNote = null;
+        } else if (!openNote.hasText) {
+          openNote.hasText = true;
+          addEntry(context, [`note:${openNote.id}`], lineIndex, 0, text2.length, {
+            mentions: [openNote.id]
+          });
+        }
+        return;
+      }
+      const alias = text2.match(/^(\s*state\s+)"([^"]*)"\s+as\s+([\p{L}\p{N}_.-]+)/u);
+      if (alias) {
+        dropImplicit(context, `node:${alias[3]}`);
+        declared.add(alias[3]);
+        const start2 = alias[1].length + 1;
+        addEntry(context, [`node:${alias[3]}`], lineIndex, start2, start2 + alias[2].length, {
+          format: "quoted"
+        });
+        if (/\{\s*$/.test(text2)) scopes.push(alias[3]);
+        return;
+      }
+      const composite = text2.match(/^(\s*state\s+)([\p{L}\p{N}_.-]+)/u);
+      if (composite) {
+        declare2(composite[2], lineIndex, composite[1].length, true);
+        if (/\{\s*$/.test(text2)) scopes.push(composite[2]);
+        return;
+      }
+      if (trimmed === "}") {
+        if (scopes.length > 1) scopes.pop();
+        return;
+      }
+      const note = text2.match(/^\s*note\s+(?:left|right)\s+of\s+([\p{L}\p{N}_.-]+)\s*(:)?(.*)$/u);
+      if (note) {
+        if (note[2]) {
+          addEntry(context, [`note:${note[1]}`], lineIndex, text2.indexOf(":") + 1, text2.length, {
+            mentions: [note[1]]
+          });
+        } else {
+          openNote = { id: note[1], hasText: false };
+        }
+        edge += 1;
+        return;
+      }
+      const transition = text2.match(/^(\s*)(\[\*\]|[\p{L}\p{N}_.-]+)\s*-->\s*(\[\*\]|[\p{L}\p{N}_.-]+)\s*(?::(.*))?$/u);
+      if (transition) {
+        const [, , from3, to, label] = transition;
+        const scope = scopes[scopes.length - 1];
+        const keys = [`stateEdge:${edge}`];
+        if (from3 === "[*]") keys.push(`node:${scope}_start`);
+        if (to === "[*]") keys.push(`node:${scope}_end`);
+        const colon3 = label !== void 0 ? text2.indexOf(":", text2.indexOf("-->")) : -1;
+        addEntry(context, keys, lineIndex, colon3 >= 0 ? colon3 + 1 : 0, colon3 >= 0 ? text2.length : 0, {
+          rename: colon3 >= 0 ? "span" : "appendLabel",
+          label: label?.trim() ?? "",
+          mentions: [from3, to].filter((id3) => id3 !== "[*]")
+        });
+        edge += 1;
+        declare2(from3, lineIndex, text2.indexOf(from3));
+        declare2(to, lineIndex, text2.indexOf(to, text2.indexOf("-->") + 3));
+        return;
+      }
+      const description = text2.match(/^(\s*)([\p{L}\p{N}_.-]+)\s*:(.*)$/u);
+      if (description) {
+        const id3 = description[2];
+        declared.add(id3);
+        context.entries = context.entries.filter(
+          (entry) => !(entry.keys[0] === `node:${id3}` && entry.rename === "identifier")
+        );
+        addEntry(context, [`node:${id3}`], lineIndex, text2.indexOf(":") + 1, text2.length);
+      }
+    });
+  }
+  var ER_RELATION = /^(\s*)([\p{L}\p{N}_-]+)(?:\["[^"]*"\])?\s+([|}o{]{2})(--|\.\.)([|}o{]{2})\s+([\p{L}\p{N}_-]+)(?:\["[^"]*"\])?\s*:\s*(.*)$/u;
+  function buildEr(context) {
+    let relation = 0;
+    let openEntity = null;
+    let row = 0;
+    const declared = /* @__PURE__ */ new Set();
+    const declare2 = (id3, lineIndex, start2, explicit = false) => {
+      if (explicit) {
+        dropImplicit(context, `node:${id3}`);
+      } else if (declared.has(id3)) {
+        return;
+      }
+      declared.add(id3);
+      addEntry(context, [`node:${id3}`], lineIndex, start2, start2 + id3.length, {
+        rename: "identifier",
+        format: "word",
+        implicit: !explicit
+      });
+    };
+    forEachBodyLine(context, (text2, lineIndex, trimmed) => {
+      if (openEntity) {
+        if (trimmed === "}") {
+          openEntity = null;
+          return;
+        }
+        const attribute2 = text2.match(/^(\s*)(\S+)\s+([\p{L}\p{N}_()[\]*-]+)/u);
+        if (attribute2) {
+          const start2 = text2.indexOf(attribute2[3], attribute2[1].length + attribute2[2].length);
+          addEntry(
+            context,
+            [`attr:${openEntity}:${attribute2[3]}`, `attrRow:${openEntity}:${row}`],
+            lineIndex,
+            start2,
+            start2 + attribute2[3].length,
+            { format: "word", mentions: [openEntity] }
+          );
+          row += 1;
+        }
+        return;
+      }
+      const block2 = text2.match(/^(\s*)([\p{L}\p{N}_-]+)(?:\["([^"]*)"\])?\s*\{\s*$/u);
+      if (block2) {
+        if (block2[3] !== void 0) {
+          const start2 = text2.indexOf('"') + 1;
+          dropImplicit(context, `node:${block2[2]}`);
+          declared.add(block2[2]);
+          addEntry(context, [`node:${block2[2]}`], lineIndex, start2, start2 + block2[3].length, {
+            format: "quoted"
+          });
+        } else {
+          declare2(block2[2], lineIndex, block2[1].length, true);
+        }
+        openEntity = block2[2];
+        row = 0;
+        return;
+      }
+      const rel = text2.match(ER_RELATION);
+      if (rel) {
+        const from3 = rel[2];
+        const to = rel[6];
+        const colon3 = text2.indexOf(":", text2.indexOf(rel[4]));
+        const span = quotedOrTrimmed(text2, colon3 + 1, text2.length);
+        addEntry(context, [`edge:${from3}>${to}`, `erRel:${relation}`], lineIndex, span.start, span.end, {
+          format: "erLabel",
+          quoted: span.quoted,
+          mentions: [from3, to]
+        });
+        relation += 1;
+        declare2(from3, lineIndex, text2.indexOf(from3));
+        declare2(to, lineIndex, text2.indexOf(to, text2.indexOf(rel[5]) + 2));
+      }
+    });
+  }
+  var GANTT_SETTINGS = /^(dateFormat|axisFormat|tickInterval|excludes|includes|todayMarker|weekday|weekend|displayMode|inclusiveEndDates|topAxis|click|accTitle|accDescr)\b/;
+  var GANTT_TAGS = /* @__PURE__ */ new Set(["crit", "done", "active", "milestone", "vert"]);
+  function buildGantt(context) {
+    let task = 0;
+    let autoId = 0;
+    let section = 0;
+    forEachBodyLine(context, (text2, lineIndex, trimmed) => {
+      if (addTitle(context, text2, lineIndex)) return;
+      const sectionMatch = text2.match(/^(\s*section\s+)(.+)$/);
+      if (sectionMatch) {
+        addEntry(context, [`section:${normalizeLabel(sectionMatch[2])}`, `sectionIndex:${section}`], lineIndex, sectionMatch[1].length, text2.length);
+        section += 1;
+        return;
+      }
+      if (GANTT_SETTINGS.test(trimmed)) return;
+      const colon3 = text2.indexOf(":");
+      if (colon3 <= 0) return;
+      const parts = text2.slice(colon3 + 1).split(",").map((part) => part.trim()).filter((part) => !GANTT_TAGS.has(part));
+      let id3;
+      if (parts.length >= 3) {
+        id3 = parts[0];
+      } else {
+        autoId += 1;
+        id3 = `task${autoId}`;
+      }
+      addEntry(context, [`task:${id3}`, `taskIndex:${task}`], lineIndex, 0, colon3, { format: "field", allowComma: true });
+      task += 1;
+    });
+  }
+  function buildPie(context) {
+    addTitleFromHeader(context);
+    let slice = 0;
+    forEachBodyLine(context, (text2, lineIndex) => {
+      if (addTitle(context, text2, lineIndex)) return;
+      const data2 = text2.match(/^(\s*)"([^"]*)"\s*:/);
+      if (data2) {
+        const start2 = data2[1].length + 1;
+        addEntry(context, [`slice:${slice}`], lineIndex, start2, start2 + data2[2].length, { format: "quoted" });
+        slice += 1;
+      }
+    });
+  }
+  function buildMindmap(context) {
+    let node = 0;
+    forEachBodyLine(context, (text2, lineIndex, trimmed) => {
+      if (trimmed.startsWith("::icon(") || trimmed.startsWith(":::")) return;
+      const span = mindmapLabelSpan(text2);
+      addEntry(context, [`mindmap:${node}`], lineIndex, span.start, span.end, { format: span.format });
+      node += 1;
+    });
+  }
+  var MINDMAP_SHAPES = [
+    ["((", "))"],
+    ["))", "(("],
+    ["{{", "}}"],
+    ["[", "]"],
+    ["(", ")"],
+    [")", "("]
+  ];
+  function mindmapLabelSpan(text2) {
+    const indent4 = getIndent(text2).length;
+    const body2 = text2.slice(indent4).replace(/\s*:::.*$/, "").trimEnd();
+    for (let offset = 1; offset < body2.length; offset += 1) {
+      for (const [open, close] of MINDMAP_SHAPES) {
+        if (!body2.startsWith(open, offset) || !body2.endsWith(close)) continue;
+        const labelStart = indent4 + offset + open.length;
+        const labelEnd = indent4 + body2.length - close.length;
+        if (labelEnd <= labelStart) continue;
+        const span = quotedOrTrimmed(text2, labelStart, labelEnd);
+        return { start: span.start, end: span.end, format: span.quoted ? "quoted" : "bracket" };
+      }
+    }
+    return { start: indent4, end: indent4 + body2.length, format: "text" };
+  }
+  function buildJourney(context) {
+    let task = 0;
+    forEachBodyLine(context, (text2, lineIndex) => {
+      if (addTitle(context, text2, lineIndex)) return;
+      const section = text2.match(/^(\s*section\s+)(.+)$/);
+      if (section) {
+        addEntry(context, [`section:${normalizeLabel(section[2])}`], lineIndex, section[1].length, text2.length);
+        return;
+      }
+      const colon3 = text2.indexOf(":");
+      if (colon3 > 0) {
+        addEntry(context, [`journeyTask:${task}`], lineIndex, 0, colon3, { format: "field" });
+        task += 1;
+      }
+    });
+  }
+  function buildTimeline(context) {
+    let node = 0;
+    forEachBodyLine(context, (text2, lineIndex) => {
+      if (addTitle(context, text2, lineIndex)) return;
+      const section = text2.match(/^(\s*section\s+)(.+)$/);
+      if (section) {
+        addEntry(context, [`timeline:${node}`], lineIndex, section[1].length, text2.length);
+        node += 1;
+        return;
+      }
+      let position = 0;
+      for (const part of text2.split(":")) {
+        const start2 = position;
+        position += part.length + 1;
+        if (!part.trim()) continue;
+        addEntry(context, [`timeline:${node}`], lineIndex, start2, start2 + part.length, { format: "field" });
+        node += 1;
+      }
+    });
+  }
+  function buildGit(context) {
+    let sequence = 0;
+    forEachBodyLine(context, (text2, lineIndex, trimmed) => {
+      const branch = text2.match(/^(\s*branch\s+)(\S+)/);
+      if (branch) {
+        addEntry(context, [`branch:${branch[2]}`], lineIndex, branch[1].length, branch[1].length + branch[2].length, {
+          rename: "identifier",
+          allowPath: true
+        });
+        return;
+      }
+      if (!/^(commit|merge|cherry-pick)\b/.test(trimmed)) return;
+      const keys = [`commitSeq:${sequence}`];
+      const id3 = text2.match(/\bid:\s*"([^"]*)"/);
+      const tag2 = text2.match(/\btag:\s*"([^"]*)"/);
+      if (id3 && !trimmed.startsWith("cherry-pick")) keys.push(`commit:${id3[1]}`);
+      if (tag2) {
+        const tagStart2 = tag2.index + tag2[0].indexOf('"') + 1;
+        addEntry(context, [`tag:${tag2[1]}`], lineIndex, tagStart2, tagStart2 + tag2[1].length, { format: "quoted" });
+      }
+      const merged = text2.match(/^(\s*merge\s+)(\S+)/);
+      if (id3 && !trimmed.startsWith("cherry-pick")) {
+        const start2 = id3.index + id3[0].indexOf('"') + 1;
+        addEntry(context, keys, lineIndex, start2, start2 + id3[1].length, { format: "quoted" });
+      } else {
+        addEntry(context, keys, lineIndex, 0, text2.length, {
+          // A cherry-pick's id names the picked commit, not the new one.
+          rename: trimmed.startsWith("cherry-pick") ? null : "appendGitId",
+          mentions: merged ? [merged[2]] : []
+        });
+      }
+      sequence += 1;
+    });
+  }
+  function buildQuadrant(context) {
+    addTitleFromHeader(context);
+    forEachBodyLine(context, (text2, lineIndex) => {
+      if (addTitle(context, text2, lineIndex)) return;
+      const axis = text2.match(/^(\s*[xy]-axis\s+)(.*)$/);
+      if (axis) {
+        const arrow = text2.indexOf("-->");
+        const firstEnd = arrow >= 0 ? arrow : text2.length;
+        addEntry(context, [], lineIndex, axis[1].length, firstEnd, quotedOrTrimmed(text2, axis[1].length, firstEnd));
+        if (arrow >= 0) addEntry(context, [], lineIndex, arrow + 3, text2.length, quotedOrTrimmed(text2, arrow + 3, text2.length));
+        return;
+      }
+      const quadrant = text2.match(/^(\s*quadrant-(\d)\s+)(.*)$/);
+      if (quadrant) {
+        addEntry(context, [`quadrant:${quadrant[2]}`], lineIndex, quadrant[1].length, text2.length);
+        return;
+      }
+      const point = text2.match(/^(\s*)([^:]+?)\s*:\s*\[/);
+      if (point) {
+        addEntry(context, [], lineIndex, point[1].length, point[1].length + point[2].length, { format: "field" });
+      }
+    });
+  }
+  function buildOther(context) {
+    const header2 = context.lines[context.headerIndex].trim();
+    if (/^xychart/.test(header2)) return buildXyChart(context);
+    if (/^block/.test(header2)) return buildShapedNodes(context);
+    if (/^kanban/.test(header2)) return buildShapedNodes(context);
+    if (/^architecture/.test(header2)) return buildArchitecture(context);
+    if (/^requirementDiagram/.test(header2)) return buildRequirement(context);
+    if (/^sankey/.test(header2)) return buildSankey(context);
+    return buildByLabels(context);
+  }
+  function buildXyChart(context) {
+    addTitleFromHeader(context);
+    let plot = 0;
+    forEachBodyLine(context, (text2, lineIndex) => {
+      if (addTitle(context, text2, lineIndex)) return;
+      const series = text2.match(/^(\s*)(bar|line)\b/);
+      if (series) {
+        addLineEntry(context, [`plot:${plot}`], lineIndex);
+        plot += 1;
+        return;
+      }
+      const axis = text2.match(/^(\s*[xy]-axis\s+)/);
+      if (axis) {
+        for (const label of labelSpans(text2, axis[0].length)) {
+          addEntry(context, [], lineIndex, label.start, label.end, { format: label.format });
+        }
+      }
+    });
+  }
+  function buildShapedNodes(context) {
+    const seen = /* @__PURE__ */ new Set();
+    forEachBodyLine(context, (text2, lineIndex) => {
+      let position = getIndent(text2).length;
+      while (position < text2.length) {
+        const ref = parseFlowchartNodeRef(text2, position);
+        if (!ref) {
+          position += 1;
+          continue;
+        }
+        if (!seen.has(ref.id) && !/^(columns|space|end|block)$/.test(ref.id)) {
+          seen.add(ref.id);
+          const labeled = ref.labelStart >= 0;
+          addEntry(context, [`node:${ref.id}`], lineIndex, labeled ? ref.labelStart : ref.start, labeled ? ref.labelEnd : ref.idEnd, {
+            ...labeled ? quotedOrTrimmed(text2, ref.labelStart, ref.labelEnd) : {},
+            rename: labeled ? "span" : "identifier",
+            format: labeled ? "bracket" : "word"
+          });
+        }
+        position = Math.max(ref.end, position + 1);
+      }
+    });
+  }
+  function buildArchitecture(context) {
+    forEachBodyLine(context, (text2, lineIndex) => {
+      const item = text2.match(/^(\s*(?:service|group|junction)\s+)([\p{L}\p{N}_-]+)/u);
+      if (!item) return;
+      const open = text2.indexOf("[", item[0].length);
+      const close = open >= 0 ? text2.indexOf("]", open) : -1;
+      if (open >= 0 && close > open) {
+        addEntry(context, [`node:${item[2]}`], lineIndex, open + 1, close, {
+          ...quotedOrTrimmed(text2, open + 1, close),
+          format: "bracket"
+        });
+      } else {
+        addEntry(context, [`node:${item[2]}`], lineIndex, item[1].length, item[0].length, {
+          rename: "identifier",
+          format: "word"
+        });
+      }
+    });
+  }
+  var REQUIREMENT_FIELD_NAMES = {
+    id: "id",
+    text: "text",
+    risk: "risk",
+    verifymethod: "verification",
+    type: "type",
+    docref: "doc ref"
+  };
+  function buildRequirement(context) {
+    let open = null;
+    forEachBodyLine(context, (text2, lineIndex, trimmed) => {
+      if (open) {
+        if (trimmed === "}") {
+          open = null;
+          return;
+        }
+        const field2 = text2.match(/^(\s*)(\w+)\s*:\s*(.*)$/);
+        if (field2) {
+          const name2 = REQUIREMENT_FIELD_NAMES[field2[2].toLowerCase()] || field2[2].toLowerCase();
+          const start2 = text2.indexOf(":") + 1;
+          addEntry(context, [`field:${open}:${name2}`], lineIndex, start2, text2.length, {
+            ...quotedOrTrimmed(text2, start2, text2.length),
+            mentions: [open]
+          });
+        }
+        return;
+      }
+      const block2 = text2.match(/^(\s*\w+\s+)([\p{L}\p{N}_-]+)\s*\{\s*$/u);
+      if (block2) {
+        open = block2[2];
+        addEntry(context, [`node:${block2[2]}`], lineIndex, block2[1].length, block2[1].length + block2[2].length, {
+          rename: "identifier",
+          format: "word"
+        });
+        return;
+      }
+      const relation = text2.match(/^\s*([\p{L}\p{N}_-]+)\s*-\s*(\w+)\s*->\s*([\p{L}\p{N}_-]+)/u);
+      if (relation) {
+        const start2 = text2.indexOf(relation[2], text2.indexOf("-"));
+        addEntry(context, [`edge:${relation[1]}>${relation[3]}`], lineIndex, start2, start2 + relation[2].length, {
+          rename: null,
+          mentions: [relation[1], relation[3]]
+        });
+      }
+    });
+  }
+  function buildSankey(context) {
+    const nodes = /* @__PURE__ */ new Map();
+    let link = 0;
+    forEachBodyLine(context, (text2, lineIndex) => {
+      const fields = text2.split(",");
+      if (fields.length < 3) return;
+      let position = 0;
+      fields.slice(0, 2).forEach((field2) => {
+        const name2 = field2.trim().replace(/^"(.*)"$/, "$1");
+        if (name2 && !nodes.has(name2)) {
+          nodes.set(name2, nodes.size);
+          addEntry(context, [`sankeyNode:${nodes.get(name2)}`], lineIndex, position, position + field2.length, {
+            ...quotedOrTrimmed(text2, position, position + field2.length),
+            rename: "csvField"
+          });
+        }
+        position += field2.length + 1;
+      });
+      addLineEntry(context, [`sankeyLink:${link}`], lineIndex);
+      link += 1;
+    });
+  }
+  function buildByLabels(context) {
+    addTitleFromHeader(context);
+    forEachBodyLine(context, (text2, lineIndex) => {
+      if (addTitle(context, text2, lineIndex)) return;
+      const curve = text2.match(/^(\s*curve\s+)([\p{L}\p{N}_-]+)(?!\s*\[)/u);
+      if (curve) {
+        addEntry(context, [], lineIndex, curve[1].length, curve[1].length + curve[2].length, {
+          rename: "identifier",
+          format: "word"
+        });
+        return;
+      }
+      const axis = text2.match(/^(\s*axis\s+)(.*)$/);
+      if (axis && !axis[2].includes('"')) {
+        let position2 = axis[1].length;
+        for (const part of axis[2].split(",")) {
+          addEntry(context, [], lineIndex, position2, position2 + part.length, { format: "field" });
+          position2 += part.length + 1;
+        }
+        return;
+      }
+      const spans = labelSpans(text2, getIndent(text2).length);
+      if (spans.length) {
+        for (const span of spans) {
+          addEntry(context, [], lineIndex, span.start, span.end, { format: span.format });
+        }
+        return;
+      }
+      let position = 0;
+      for (const part of text2.split(/[,:]/)) {
+        const start2 = position;
+        position += part.length + 1;
+        if (part.trim() && !/^[\s\d.%-]+$/.test(part)) {
+          addEntry(context, [], lineIndex, start2, start2 + part.length, { format: "field" });
+        }
+      }
+    });
+  }
+  function labelSpans(text2, from3) {
+    const spans = [];
+    const quoted = /"([^"]*)"/g;
+    quoted.lastIndex = from3;
+    for (const match2 of text2.matchAll(quoted)) {
+      if (match2.index < from3) continue;
+      spans.push({ start: match2.index + 1, end: match2.index + 1 + match2[1].length, format: "quoted" });
+    }
+    if (spans.length) return spans;
+    const list2 = text2.slice(from3).match(/^\s*\[(.*)\]\s*$/);
+    if (list2) {
+      let position = text2.indexOf("[", from3) + 1;
+      for (const part of list2[1].split(",")) {
+        spans.push({ start: position, end: position + part.length, format: "field" });
+        position += part.length + 1;
+      }
+    }
+    return spans;
+  }
+
+  // src/rich-editor/domain/mermaidTables.js
+  var SECTION = /^(\s*)section\s+(.*)$/;
+  function sectionGroup(text2) {
+    const match2 = text2.match(SECTION);
+    return match2 ? { kind: "group", cells: [match2[2].trim()] } : null;
+  }
+  function formatSection(row, indent4) {
+    return `${indent4}section ${clean(row.cells[0]) || "Section"}`;
+  }
+  function clean(value) {
+    return String(value ?? "").replace(/\r?\n/g, " ").trim();
+  }
+  function field(value) {
+    return clean(value).replace(/:/g, " -");
+  }
+  var GANTT_STATUSES = ["", "active", "done", "crit", "milestone", "crit, active", "crit, done"];
+  var SPECS = {
+    pie: {
+      title: "Slices",
+      columns: [
+        { key: "label", label: "Label" },
+        { key: "value", label: "Value", type: "number" }
+      ],
+      parse(text2) {
+        const match2 = text2.match(/^\s*"([^"]*)"\s*:\s*(.*)$/);
+        return match2 ? { kind: "row", cells: [match2[1], match2[2].trim()] } : null;
+      },
+      format(row, indent4) {
+        return `${indent4}"${clean(row.cells[0]).replace(/"/g, "'")}" : ${clean(row.cells[1]) || "0"}`;
+      },
+      newRow: () => ["New slice", "10"]
+    },
+    gantt: {
+      title: "Tasks",
+      groups: true,
+      columns: [
+        { key: "name", label: "Task" },
+        { key: "status", label: "Status", type: "select", options: GANTT_STATUSES },
+        { key: "id", label: "Id" },
+        { key: "start", label: "Start / after" },
+        { key: "end", label: "Duration / end" }
+      ],
+      parse(text2, context) {
+        const group2 = sectionGroup(text2);
+        if (group2) return group2;
+        const trimmed = text2.trim();
+        const colon3 = text2.indexOf(":");
+        if (colon3 <= 0 || GANTT_SETTINGS.test(trimmed) || /^(title|section)\b/.test(trimmed)) {
+          return null;
+        }
+        if (context.lineIndex === context.headerIndex) return null;
+        const parts = text2.slice(colon3 + 1).split(",").map((part) => part.trim());
+        const tags3 = [];
+        while (parts.length && GANTT_TAGS.has(parts[0])) tags3.push(parts.shift());
+        let id3 = "";
+        let start2 = "";
+        let end = parts[0] ?? "";
+        if (parts.length >= 3) {
+          [id3, start2] = parts;
+          end = parts.slice(2).join(", ");
+        } else if (parts.length === 2) {
+          [start2, end] = parts;
+        }
+        return { kind: "row", cells: [text2.slice(0, colon3).trim(), tags3.join(", "), id3, start2, end] };
+      },
+      format(row, indent4) {
+        const [name2, status, id3, start2, end] = row.cells.map(clean);
+        const parts = status ? status.split(",").map((tag2) => tag2.trim()).filter(Boolean) : [];
+        if (id3 && start2) parts.push(id3);
+        if (start2) parts.push(start2);
+        parts.push(end || "1d");
+        return `${indent4}${field(name2) || "Task"} :${parts.join(", ")}`;
+      },
+      formatGroup: formatSection,
+      newRow: () => ["New task", "", "", "", "1d"],
+      newGroup: () => ["New section"]
+    },
+    journey: {
+      title: "Tasks",
+      groups: true,
+      columns: [
+        { key: "task", label: "Task" },
+        { key: "score", label: "Score (1-5)", type: "number" },
+        { key: "actors", label: "Actors" }
+      ],
+      parse(text2) {
+        const group2 = sectionGroup(text2);
+        if (group2) return group2;
+        if (/^\s*title\b/.test(text2)) return null;
+        const parts = text2.split(":");
+        if (parts.length < 2) return null;
+        return {
+          kind: "row",
+          cells: [parts[0].trim(), (parts[1] ?? "").trim(), parts.slice(2).join(":").trim()]
+        };
+      },
+      format(row, indent4) {
+        const [task, score2, actors] = row.cells.map(clean);
+        const base4 = `${indent4}${field(task) || "Task"}: ${field(score2) || "3"}`;
+        return actors ? `${base4}: ${field(actors)}` : base4;
+      },
+      formatGroup: formatSection,
+      newRow: () => ["New task", "3", ""],
+      newGroup: () => ["New section"]
+    },
+    timeline: {
+      title: "Events",
+      groups: true,
+      columns: [
+        { key: "period", label: "Period" },
+        { key: "events", label: "Events (separate with :)" }
+      ],
+      parse(text2) {
+        const group2 = sectionGroup(text2);
+        if (group2) return group2;
+        if (/^\s*title\b/.test(text2)) return null;
+        const colon3 = text2.indexOf(":");
+        if (colon3 < 0) {
+          return text2.trim() ? { kind: "row", cells: [text2.trim(), ""] } : null;
+        }
+        return {
+          kind: "row",
+          cells: [
+            text2.slice(0, colon3).trim(),
+            text2.slice(colon3 + 1).split(":").map((part) => part.trim()).filter(Boolean).join(" : ")
+          ]
+        };
+      },
+      format(row, indent4) {
+        const period2 = field(row.cells[0]);
+        const events = clean(row.cells[1]).split(":").map((part) => part.trim()).filter(Boolean).join(" : ");
+        if (!events) return `${indent4}${period2 || "Period"}`;
+        return period2 ? `${indent4}${period2} : ${events}` : `${indent4}: ${events}`;
+      },
+      formatGroup: formatSection,
+      newRow: () => ["New period", "Event"],
+      newGroup: () => ["New section"]
+    },
+    sankey: {
+      title: "Flows",
+      columns: [
+        { key: "source", label: "Source" },
+        { key: "target", label: "Target" },
+        { key: "value", label: "Value", type: "number" }
+      ],
+      parse(text2) {
+        const fields = [];
+        const pattern = /\s*("([^"]*)"|[^,]*)\s*(,|$)/gy;
+        let match2;
+        while (pattern.lastIndex < text2.length && (match2 = pattern.exec(text2))) {
+          fields.push(match2[2] ?? match2[1].trim());
+          if (!match2[3]) break;
+        }
+        return fields.length >= 3 ? { kind: "row", cells: fields.slice(0, 3) } : null;
+      },
+      format(row, indent4) {
+        const csv = (value) => {
+          const text2 = clean(value).replace(/"/g, "'");
+          return text2.includes(",") ? `"${text2}"` : text2;
+        };
+        return `${indent4}${csv(row.cells[0]) || "Source"},${csv(row.cells[1]) || "Target"},${clean(row.cells[2]) || "1"}`;
+      },
+      newRow: () => ["Source", "Target", "10"]
+    },
+    quadrant: {
+      title: "Points",
+      columns: [
+        { key: "name", label: "Point" },
+        { key: "x", label: "x (0-1)", type: "number" },
+        { key: "y", label: "y (0-1)", type: "number" }
+      ],
+      parse(text2) {
+        const match2 = text2.match(/^\s*([^:]+?)\s*:\s*\[\s*([^,\]]*)\s*,\s*([^\]]*)\s*\](.*)$/);
+        return match2 ? { kind: "row", cells: [match2[1], match2[2].trim(), match2[3].trim()], extra: match2[4] } : null;
+      },
+      format(row, indent4) {
+        const [name2, x, y] = row.cells.map(clean);
+        return `${indent4}${field(name2) || "Point"}: [${x || "0.5"}, ${y || "0.5"}]${row.extra ?? ""}`;
+      },
+      newRow: () => ["New point", "0.5", "0.5"]
+    }
+  };
+  function getMermaidTableSpec(code3, type4 = detectMermaidDiagramType(code3)) {
+    if (type4 === "other") {
+      const lines = splitMermaidLines(code3);
+      const header2 = lines[findMermaidHeaderLine(lines)]?.trim() ?? "";
+      return /^sankey/.test(header2) ? SPECS.sankey : null;
+    }
+    return SPECS[type4] ?? null;
+  }
+  function readMermaidTable(code3, spec) {
+    const lines = splitMermaidLines(code3);
+    const headerIndex = findMermaidHeaderLine(lines);
+    const rows = [];
+    for (let lineIndex = headerIndex + 1; lineIndex < lines.length; lineIndex += 1) {
+      const text2 = lines[lineIndex];
+      if (!text2.trim() || text2.trim().startsWith("%%")) continue;
+      const row = spec.parse(text2, { lineIndex, headerIndex });
+      if (row) rows.push({ ...row, lineIndex, indent: getIndent(text2) });
+    }
+    return rows;
+  }
+  function rowIndent(rows, kind, lines, headerIndex) {
+    const sample = rows.find((row) => row.kind === kind) || rows[0];
+    if (sample) return sample.indent;
+    const body2 = lines.slice(headerIndex + 1).find((line) => line.trim());
+    return body2 ? getIndent(body2) : "    ";
+  }
+  function formatRow(spec, row, indent4) {
+    return row.kind === "group" ? spec.formatGroup(row, indent4) : spec.format(row, indent4);
+  }
+  function updateMermaidTableRow(code3, spec, lineIndex, cells) {
+    const lines = splitMermaidLines(code3);
+    const headerIndex = findMermaidHeaderLine(lines);
+    const current = spec.parse(lines[lineIndex] ?? "", { lineIndex, headerIndex });
+    if (!current) return code3;
+    lines[lineIndex] = formatRow(spec, { ...current, cells }, getIndent(lines[lineIndex]));
+    return lines.join("\n");
+  }
+  function insertMermaidTableRow(code3, spec, { afterLine = null, kind = "row" } = {}) {
+    const lines = splitMermaidLines(code3);
+    const headerIndex = findMermaidHeaderLine(lines);
+    const rows = readMermaidTable(code3, spec);
+    if (kind === "group" && !spec.groups) return { code: code3, lineIndex: -1 };
+    const row = { kind, cells: kind === "group" ? spec.newGroup() : spec.newRow() };
+    let at;
+    if (afterLine !== null && afterLine >= 0) {
+      at = afterLine + 1;
+    } else {
+      at = rows.length ? rows[rows.length - 1].lineIndex + 1 : headerIndex + 1;
+      while (at > headerIndex + 1 && !lines[at - 1].trim()) at -= 1;
+    }
+    lines.splice(at, 0, formatRow(spec, row, rowIndent(rows, kind, lines, headerIndex)));
+    return { code: lines.join("\n"), lineIndex: at };
+  }
+  function removeMermaidTableRow(code3, lineIndex) {
+    const lines = splitMermaidLines(code3);
+    lines.splice(lineIndex, 1);
+    return lines.join("\n");
+  }
+  function moveMermaidTableRow(code3, spec, lineIndex, delta) {
+    const rows = readMermaidTable(code3, spec);
+    const position = rows.findIndex((row) => row.lineIndex === lineIndex);
+    const other = rows[position + delta];
+    if (position < 0 || !other) return { code: code3, lineIndex };
+    const lines = splitMermaidLines(code3);
+    [lines[lineIndex], lines[other.lineIndex]] = [lines[other.lineIndex], lines[lineIndex]];
+    return { code: lines.join("\n"), lineIndex: other.lineIndex };
+  }
+
+  // src/rich-editor/domain/mermaidEdits.js
+  function read(code3) {
+    const lines = splitMermaidLines(code3);
+    return { lines, headerIndex: findMermaidHeaderLine(lines) };
+  }
+  function bodyIndent(lines, headerIndex) {
+    for (let index = headerIndex + 1; index < lines.length; index += 1) {
+      if (lines[index].trim()) return getIndent(lines[index]) || "    ";
+    }
+    return "    ";
+  }
+  function lastContentLine(lines) {
+    let index = lines.length - 1;
+    while (index > 0 && !lines[index].trim()) index -= 1;
+    return index;
+  }
+  function insertLines2(lines, at, newLines) {
+    const next2 = [...lines];
+    next2.splice(at, 0, ...newLines);
+    return next2.join("\n");
+  }
+  function removeLineIndexes(lines, indexes) {
+    return lines.filter((_, index) => !indexes.has(index)).join("\n");
+  }
+  function uniqueId(base4, used) {
+    if (!used.has(base4)) return base4;
+    for (let index = 2; ; index += 1) {
+      if (!used.has(`${base4}${index}`)) return `${base4}${index}`;
+    }
+  }
+  function idFromLabel(label, prefix2, used) {
+    const clean2 = String(label ?? "").trim();
+    if (isIdentifierLike(clean2) && !used.has(clean2)) return clean2;
+    for (let index = 1; ; index += 1) {
+      if (!used.has(`${prefix2}${index}`)) return `${prefix2}${index}`;
+    }
+  }
+  function blockRange(lines, start2, isOpen, isClose) {
+    let depth = 0;
+    for (let index = start2; index < lines.length; index += 1) {
+      if (index > start2 && isOpen(lines[index])) depth += 1;
+      if (index > start2 && isClose(lines[index])) {
+        if (depth === 0) return [start2, index];
+        depth -= 1;
+      }
+    }
+    return [start2, start2];
+  }
+  function indentLines(lines, from3, to, by) {
+    return lines.map(
+      (line, index) => index >= from3 && index <= to && line.trim() ? `${by}${line}` : line
+    );
+  }
+  function dedentLines(lines, from3, to, by) {
+    return lines.map(
+      (line, index) => index >= from3 && index <= to && line.startsWith(by) ? line.slice(by.length) : line
+    );
+  }
+  var SEQUENCE_ARROWS = [
+    { key: "->>", label: "Solid arrow" },
+    { key: "-->>", label: "Dashed arrow" },
+    { key: "->", label: "Solid line" },
+    { key: "-->", label: "Dashed line" },
+    { key: "-x", label: "Solid cross" },
+    { key: "--x", label: "Dashed cross" },
+    { key: "-)", label: "Async" },
+    { key: "--)", label: "Dashed async" },
+    { key: "<<->>", label: "Both ways" },
+    { key: "<<-->>", label: "Both ways, dashed" }
+  ];
+  var SEQUENCE_BLOCKS = [
+    { key: "loop", label: "Loop" },
+    { key: "alt", label: "Alternative" },
+    { key: "opt", label: "Optional" },
+    { key: "par", label: "Parallel" },
+    { key: "critical", label: "Critical" },
+    { key: "break", label: "Break" }
+  ];
+  var SEQUENCE_DECLARATION = /^(\s*)(create\s+)?(participant|actor)\s+([^\s]+)(?:\s+as\s+(.+))?\s*$/;
+  function parseSequenceMessage(text2) {
+    const match2 = String(text2 ?? "").match(SEQUENCE_ARROW);
+    if (!match2) return null;
+    return {
+      indent: match2[1],
+      from: match2[2].trim(),
+      arrow: match2[3],
+      activation: match2[4],
+      to: match2[5].trim(),
+      text: match2[6].trim()
+    };
+  }
+  function classifySequenceLine(text2) {
+    const trimmed = String(text2 ?? "").trim();
+    if (!trimmed || trimmed.startsWith("%%")) return null;
+    if (SEQUENCE_DECLARATION.test(text2)) return "participant";
+    if (parseSequenceMessage(text2)) return "message";
+    if (/^note\s+(left of|right of|over)\b/i.test(trimmed)) return "note";
+    if (SEQUENCE_BLOCK.test(text2) || /^box\b/.test(trimmed)) return "block";
+    if (SEQUENCE_BRANCH.test(text2)) return "branch";
+    if (/^end\b/.test(trimmed)) return "end";
+    if (/^(activate|deactivate)\s/.test(trimmed)) return "activation";
+    if (/^autonumber\b/.test(trimmed)) return "autonumber";
+    return null;
+  }
+  function getSequenceParticipants(code3) {
+    const { lines, headerIndex } = read(code3);
+    const participants = /* @__PURE__ */ new Map();
+    const see = (id3, lineIndex, declaration = null) => {
+      if (!id3) return;
+      const existing = participants.get(id3);
+      if (existing) {
+        if (declaration && existing.declarationLine < 0) {
+          Object.assign(existing, declaration, { declarationLine: lineIndex });
+        }
+        return;
+      }
+      participants.set(id3, {
+        id: id3,
+        label: declaration?.label ?? id3,
+        keyword: declaration?.keyword ?? "participant",
+        declarationLine: declaration ? lineIndex : -1,
+        created: Boolean(declaration?.created)
+      });
+    };
+    for (let lineIndex = headerIndex + 1; lineIndex < lines.length; lineIndex += 1) {
+      const text2 = lines[lineIndex];
+      const declaration = text2.match(SEQUENCE_DECLARATION);
+      if (declaration) {
+        see(declaration[4], lineIndex, {
+          label: declaration[5]?.trim() ?? declaration[4],
+          keyword: declaration[3],
+          created: Boolean(declaration[2])
+        });
+        continue;
+      }
+      const message = parseSequenceMessage(text2);
+      if (message) {
+        see(message.from, lineIndex);
+        see(message.to, lineIndex);
+      }
+    }
+    return [...participants.values()];
+  }
+  function hasSequenceAutonumber(code3) {
+    return splitMermaidLines(code3).some((line) => /^\s*autonumber\b/.test(line));
+  }
+  function toggleSequenceAutonumber(code3) {
+    const { lines, headerIndex } = read(code3);
+    const existing = lines.findIndex((line) => /^\s*autonumber\b/.test(line));
+    if (existing >= 0) {
+      return removeLineIndexes(lines, /* @__PURE__ */ new Set([existing]));
+    }
+    return insertLines2(lines, headerIndex + 1, [`${bodyIndent(lines, headerIndex)}autonumber`]);
+  }
+  function addSequenceParticipant(code3, label = "Participant") {
+    const { lines, headerIndex } = read(code3);
+    const participants = getSequenceParticipants(code3);
+    const used = new Set(participants.map((participant) => participant.id));
+    const clean2 = String(label).trim() || "Participant";
+    const id3 = idFromLabel(clean2, "P", used);
+    const declaration = id3 === clean2 ? `participant ${id3}` : `participant ${id3} as ${clean2.replace(/\r?\n/g, " ")}`;
+    const declared = participants.filter((participant) => participant.declarationLine >= 0 && !participant.created);
+    const at = declared.length ? Math.max(...declared.map((participant) => participant.declarationLine)) + 1 : headerIndex + 1;
+    const indent4 = declared.length ? getIndent(lines[declared[declared.length - 1].declarationLine]) : bodyIndent(lines, headerIndex);
+    return { code: insertLines2(lines, at, [`${indent4}${declaration}`]), id: id3, lineIndex: at };
+  }
+  function statementIndent(lines, headerIndex, afterLine) {
+    if (afterLine === null || afterLine === void 0 || afterLine < 0) {
+      return bodyIndent(lines, headerIndex);
+    }
+    const text2 = lines[afterLine];
+    const indent4 = getIndent(text2);
+    return SEQUENCE_BLOCK.test(text2) || SEQUENCE_BRANCH.test(text2) || /^\s*box\b/.test(text2) ? `${indent4}  ` : indent4;
+  }
+  function insertionPoint(lines, afterLine) {
+    return afterLine === null || afterLine === void 0 || afterLine < 0 ? lastContentLine(lines) + 1 : afterLine + 1;
+  }
+  function addSequenceMessage(code3, { from: from3, to, text: text2 = "Message", arrow = "->>", afterLine = null } = {}) {
+    const { lines, headerIndex } = read(code3);
+    if (!from3 || !to) return { code: code3, lineIndex: -1 };
+    const indent4 = statementIndent(lines, headerIndex, afterLine);
+    const at = insertionPoint(lines, afterLine);
+    const message = String(text2).replace(/\r?\n/g, " ");
+    return {
+      code: insertLines2(lines, at, [`${indent4}${from3}${arrow}${to}: ${message}`]),
+      lineIndex: at
+    };
+  }
+  function setSequenceMessageArrow(code3, lineIndex, arrow) {
+    const { lines } = read(code3);
+    const message = parseSequenceMessage(lines[lineIndex]);
+    if (!message || !SEQUENCE_ARROWS.some((entry) => entry.key === arrow)) return code3;
+    const text2 = lines[lineIndex];
+    const at = text2.indexOf(message.arrow, message.indent.length + message.from.length);
+    lines[lineIndex] = text2.slice(0, at) + arrow + text2.slice(at + message.arrow.length);
+    return lines.join("\n");
+  }
+  function reverseSequenceMessage(code3, lineIndex) {
+    const { lines } = read(code3);
+    const message = parseSequenceMessage(lines[lineIndex]);
+    if (!message) return code3;
+    lines[lineIndex] = `${message.indent}${message.to}${message.arrow}${message.activation}${message.from}: ${message.text}`;
+    return lines.join("\n");
+  }
+  function addSequenceNote(code3, participantIds, { text: text2 = "Note", afterLine = null } = {}) {
+    const { lines, headerIndex } = read(code3);
+    const ids = [...new Set(participantIds.filter(Boolean))];
+    if (!ids.length) return { code: code3, lineIndex: -1 };
+    const placement = ids.length === 1 ? `right of ${ids[0]}` : `over ${ids.slice(0, 2).join(",")}`;
+    const indent4 = statementIndent(lines, headerIndex, afterLine);
+    const at = insertionPoint(lines, afterLine);
+    return {
+      code: insertLines2(lines, at, [`${indent4}Note ${placement}: ${text2}`]),
+      lineIndex: at
+    };
+  }
+  function isSequenceOpener(line) {
+    return SEQUENCE_BLOCK.test(line) || /^\s*box\b/.test(line);
+  }
+  function isSequenceEnd(line) {
+    return /^\s*end\s*$/.test(line);
+  }
+  function wrapSequenceStatement(code3, lineIndex, kind = "loop", title = "") {
+    const { lines } = read(code3);
+    if (lineIndex < 0 || lineIndex >= lines.length || !lines[lineIndex].trim()) {
+      return { code: code3, lineIndex: -1 };
+    }
+    const [start2, end] = isSequenceOpener(lines[lineIndex]) ? blockRange(lines, lineIndex, isSequenceOpener, isSequenceEnd) : [lineIndex, lineIndex];
+    const indent4 = getIndent(lines[start2]);
+    const caption = String(title || SEQUENCE_BLOCKS.find((block2) => block2.key === kind)?.label || kind);
+    const indented = indentLines(lines, start2, end, "  ");
+    indented.splice(end + 1, 0, `${indent4}end`);
+    indented.splice(start2, 0, `${indent4}${kind} ${caption}`);
+    return { code: indented.join("\n"), lineIndex: start2 };
+  }
+  function removeSequenceLine(code3, lineIndex) {
+    const { lines } = read(code3);
+    if (lineIndex < 0 || lineIndex >= lines.length) return code3;
+    if (isSequenceOpener(lines[lineIndex])) {
+      const [start2, end] = blockRange(lines, lineIndex, isSequenceOpener, isSequenceEnd);
+      const dedented = end > start2 ? dedentLines(lines, start2 + 1, end - 1, "  ") : lines;
+      return removeLineIndexes(dedented, new Set(end > start2 ? [start2, end] : [start2]));
+    }
+    return removeLineIndexes(lines, /* @__PURE__ */ new Set([lineIndex]));
+  }
+  function removeSequenceParticipant(code3, id3) {
+    const { lines } = read(code3);
+    const result = [];
+    lines.forEach((text2) => {
+      const declaration = text2.match(SEQUENCE_DECLARATION);
+      if (declaration && declaration[4] === id3) return;
+      const message = parseSequenceMessage(text2);
+      if (message && (message.from === id3 || message.to === id3)) return;
+      if (new RegExp(`^\\s*(activate|deactivate|destroy)\\s+${tokenPattern(id3).source}\\s*$`, "u").test(text2)) {
+        return;
+      }
+      const note = text2.match(/^(\s*note\s+)(left of|right of|over)\s+([^:]+?)(\s*:.*)$/i);
+      if (note) {
+        const ids = note[3].split(",").map((part) => part.trim());
+        if (ids.includes(id3)) {
+          const rest = ids.filter((part) => part !== id3);
+          if (!rest.length) return;
+          result.push(`${note[1]}${note[2]} ${rest.join(",")}${note[4]}`);
+          return;
+        }
+      }
+      result.push(text2);
+    });
+    return result.join("\n");
+  }
+  function canMoveSequenceParticipants(code3) {
+    return !splitMermaidLines(code3).some((line) => /^\s*box\b/.test(line));
+  }
+  function moveSequenceParticipant(code3, id3, delta) {
+    if (!canMoveSequenceParticipants(code3)) return code3;
+    const participants = getSequenceParticipants(code3).filter((participant) => !participant.created);
+    const from3 = participants.findIndex((participant) => participant.id === id3);
+    const to = from3 + delta;
+    if (from3 < 0 || to < 0 || to >= participants.length) return code3;
+    const order = [...participants];
+    [order[from3], order[to]] = [order[to], order[from3]];
+    const { lines, headerIndex } = read(code3);
+    const declarationLines = new Set(
+      participants.filter((participant) => participant.declarationLine >= 0).map((participant) => participant.declarationLine)
+    );
+    const indent4 = bodyIndent(lines, headerIndex);
+    const declarations = order.map(
+      (participant) => participant.declarationLine >= 0 ? `${indent4}${lines[participant.declarationLine].trim()}` : `${indent4}participant ${participant.id}`
+    );
+    const kept = lines.filter((_, index) => !declarationLines.has(index));
+    let at = headerIndex + 1;
+    while (at < kept.length && /^\s*(autonumber|title)\b/.test(kept[at])) at += 1;
+    kept.splice(at, 0, ...declarations);
+    return kept.join("\n");
+  }
+  var STATE_DIRECTIONS = ["TB", "LR", "BT", "RL"];
+  var STATE_TRANSITION = /^(\s*)(\[\*\]|[\p{L}\p{N}_.-]+)\s*-->\s*(\[\*\]|[\p{L}\p{N}_.-]+)\s*(?::(.*))?$/u;
+  function getStateIds(code3) {
+    return new Set(
+      buildMermaidSourceIndex(code3, "state").entries.flatMap((entry) => entry.keys).map((key) => key.match(/^node:(.+)$/)?.[1]).filter((id3) => id3 && !/_(start|end)$/.test(id3))
+    );
+  }
+  function addState(code3, { label = "NewState", from: from3 = null } = {}) {
+    const { lines, headerIndex } = read(code3);
+    const used = getStateIds(code3);
+    const clean2 = String(label).trim() || "NewState";
+    const id3 = idFromLabel(clean2, "S", used);
+    const indent4 = bodyIndent(lines, headerIndex);
+    const added = [];
+    if (id3 !== clean2) added.push(`${indent4}state "${clean2.replace(/"/g, "'")}" as ${id3}`);
+    if (from3) added.push(`${indent4}${from3} --> ${id3}`);
+    if (!added.length) added.push(`${indent4}state ${id3}`);
+    const at = lastContentLine(lines) + 1;
+    return { code: insertLines2(lines, at, added), id: id3, lineIndex: at + added.length - 1 };
+  }
+  function connectStates(code3, from3, to) {
+    const { lines, headerIndex } = read(code3);
+    if (!from3 || !to || from3 === "[*]" && to === "[*]") return { code: code3, lineIndex: -1 };
+    const exists = lines.findIndex((line) => {
+      const match2 = line.match(STATE_TRANSITION);
+      return match2 && match2[2] === from3 && match2[3] === to;
+    });
+    if (exists >= 0) return { code: code3, lineIndex: exists };
+    const at = lastContentLine(lines) + 1;
+    return {
+      code: insertLines2(lines, at, [`${bodyIndent(lines, headerIndex)}${from3} --> ${to}`]),
+      lineIndex: at
+    };
+  }
+  function addStateNote(code3, id3, text2 = "Note") {
+    const { lines, headerIndex } = read(code3);
+    const at = lastContentLine(lines) + 1;
+    return {
+      code: insertLines2(lines, at, [`${bodyIndent(lines, headerIndex)}note right of ${id3} : ${text2}`]),
+      lineIndex: at
+    };
+  }
+  function getStateDirection(code3) {
+    const line = splitMermaidLines(code3).find((text2) => /^\s*direction\s+\w+/.test(text2));
+    return line ? line.trim().split(/\s+/)[1].toUpperCase() : "TB";
+  }
+  function setStateDirection(code3, direction) {
+    const value = String(direction).toUpperCase();
+    if (!STATE_DIRECTIONS.includes(value)) return code3;
+    const { lines, headerIndex } = read(code3);
+    const existing = lines.findIndex(
+      (line, index) => index > headerIndex && /^\s*direction\s+\w+/.test(line) && getIndent(line).length <= getIndent(lines[headerIndex + 1] || "").length
+    );
+    if (existing >= 0) {
+      lines[existing] = `${getIndent(lines[existing])}direction ${value}`;
+      return lines.join("\n");
+    }
+    return insertLines2(lines, headerIndex + 1, [`${bodyIndent(lines, headerIndex)}direction ${value}`]);
+  }
+  function removeState(code3, id3) {
+    const { lines, headerIndex } = read(code3);
+    const drop = /* @__PURE__ */ new Set();
+    const idPattern = tokenPattern(id3).source;
+    const declaration = new RegExp(`^\\s*state\\s+(?:"[^"]*"\\s+as\\s+)?${idPattern}\\b`, "u");
+    for (let index = headerIndex + 1; index < lines.length; index += 1) {
+      const text2 = lines[index];
+      if (declaration.test(text2)) {
+        if (/\{\s*$/.test(text2)) {
+          const [start2, end] = blockRange(
+            lines,
+            index,
+            (line) => /\{\s*$/.test(line),
+            (line) => line.trim() === "}"
+          );
+          for (let line = start2; line <= end; line += 1) drop.add(line);
+          index = end;
+        } else {
+          drop.add(index);
+        }
+        continue;
+      }
+      const transition = text2.match(STATE_TRANSITION);
+      if (transition && (transition[2] === id3 || transition[3] === id3)) {
+        drop.add(index);
+        continue;
+      }
+      if (new RegExp(`^\\s*${idPattern}\\s*:`, "u").test(text2)) {
+        drop.add(index);
+        continue;
+      }
+      const note = text2.match(/^\s*note\s+(?:left|right)\s+of\s+(\S+)\s*(:)?/);
+      if (note && note[1] === id3) {
+        drop.add(index);
+        if (!note[2]) {
+          while (index + 1 < lines.length && !/^\s*end\s+note\s*$/i.test(lines[index])) {
+            index += 1;
+            drop.add(index);
+          }
+        }
+      }
+    }
+    return removeLineIndexes(lines, drop);
+  }
+  function removeStateLine(code3, lineIndex) {
+    const { lines } = read(code3);
+    const drop = /* @__PURE__ */ new Set([lineIndex]);
+    const text2 = lines[lineIndex] ?? "";
+    const note = text2.match(/^\s*note\s+(?:left|right)\s+of\s+\S+\s*(:)?/);
+    if (note && !note[1]) {
+      for (let index = lineIndex + 1; index < lines.length; index += 1) {
+        drop.add(index);
+        if (/^\s*end\s+note\s*$/i.test(lines[index])) break;
+      }
+    }
+    return removeLineIndexes(lines, drop);
+  }
+  var CLASS_RELATIONS = [
+    { key: "<|--", label: "Inheritance" },
+    { key: "*--", label: "Composition" },
+    { key: "o--", label: "Aggregation" },
+    { key: "-->", label: "Association" },
+    { key: "--", label: "Link" },
+    { key: "..>", label: "Dependency" },
+    { key: "..|>", label: "Realization" },
+    { key: "..", label: "Dashed link" }
+  ];
+  function getClassIds(code3) {
+    return new Set(
+      buildMermaidSourceIndex(code3, "class").entries.flatMap((entry) => entry.keys).map((key) => key.match(/^node:(.+)$/)?.[1]).filter(Boolean)
+    );
+  }
+  function addClass(code3, { name: name2 = "NewClass" } = {}) {
+    const { lines, headerIndex } = read(code3);
+    const id3 = uniqueId(String(name2).replace(/[^\p{L}\p{N}_]/gu, "") || "NewClass", getClassIds(code3));
+    const at = lastContentLine(lines) + 1;
+    return {
+      code: insertLines2(lines, at, [`${bodyIndent(lines, headerIndex)}class ${id3}`]),
+      id: id3,
+      lineIndex: at
+    };
+  }
+  function addClassMember(code3, id3, text2 = "+field") {
+    const { lines, headerIndex } = read(code3);
+    const opener = new RegExp(`^\\s*class\\s+${tokenPattern(id3).source}\\b.*\\{\\s*$`, "u");
+    const start2 = lines.findIndex((line) => opener.test(line));
+    if (start2 >= 0) {
+      const [, end] = blockRange(lines, start2, () => false, (line) => line.trim() === "}");
+      const memberIndent = end > start2 + 1 ? getIndent(lines[start2 + 1]) : `${getIndent(lines[start2])}    `;
+      return { code: insertLines2(lines, end, [`${memberIndent}${text2}`]), lineIndex: end };
+    }
+    const at = lastContentLine(lines) + 1;
+    return {
+      code: insertLines2(lines, at, [`${bodyIndent(lines, headerIndex)}${id3} : ${text2}`]),
+      lineIndex: at
+    };
+  }
+  function getClassRelation(code3, lineIndex) {
+    const text2 = splitMermaidLines(code3)[lineIndex];
+    const match2 = text2?.match(CLASS_RELATION);
+    if (!match2) return null;
+    return { from: match2[2], arrow: match2[3], to: match2[4], label: match2[5]?.trim() ?? "" };
+  }
+  function connectClasses(code3, from3, to, arrow = "-->") {
+    const { lines, headerIndex } = read(code3);
+    if (!from3 || !to) return { code: code3, lineIndex: -1 };
+    const at = lastContentLine(lines) + 1;
+    return {
+      code: insertLines2(lines, at, [`${bodyIndent(lines, headerIndex)}${from3} ${arrow} ${to}`]),
+      lineIndex: at
+    };
+  }
+  function setClassRelationArrow(code3, lineIndex, arrow) {
+    const { lines } = read(code3);
+    const relation = getClassRelation(code3, lineIndex);
+    if (!relation || !CLASS_RELATIONS.some((entry) => entry.key === arrow)) return code3;
+    const text2 = lines[lineIndex];
+    const at = text2.indexOf(relation.arrow, text2.indexOf(relation.from) + relation.from.length);
+    lines[lineIndex] = text2.slice(0, at) + arrow + text2.slice(at + relation.arrow.length);
+    return lines.join("\n");
+  }
+  function removeClass(code3, id3) {
+    const { lines, headerIndex } = read(code3);
+    const drop = /* @__PURE__ */ new Set();
+    const idPattern = tokenPattern(id3).source;
+    const declaration = new RegExp(`^\\s*class\\s+${idPattern}(?![\\p{L}\\p{N}_])`, "u");
+    for (let index = headerIndex + 1; index < lines.length; index += 1) {
+      const text2 = lines[index];
+      if (declaration.test(text2)) {
+        drop.add(index);
+        if (/\{\s*$/.test(text2)) {
+          while (index + 1 < lines.length && lines[index].trim() !== "}") {
+            index += 1;
+            drop.add(index);
+          }
+        }
+        continue;
+      }
+      const relation = text2.match(CLASS_RELATION);
+      if (relation && (relation[2] === id3 || relation[4] === id3)) {
+        drop.add(index);
+        continue;
+      }
+      if (new RegExp(`^\\s*${idPattern}\\s*:`, "u").test(text2) || new RegExp(`^\\s*(note\\s+for|style|cssClass|<<[^>]*>>)\\s+"?${idPattern}\\b`, "u").test(text2)) {
+        drop.add(index);
+      }
+    }
+    return removeLineIndexes(lines, drop);
+  }
+  function removeClassLine(code3, lineIndex) {
+    const { lines } = read(code3);
+    return removeLineIndexes(lines, /* @__PURE__ */ new Set([lineIndex]));
+  }
+  var ER_CARDINALITIES = [
+    { key: "one", label: "Exactly one", left: "||", right: "||" },
+    { key: "zeroOrOne", label: "Zero or one", left: "|o", right: "o|" },
+    { key: "oneOrMore", label: "One or more", left: "}|", right: "|{" },
+    { key: "zeroOrMore", label: "Zero or more", left: "}o", right: "o{" }
+  ];
+  function cardinalityKey(token, side) {
+    const found = ER_CARDINALITIES.find((entry) => entry[side] === token);
+    if (found) return found.key;
+    const mirrored = ER_CARDINALITIES.find(
+      (entry) => entry[side === "left" ? "right" : "left"] === token
+    );
+    return mirrored?.key ?? "one";
+  }
+  function getErRelation(code3, lineIndex) {
+    const text2 = splitMermaidLines(code3)[lineIndex];
+    const match2 = text2?.match(ER_RELATION);
+    if (!match2) return null;
+    return {
+      from: match2[2],
+      to: match2[6],
+      left: cardinalityKey(match2[3], "left"),
+      right: cardinalityKey(match2[5], "right"),
+      identifying: match2[4] === "--",
+      label: match2[7].trim()
+    };
+  }
+  function setErRelation(code3, lineIndex, { left, right, identifying } = {}) {
+    const { lines } = read(code3);
+    const text2 = lines[lineIndex];
+    const match2 = text2?.match(ER_RELATION);
+    if (!match2) return code3;
+    const current = getErRelation(code3, lineIndex);
+    const leftToken = ER_CARDINALITIES.find((entry) => entry.key === (left ?? current.left))?.left ?? match2[3];
+    const rightToken = ER_CARDINALITIES.find((entry) => entry.key === (right ?? current.right))?.right ?? match2[5];
+    const line = identifying ?? current.identifying ? "--" : "..";
+    const at = text2.indexOf(`${match2[3]}${match2[4]}${match2[5]}`);
+    lines[lineIndex] = text2.slice(0, at) + `${leftToken}${line}${rightToken}` + text2.slice(at + 6);
+    return lines.join("\n");
+  }
+  function getErEntities(code3) {
+    return new Set(
+      buildMermaidSourceIndex(code3, "er").entries.flatMap((entry) => entry.keys).map((key) => key.match(/^node:(.+)$/)?.[1]).filter(Boolean)
+    );
+  }
+  function addErEntity(code3, { name: name2 = "ENTITY" } = {}) {
+    const { lines, headerIndex } = read(code3);
+    const id3 = uniqueId(String(name2).toUpperCase().replace(/[^\p{L}\p{N}_-]/gu, "_") || "ENTITY", getErEntities(code3));
+    const indent4 = bodyIndent(lines, headerIndex);
+    const at = lastContentLine(lines) + 1;
+    return {
+      code: insertLines2(lines, at, [`${indent4}${id3} {`, `${indent4}    string id PK`, `${indent4}}`]),
+      id: id3,
+      lineIndex: at
+    };
+  }
+  function connectErEntities(code3, from3, to, label = "has") {
+    const { lines, headerIndex } = read(code3);
+    if (!from3 || !to) return { code: code3, lineIndex: -1 };
+    const at = lastContentLine(lines) + 1;
+    return {
+      code: insertLines2(lines, at, [`${bodyIndent(lines, headerIndex)}${from3} ||--o{ ${to} : ${label}`]),
+      lineIndex: at
+    };
+  }
+  function addErAttribute(code3, entity, text2 = "string name") {
+    const { lines, headerIndex } = read(code3);
+    const opener = new RegExp(`^\\s*${tokenPattern(entity).source}(?:\\["[^"]*"\\])?\\s*\\{\\s*$`, "u");
+    const start2 = lines.findIndex((line) => opener.test(line));
+    if (start2 >= 0) {
+      const [, end] = blockRange(lines, start2, () => false, (line) => line.trim() === "}");
+      const indent5 = end > start2 + 1 ? getIndent(lines[start2 + 1]) : `${getIndent(lines[start2])}    `;
+      return { code: insertLines2(lines, end, [`${indent5}${text2}`]), lineIndex: end };
+    }
+    const indent4 = bodyIndent(lines, headerIndex);
+    const at = lastContentLine(lines) + 1;
+    return {
+      code: insertLines2(lines, at, [`${indent4}${entity} {`, `${indent4}    ${text2}`, `${indent4}}`]),
+      lineIndex: at + 1
+    };
+  }
+  function removeErEntity(code3, id3) {
+    const { lines, headerIndex } = read(code3);
+    const drop = /* @__PURE__ */ new Set();
+    const opener = new RegExp(`^\\s*${tokenPattern(id3).source}(?:\\["[^"]*"\\])?\\s*\\{\\s*$`, "u");
+    for (let index = headerIndex + 1; index < lines.length; index += 1) {
+      if (opener.test(lines[index])) {
+        while (index < lines.length) {
+          drop.add(index);
+          if (lines[index].trim() === "}") break;
+          index += 1;
+        }
+        continue;
+      }
+      const relation = lines[index].match(ER_RELATION);
+      if (relation && (relation[2] === id3 || relation[6] === id3)) drop.add(index);
+    }
+    return removeLineIndexes(lines, drop);
+  }
+  function removeErLine(code3, lineIndex) {
+    const { lines } = read(code3);
+    return removeLineIndexes(lines, /* @__PURE__ */ new Set([lineIndex]));
+  }
+  var MINDMAP_NODE_SHAPES = [
+    { key: "default", label: "Default", open: "", close: "" },
+    { key: "square", label: "Square", open: "[", close: "]" },
+    { key: "rounded", label: "Rounded", open: "(", close: ")" },
+    { key: "circle", label: "Circle", open: "((", close: "))" },
+    { key: "bang", label: "Bang", open: "))", close: "((" },
+    { key: "cloud", label: "Cloud", open: ")", close: "(" },
+    { key: "hexagon", label: "Hexagon", open: "{{", close: "}}" }
+  ];
+  function isMindmapDecoration(text2) {
+    const trimmed = text2.trim();
+    return trimmed.startsWith("::icon(") || trimmed.startsWith(":::");
+  }
+  function getMindmapNodes(code3) {
+    const { lines, headerIndex } = read(code3);
+    const nodes = [];
+    for (let lineIndex = headerIndex + 1; lineIndex < lines.length; lineIndex += 1) {
+      const text2 = lines[lineIndex];
+      if (!text2.trim() || text2.trim().startsWith("%%") || isMindmapDecoration(text2)) continue;
+      const indent4 = getIndent(text2).length;
+      const span = mindmapLabelSpan(text2);
+      const before = text2.slice(indent4, span.start).replace(/"$/, "");
+      const after = text2.slice(span.end).replace(/^"/, "").trimEnd();
+      const shape = [...MINDMAP_NODE_SHAPES].sort((a2, b) => b.open.length - a2.open.length).find(
+        (entry) => entry.open && before.endsWith(entry.open) && after.startsWith(entry.close)
+      ) || MINDMAP_NODE_SHAPES[0];
+      nodes.push({
+        index: nodes.length,
+        lineIndex,
+        indent: indent4,
+        label: text2.slice(span.start, span.end),
+        shape: shape.key,
+        idPart: shape.open ? before.slice(0, before.length - shape.open.length) : ""
+      });
+    }
+    for (const node of nodes) {
+      const next2 = nodes.find((other) => other.index > node.index && other.indent <= node.indent);
+      node.endLine = (next2 ? next2.lineIndex : lastContentLine(lines) + 1) - 1;
+      node.children = nodes.filter(
+        (other) => other.index > node.index && other.lineIndex <= node.endLine && other.indent > node.indent
+      );
+    }
+    return nodes;
+  }
+  function newMindmapLine(indent4, label) {
+    return `${" ".repeat(indent4)}${String(label).replace(/\r?\n/g, " ")}`;
+  }
+  function addMindmapChild(code3, index, label = "New idea") {
+    const { lines } = read(code3);
+    const nodes = getMindmapNodes(code3);
+    const node = nodes[index];
+    if (!node) return { code: code3, index: -1 };
+    const indent4 = node.children.length ? node.children[0].indent : node.indent + 2;
+    const at = node.endLine + 1;
+    const newIndex = node.index + node.children.length + 1;
+    return { code: insertLines2(lines, at, [newMindmapLine(indent4, label)]), index: newIndex };
+  }
+  function addMindmapSibling(code3, index, label = "New idea") {
+    const nodes = getMindmapNodes(code3);
+    const node = nodes[index];
+    if (!node) return { code: code3, index: -1 };
+    if (index === 0) return addMindmapChild(code3, 0, label);
+    const { lines } = read(code3);
+    const at = node.endLine + 1;
+    return {
+      code: insertLines2(lines, at, [newMindmapLine(node.indent, label)]),
+      index: node.index + node.children.length + 1
+    };
+  }
+  function removeMindmapNode(code3, index) {
+    const nodes = getMindmapNodes(code3);
+    const node = nodes[index];
+    if (!node || index === 0) return code3;
+    const { lines } = read(code3);
+    const drop = /* @__PURE__ */ new Set();
+    for (let line = node.lineIndex; line <= node.endLine; line += 1) drop.add(line);
+    return removeLineIndexes(lines, drop);
+  }
+  function moveMindmapNode(code3, index, delta) {
+    const nodes = getMindmapNodes(code3);
+    const node = nodes[index];
+    if (!node || index === 0) return { code: code3, index };
+    const parent = [...nodes].reverse().find((other2) => other2.index < node.index && other2.indent < node.indent);
+    const siblings = parent ? parent.children.filter((child) => child.indent === node.indent) : nodes.filter((other2) => other2.indent === node.indent);
+    const position = siblings.indexOf(node);
+    const other = siblings[position + delta];
+    if (!other) return { code: code3, index };
+    const [first, second] = delta < 0 ? [other, node] : [node, other];
+    const { lines } = read(code3);
+    const firstLines = lines.slice(first.lineIndex, first.endLine + 1);
+    const secondLines = lines.slice(second.lineIndex, second.endLine + 1);
+    const next2 = [
+      ...lines.slice(0, first.lineIndex),
+      ...secondLines,
+      ...firstLines,
+      ...lines.slice(second.endLine + 1)
+    ];
+    const nextIndex = delta < 0 ? other.index : node.index + other.children.length + 1;
+    return { code: next2.join("\n"), index: nextIndex };
+  }
+  function setMindmapShape(code3, index, shapeKey) {
+    const nodes = getMindmapNodes(code3);
+    const node = nodes[index];
+    const shape = MINDMAP_NODE_SHAPES.find((entry) => entry.key === shapeKey);
+    if (!node || !shape) return code3;
+    const { lines } = read(code3);
+    const text2 = lines[node.lineIndex];
+    const decoration = text2.match(/\s*:::.*$/)?.[0] ?? "";
+    const label = node.label.replace(/[[\](){}]/g, "");
+    const id3 = node.idPart || (shape.open ? `n${index}` : "");
+    lines[node.lineIndex] = shape.open ? `${" ".repeat(node.indent)}${id3}${shape.open}${label}${shape.close}${decoration}` : `${" ".repeat(node.indent)}${label}${decoration}`;
+    return lines.join("\n");
+  }
+
+  // src/rich-editor/presentation/mermaid/mermaidDiagramTools.js
+  var DIRECTION_LABELS = {
+    TD: "Top \u2192 down",
+    TB: "Top \u2192 down",
+    LR: "Left \u2192 right",
+    BT: "Bottom \u2192 up",
+    RL: "Right \u2192 left"
+  };
+  function targetKey(target, prefix2) {
+    const key = target?.keys?.find((candidate) => candidate.startsWith(prefix2));
+    return key ? key.slice(prefix2.length) : null;
+  }
+  function createMermaidToolkit(type4, api) {
+    const factory = TOOLKITS[type4] || (getMermaidTableSpec(api.getCode(), type4) ? tableToolkit : null);
+    return factory ? factory(api) : null;
+  }
+  function group(...children) {
+    const element = document.createElement("div");
+    element.className = "cm-mermaid-surface-tools";
+    element.append(...children.filter(Boolean));
+    return element;
+  }
+  function setOptions(select, options, placeholder = null) {
+    select.replaceChildren();
+    if (placeholder) {
+      const option = document.createElement("option");
+      option.value = "";
+      option.textContent = placeholder;
+      select.appendChild(option);
+    }
+    for (const [value, label] of options) {
+      const option = document.createElement("option");
+      option.value = value;
+      option.textContent = label;
+      select.appendChild(option);
+    }
+  }
+  function flowchartToolkit(api) {
+    const selectedNode = () => {
+      const target = api.getSelection();
+      return target?.kind === "node" && target.id ? getFlowchartNode(api.getCode(), target.id) : null;
+    };
+    const editNode = (edit) => {
+      const node = selectedNode();
+      if (node) api.apply(edit(api.getCode(), node.id));
+    };
+    const addButton = api.createButton("+ Node", "Add a node (connected to the selected node)", () => {
+      const from3 = selectedNode()?.id ?? null;
+      const result = addFlowchartNode(api.getCode(), { label: "New node", from: from3 });
+      if (result.id) api.apply(result.code, { select: { keys: [`node:${result.id}`] }, rename: true });
+    });
+    const shape = api.createSelect(
+      "Node shape",
+      FLOWCHART_SHAPES.map((entry) => [entry.key, entry.label]),
+      (value) => editNode((code3, id3) => setFlowchartNodeShape(code3, id3, value))
+    );
+    const colors = document.createElement("div");
+    colors.className = "cm-mermaid-surface-colors";
+    const swatches = FLOWCHART_COLORS.map((color) => {
+      const button = api.createButton(
+        "",
+        `Color: ${color.label}`,
+        () => editNode((code3, id3) => setFlowchartNodeColor(code3, id3, color.key))
+      );
+      button.classList.add("cm-mermaid-surface-swatch");
+      button.dataset.color = color.key;
+      button.style.setProperty("--swatch-fill", color.fill);
+      button.style.setProperty("--swatch-stroke", color.stroke);
+      colors.appendChild(button);
+      return button;
+    });
+    const clearColor = api.createButton(
+      "\xD7",
+      "Remove color",
+      () => editNode((code3, id3) => setFlowchartNodeColor(code3, id3, null))
+    );
+    clearColor.classList.add("cm-mermaid-surface-swatch", "is-clear");
+    colors.appendChild(clearColor);
+    const direction = api.createSelect(
+      "Diagram direction",
+      FLOWCHART_DIRECTIONS.map((value) => [value, DIRECTION_LABELS[value]]),
+      (value) => api.apply(setFlowchartDirection(api.getCode(), value))
+    );
+    return {
+      element: group(addButton, shape, colors, direction),
+      connectHint: "Drag from one node to another, or click two nodes, to connect them.",
+      sync() {
+        const node = selectedNode();
+        shape.disabled = !node || node.shape === "attrs";
+        shape.value = node?.shape && node.shape !== "attrs" ? node.shape : "rect";
+        const color = node ? getFlowchartNodeColor(api.getCode(), node.id) : null;
+        for (const swatch of swatches) {
+          swatch.disabled = !node;
+          swatch.setAttribute("aria-pressed", String(swatch.dataset.color === color));
+        }
+        clearColor.disabled = !node || !color;
+        const current = getFlowchartDirection(api.getCode());
+        direction.value = current === "TB" ? "TD" : current || "TD";
+      },
+      canConnect: (target) => target?.kind === "node" && Boolean(target.id),
+      connect(from3, to) {
+        api.apply(addFlowchartEdge(api.getCode(), from3.id, to.id));
+      },
+      canRemove: (target) => target?.kind === "node" && Boolean(target.id) || target?.kind === "edge" && Boolean(target.from),
+      remove(target) {
+        if (target.kind === "node") return removeFlowchartNode(api.getCode(), target.id);
+        return removeFlowchartEdge(api.getCode(), target.from, target.to, target.occurrence);
+      }
+    };
+  }
+  function sequenceToolkit(api) {
+    const participantOf = (target) => {
+      const id3 = targetKey(target, "participant:");
+      if (id3) return id3;
+      if (targetKey(target, "participantLabel:")) return api.entryOf(target)?.id ?? null;
+      return null;
+    };
+    const statementLine = () => {
+      const target = api.getSelection();
+      return targetKey(target, "stmt:") !== null ? api.selectionLine() : null;
+    };
+    const selectedMessage = () => {
+      const line = statementLine();
+      return line === null ? null : parseSequenceMessage(api.lines()[line]);
+    };
+    const addParticipant = api.createButton("+ Participant", "Add a participant", () => {
+      const result = addSequenceParticipant(api.getCode(), "Participant");
+      api.apply(result.code, { select: { keys: [`participant:${result.id}`] }, rename: true });
+    });
+    const addMessage = api.createButton("+ Message", "Add a message after the selected statement", () => {
+      const participants = getSequenceParticipants(api.getCode()).map((participant) => participant.id);
+      const selected = participantOf(api.getSelection());
+      const message = selectedMessage();
+      const from3 = selected ?? message?.from ?? participants[0] ?? "A";
+      const to = message && !selected ? message.to : participants[participants.indexOf(from3) + 1] ?? participants.find((id3) => id3 !== from3) ?? "B";
+      const result = addSequenceMessage(api.getCode(), { from: from3, to, afterLine: statementLine() });
+      api.apply(result.code, { select: { line: result.lineIndex }, rename: true });
+    });
+    const arrow = api.createSelect(
+      "Message arrow",
+      SEQUENCE_ARROWS.map((entry) => [entry.key, entry.label]),
+      (value) => {
+        const line = statementLine();
+        if (line !== null) api.apply(setSequenceMessageArrow(api.getCode(), line, value));
+      }
+    );
+    const reverse = api.createButton("\u21C4", "Reverse the selected message", () => {
+      const line = statementLine();
+      if (line !== null) api.apply(reverseSequenceMessage(api.getCode(), line));
+    });
+    const addNote = api.createButton("+ Note", "Add a note to the selected participant or message", () => {
+      const participant = participantOf(api.getSelection());
+      const message = selectedMessage();
+      const ids = participant ? [participant] : message ? [message.from, message.to] : [];
+      const result = addSequenceNote(api.getCode(), ids, { afterLine: statementLine() });
+      if (result.lineIndex >= 0) api.apply(result.code, { select: { line: result.lineIndex }, rename: true });
+    });
+    const wrap = api.createSelect("Wrap the selected statement", [], (value) => {
+      const line = statementLine();
+      wrap.value = "";
+      if (line === null || !value) return;
+      const result = wrapSequenceStatement(api.getCode(), line, value);
+      api.apply(result.code, { select: { line: result.lineIndex }, rename: true });
+    });
+    setOptions(wrap, SEQUENCE_BLOCKS.map((block2) => [block2.key, block2.label]), "Wrap in\u2026");
+    const moveLeft = api.createButton("\u25C0", "Move the selected participant left", () => move(-1));
+    const moveRight = api.createButton("\u25B6", "Move the selected participant right", () => move(1));
+    const autonumber = api.createButton(
+      "#",
+      "Number the messages",
+      () => api.apply(toggleSequenceAutonumber(api.getCode()))
+    );
+    function move(delta) {
+      const id3 = participantOf(api.getSelection());
+      if (id3) api.apply(moveSequenceParticipant(api.getCode(), id3, delta), { select: { keys: [`participant:${id3}`] } });
+    }
+    return {
+      element: group(addParticipant, addMessage, arrow, reverse, addNote, wrap, moveLeft, moveRight, autonumber),
+      connectHint: "Drag from one participant to another to add a message.",
+      sync() {
+        const message = selectedMessage();
+        const participant = participantOf(api.getSelection());
+        arrow.disabled = !message;
+        arrow.value = message?.arrow ?? "->>";
+        reverse.disabled = !message;
+        addNote.disabled = !message && !participant;
+        wrap.disabled = statementLine() === null;
+        moveLeft.disabled = moveRight.disabled = !participant || !canMoveSequenceParticipants(api.getCode());
+        autonumber.setAttribute("aria-pressed", String(hasSequenceAutonumber(api.getCode())));
+        autonumber.classList.toggle("is-active", hasSequenceAutonumber(api.getCode()));
+      },
+      canConnect: (target) => Boolean(participantOf(target)),
+      connect(from3, to) {
+        const result = addSequenceMessage(api.getCode(), {
+          from: participantOf(from3),
+          to: participantOf(to),
+          afterLine: statementLine()
+        });
+        api.apply(result.code, { select: { line: result.lineIndex }, rename: true });
+      },
+      canRemove: (target) => Boolean(participantOf(target)) || targetKey(target, "stmt:") !== null,
+      remove(target) {
+        const participant = participantOf(target);
+        if (participant) return removeSequenceParticipant(api.getCode(), participant);
+        const line = api.selectionLine();
+        if (line === null) return api.getCode();
+        return classifySequenceLine(api.lines()[line]) ? removeSequenceLine(api.getCode(), line) : api.getCode();
+      }
+    };
+  }
+  function stateRef(target) {
+    const id3 = targetKey(target, "node:");
+    if (!id3) return null;
+    return /_(start|end)$/.test(id3) ? "[*]" : id3;
+  }
+  function stateToolkit(api) {
+    const selectedState = () => {
+      const ref = stateRef(api.getSelection());
+      return ref && ref !== "[*]" ? ref : null;
+    };
+    const addButton = api.createButton("+ State", "Add a state (after the selected state)", () => {
+      const result = addState(api.getCode(), { from: selectedState() });
+      api.apply(result.code, { select: { keys: [`node:${result.id}`] }, rename: true });
+    });
+    const addNote = api.createButton("+ Note", "Add a note to the selected state", () => {
+      const id3 = selectedState();
+      if (!id3) return;
+      const result = addStateNote(api.getCode(), id3);
+      api.apply(result.code, { select: { keys: [`note:${id3}`] }, rename: true });
+    });
+    const start2 = api.createButton("\u25B6 Start", "Make the selected state a start state", () => {
+      const id3 = selectedState();
+      if (id3) api.apply(connectStates(api.getCode(), "[*]", id3).code);
+    });
+    const end = api.createButton("End \u25A0", "Make the selected state an end state", () => {
+      const id3 = selectedState();
+      if (id3) api.apply(connectStates(api.getCode(), id3, "[*]").code);
+    });
+    const direction = api.createSelect(
+      "Diagram direction",
+      STATE_DIRECTIONS.map((value) => [value, DIRECTION_LABELS[value]]),
+      (value) => api.apply(setStateDirection(api.getCode(), value))
+    );
+    return {
+      element: group(addButton, addNote, start2, end, direction),
+      connectHint: "Drag from one state to another to add a transition.",
+      sync() {
+        const id3 = selectedState();
+        addNote.disabled = start2.disabled = end.disabled = !id3;
+        direction.value = getStateDirection(api.getCode());
+      },
+      canConnect: (target) => Boolean(stateRef(target)),
+      connect(from3, to) {
+        const result = connectStates(api.getCode(), stateRef(from3), stateRef(to));
+        if (result.lineIndex >= 0) api.apply(result.code, { select: { line: result.lineIndex } });
+      },
+      canRemove: (target) => Boolean(selectedStateOf(target)) || targetKey(target, "stateEdge:") !== null || targetKey(target, "note:") !== null,
+      remove(target) {
+        const id3 = selectedStateOf(target);
+        if (id3) return removeState(api.getCode(), id3);
+        const line = api.selectionLine();
+        return line === null ? api.getCode() : removeStateLine(api.getCode(), line);
+      }
+    };
+  }
+  function selectedStateOf(target) {
+    const ref = stateRef(target);
+    return ref && ref !== "[*]" ? ref : null;
+  }
+  function classToolkit(api) {
+    const selectedClass = () => targetKey(api.getSelection(), "node:");
+    const relationLine = () => targetKey(api.getSelection(), "rel:") !== null ? api.selectionLine() : null;
+    const addButton = api.createButton("+ Class", "Add a class", () => {
+      const result = addClass(api.getCode());
+      api.apply(result.code, { select: { keys: [`node:${result.id}`] }, rename: true });
+    });
+    const addMember = api.createButton("+ Member", "Add a member to the selected class", () => {
+      const id3 = selectedClass();
+      if (!id3) return;
+      const result = addClassMember(api.getCode(), id3, "+field");
+      api.apply(result.code, { select: { keys: [`member:${id3}:+field`, `node:${id3}`] }, rename: true });
+    });
+    const relation = api.createSelect(
+      "Relation type",
+      CLASS_RELATIONS.map((entry) => [entry.key, entry.label]),
+      (value) => {
+        const line = relationLine();
+        if (line !== null) api.apply(setClassRelationArrow(api.getCode(), line, value));
+      }
+    );
+    return {
+      element: group(addButton, addMember, relation),
+      connectHint: "Drag from one class to another to add a relation.",
+      sync() {
+        addMember.disabled = !selectedClass();
+        const line = relationLine();
+        const current = line === null ? null : getClassRelation(api.getCode(), line);
+        relation.disabled = !current;
+        relation.value = current?.arrow ?? "-->";
+      },
+      canConnect: (target) => Boolean(targetKey(target, "node:")),
+      connect(from3, to) {
+        const result = connectClasses(api.getCode(), targetKey(from3, "node:"), targetKey(to, "node:"));
+        api.apply(result.code, { select: { line: result.lineIndex } });
+      },
+      canRemove: (target) => Boolean(target?.keys?.length),
+      remove(target) {
+        const member = target.keys.find((key) => key.startsWith("member:"));
+        const id3 = targetKey(target, "node:");
+        if (id3 && !member) return removeClass(api.getCode(), id3);
+        const line = api.selectionLine();
+        return line === null ? api.getCode() : removeClassLine(api.getCode(), line);
+      }
+    };
+  }
+  function erToolkit(api) {
+    const selectedEntity = () => targetKey(api.getSelection(), "node:");
+    const relationLine = () => targetKey(api.getSelection(), "edge:") !== null ? api.selectionLine() : null;
+    const cardinalities = ER_CARDINALITIES.map((entry) => [entry.key, entry.label]);
+    const addButton = api.createButton("+ Entity", "Add an entity", () => {
+      const result = addErEntity(api.getCode());
+      api.apply(result.code, { select: { keys: [`node:${result.id}`] }, rename: true });
+    });
+    const addAttribute = api.createButton("+ Attribute", "Add an attribute to the selected entity", () => {
+      const id3 = selectedEntity();
+      if (!id3) return;
+      const result = addErAttribute(api.getCode(), id3, "string name");
+      api.apply(result.code, { select: { line: result.lineIndex } });
+    });
+    const left = api.createSelect("Cardinality at the first entity", cardinalities, (value) => setRelation({ left: value }));
+    const right = api.createSelect("Cardinality at the second entity", cardinalities, (value) => setRelation({ right: value }));
+    const identifying = api.createButton("Identifying", "Toggle identifying (solid) / non-identifying (dashed)", () => {
+      const line = relationLine();
+      const current = line === null ? null : getErRelation(api.getCode(), line);
+      if (current) setRelation({ identifying: !current.identifying });
+    });
+    function setRelation(change) {
+      const line = relationLine();
+      if (line !== null) api.apply(setErRelation(api.getCode(), line, change));
+    }
+    return {
+      element: group(addButton, addAttribute, left, right, identifying),
+      connectHint: "Drag from one entity to another to add a relationship.",
+      sync() {
+        addAttribute.disabled = !selectedEntity();
+        const line = relationLine();
+        const current = line === null ? null : getErRelation(api.getCode(), line);
+        left.disabled = right.disabled = identifying.disabled = !current;
+        left.value = current?.left ?? "one";
+        right.value = current?.right ?? "one";
+        identifying.setAttribute("aria-pressed", String(Boolean(current?.identifying)));
+        identifying.classList.toggle("is-active", Boolean(current?.identifying));
+      },
+      canConnect: (target) => Boolean(targetKey(target, "node:")) && !target.keys.some((key) => key.startsWith("attr")),
+      connect(from3, to) {
+        const result = connectErEntities(api.getCode(), targetKey(from3, "node:"), targetKey(to, "node:"));
+        api.apply(result.code, { select: { line: result.lineIndex }, rename: true });
+      },
+      canRemove: (target) => Boolean(target?.keys?.length),
+      remove(target) {
+        const attribute2 = target.keys.some((key) => key.startsWith("attr"));
+        const id3 = targetKey(target, "node:");
+        if (id3 && !attribute2) return removeErEntity(api.getCode(), id3);
+        const line = api.selectionLine();
+        return line === null ? api.getCode() : removeErLine(api.getCode(), line);
+      }
+    };
+  }
+  function mindmapToolkit(api) {
+    const selectedIndex = () => {
+      const value = targetKey(api.getSelection(), "mindmap:");
+      return value === null ? null : Number(value);
+    };
+    const addChild = api.createButton("+ Child", "Add a child to the selected idea", () => {
+      const result = addMindmapChild(api.getCode(), selectedIndex() ?? 0);
+      api.apply(result.code, { select: { keys: [`mindmap:${result.index}`] }, rename: true });
+    });
+    const addSibling = api.createButton("+ Sibling", "Add an idea next to the selected one", () => {
+      const index = selectedIndex();
+      if (index === null) return;
+      const result = addMindmapSibling(api.getCode(), index);
+      api.apply(result.code, { select: { keys: [`mindmap:${result.index}`] }, rename: true });
+    });
+    const moveUp = api.createButton("\u2191", "Move the selected idea up", () => move(-1));
+    const moveDown = api.createButton("\u2193", "Move the selected idea down", () => move(1));
+    const shape = api.createSelect(
+      "Idea shape",
+      MINDMAP_NODE_SHAPES.map((entry) => [entry.key, entry.label]),
+      (value) => {
+        const index = selectedIndex();
+        if (index !== null) api.apply(setMindmapShape(api.getCode(), index, value));
+      }
+    );
+    function move(delta) {
+      const index = selectedIndex();
+      if (index === null) return;
+      const result = moveMindmapNode(api.getCode(), index, delta);
+      api.apply(result.code, { select: { keys: [`mindmap:${result.index}`] } });
+    }
+    return {
+      element: group(addChild, addSibling, moveUp, moveDown, shape),
+      sync() {
+        const index = selectedIndex();
+        const node = index === null ? null : getMindmapNodes(api.getCode())[index];
+        addSibling.disabled = moveUp.disabled = moveDown.disabled = !node || index === 0;
+        shape.disabled = !node;
+        shape.value = node?.shape ?? "default";
+      },
+      canRemove: (target) => {
+        const index = targetKey(target, "mindmap:");
+        return index !== null && Number(index) > 0;
+      },
+      remove: (target) => removeMindmapNode(api.getCode(), Number(targetKey(target, "mindmap:")))
+    };
+  }
+  function tableToolkit(api) {
+    const spec = () => getMermaidTableSpec(api.getCode());
+    const recordLine = () => {
+      const line = api.selectionLine();
+      if (line === null || !spec()) return null;
+      return readMermaidTable(api.getCode(), spec()).some((row) => row.lineIndex === line) ? line : null;
+    };
+    const addRow = api.createButton("+ Row", "Add a record after the selected one", () => {
+      const result = insertMermaidTableRow(api.getCode(), spec(), { afterLine: recordLine() });
+      if (result.lineIndex >= 0) api.apply(result.code, { select: { line: result.lineIndex }, rename: true });
+    });
+    return {
+      element: group(addRow),
+      sync() {
+      },
+      canRemove: () => recordLine() !== null,
+      remove() {
+        const line = recordLine();
+        return line === null ? api.getCode() : removeMermaidTableRow(api.getCode(), line);
+      }
+    };
+  }
+  var TOOLKITS = {
+    flowchart: flowchartToolkit,
+    sequence: sequenceToolkit,
+    state: stateToolkit,
+    class: classToolkit,
+    er: erToolkit,
+    mindmap: mindmapToolkit
+  };
+
+  // src/rich-editor/presentation/mermaid/mermaidRenderer.js
+  function createMermaidRenderer({ mermaidScriptUri: mermaidScriptUri2 }) {
+    let mermaidLoadPromise = null;
+    function load() {
+      if (window.__richdownMermaid) {
+        return Promise.resolve(window.__richdownMermaid);
+      }
+      if (!mermaidLoadPromise) {
+        mermaidLoadPromise = new Promise((resolve, reject) => {
+          const script = document.createElement("script");
+          script.src = mermaidScriptUri2;
+          script.onload = () => {
+            const mermaid = window.__richdownMermaid;
+            if (!mermaid) {
+              reject(new Error("Mermaid loader did not expose Mermaid."));
+              return;
+            }
+            mermaid.initialize(getMermaidConfig(true));
+            resolve(mermaid);
+          };
+          script.onerror = () => {
+            reject(new Error("Failed to load Mermaid renderer."));
+          };
+          document.head.appendChild(script);
+        });
+      }
+      return mermaidLoadPromise;
+    }
+    async function render(code3, { colorized = true, idPrefix = "richdown-mermaid" } = {}) {
+      const mermaid = await load();
+      mermaid.initialize(getMermaidConfig(colorized));
+      const renderId = `${idPrefix}-${Math.random().toString(36).slice(2)}`;
+      try {
+        const result = await mermaid.render(renderId, code3);
+        return { svg: result.svg, bindFunctions: result.bindFunctions, renderId };
+      } finally {
+        document.getElementById(`d${renderId}`)?.remove();
+      }
+    }
+    return { load, render };
+  }
+  function stopInteractiveEvent3(event) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
+  function clamp(value, min, max) {
+    return Math.max(min, Math.min(max, value));
+  }
+  function installMermaidSvg(stage, svgMarkup, colorized = true) {
+    stage.innerHTML = svgMarkup;
+    const svg = stage.querySelector("svg");
+    if (colorized) {
+      colorizeMermaidSvg(svg);
+    }
+    const size = getSvgNaturalSize(svg);
+    stage.style.width = `${size.width}px`;
+    stage.style.height = `${size.height}px`;
+    if (svg) {
+      svg.style.maxWidth = "none";
+      svg.style.maxHeight = "none";
+      svg.style.width = "100%";
+      svg.style.height = "100%";
+    }
+    return { svg, size };
+  }
+  function createMermaidCanvas(svgMarkup, classPrefix, colorized = true) {
+    const canvas = document.createElement("div");
+    canvas.className = `${classPrefix}-canvas`;
+    const stage = document.createElement("div");
+    stage.className = `${classPrefix}-stage`;
+    const { size } = installMermaidSvg(stage, svgMarkup, colorized);
+    canvas.appendChild(stage);
+    return {
+      canvas,
+      stage,
+      svgMarkup: stage.innerHTML,
+      naturalSize: size
+    };
+  }
+  function colorizeMermaidSvg(svg) {
+    if (!svg || svg.querySelector("style[data-richdown-mermaid]")) {
+      return;
+    }
+    svg.setAttribute("data-richdown-colorized", "true");
+    const style2 = document.createElementNS("http://www.w3.org/2000/svg", "style");
+    style2.setAttribute("data-richdown-mermaid", "true");
+    style2.textContent = getMermaidSvgPaletteCss();
+    svg.insertBefore(style2, svg.firstChild);
+  }
+  function getMermaidSvgPaletteCss() {
+    return `
+    .node:nth-of-type(6n+1) rect,
+    .node:nth-of-type(6n+1) polygon,
+    .node:nth-of-type(6n+1) circle,
+    .node:nth-of-type(6n+1) ellipse { fill: #dbeafe !important; stroke: #2563eb !important; }
+    .node:nth-of-type(6n+2) rect,
+    .node:nth-of-type(6n+2) polygon,
+    .node:nth-of-type(6n+2) circle,
+    .node:nth-of-type(6n+2) ellipse { fill: #dcfce7 !important; stroke: #16a34a !important; }
+    .node:nth-of-type(6n+3) rect,
+    .node:nth-of-type(6n+3) polygon,
+    .node:nth-of-type(6n+3) circle,
+    .node:nth-of-type(6n+3) ellipse { fill: #fef3c7 !important; stroke: #d97706 !important; }
+    .node:nth-of-type(6n+4) rect,
+    .node:nth-of-type(6n+4) polygon,
+    .node:nth-of-type(6n+4) circle,
+    .node:nth-of-type(6n+4) ellipse { fill: #fce7f3 !important; stroke: #db2777 !important; }
+    .node:nth-of-type(6n+5) rect,
+    .node:nth-of-type(6n+5) polygon,
+    .node:nth-of-type(6n+5) circle,
+    .node:nth-of-type(6n+5) ellipse { fill: #ede9fe !important; stroke: #7c3aed !important; }
+    .node:nth-of-type(6n) rect,
+    .node:nth-of-type(6n) polygon,
+    .node:nth-of-type(6n) circle,
+    .node:nth-of-type(6n) ellipse { fill: #ccfbf1 !important; stroke: #0f766e !important; }
+    .node rect,
+    .node polygon,
+    .node circle,
+    .node ellipse,
+    .classGroup rect,
+    .stateGroup rect { stroke-width: 1.5px !important; }
+    .cluster rect { fill: #f8fafc !important; stroke: #94a3b8 !important; stroke-width: 1.4px !important; stroke-dasharray: 5 4 !important; }
+    .edgeLabel rect,
+    .labelBkg { fill: #f8fafc !important; opacity: 0.96 !important; }
+    .edgePath .path,
+    .flowchart-link,
+    .messageLine0,
+    .messageLine1,
+    .transition { stroke: #64748b !important; stroke-width: 1.5px !important; }
+    marker path { fill: #64748b !important; stroke: #64748b !important; }
+    .actor,
+    .participant rect { fill: #dbeafe !important; stroke: #2563eb !important; }
+    .activation0,
+    .activation1,
+    .activation2 { fill: #fef3c7 !important; stroke: #d97706 !important; }
+    .note { fill: #fef3c7 !important; stroke: #d97706 !important; }
+    text,
+    .label,
+    .nodeLabel,
+    .edgeLabel,
+    .cluster-label,
+    .messageText,
+    .actor > text { fill: #172033 !important; color: #172033 !important; }
+  `;
+  }
+  function getSvgNaturalSize(svg) {
+    if (!svg) {
+      return { width: 800, height: 480 };
+    }
+    const viewBox = svg.viewBox && svg.viewBox.baseVal;
+    if (viewBox && viewBox.width > 0 && viewBox.height > 0) {
+      return { width: viewBox.width, height: viewBox.height };
+    }
+    const width = parseSvgLength(svg.getAttribute("width"));
+    const height = parseSvgLength(svg.getAttribute("height"));
+    if (width > 0 && height > 0) {
+      return { width, height };
+    }
+    return { width: 800, height: 480 };
+  }
+  function parseSvgLength(value) {
+    if (!value) {
+      return 0;
+    }
+    const parsed = Number.parseFloat(String(value).replace("px", ""));
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+  var MermaidViewportController = class {
+    constructor(container, stage, options = {}) {
+      this.container = container;
+      this.stage = stage;
+      this.scale = 1;
+      this.panX = 0;
+      this.panY = 0;
+      this.minScale = options.minScale ?? 0.08;
+      this.maxScale = options.maxScale ?? 8;
+      this.fitMaxScale = options.fitMaxScale ?? 2;
+      this.scrollable = options.scrollable === true;
+      this.wheelZoom = options.wheelZoom ?? "always";
+      this.canStartPan = options.canStartPan ?? (() => true);
+      this.onUserZoom = options.onUserZoom ?? (() => {
+      });
+      this.dragging = false;
+      this.moved = false;
+      const width = parseSvgLength(stage.style.width);
+      const height = parseSvgLength(stage.style.height);
+      this.naturalWidth = width || 800;
+      this.naturalHeight = height || 480;
+      if (options.enableMouse) {
+        this.bindMouse();
+      }
+      window.setTimeout(() => this.fit(), 0);
+    }
+    setNaturalSize(width, height) {
+      this.naturalWidth = width || 800;
+      this.naturalHeight = height || 480;
+      this.apply();
+    }
+    fit() {
+      const bounds = this.container.getBoundingClientRect();
+      const scale = Math.min(
+        bounds.width / this.naturalWidth,
+        bounds.height / this.naturalHeight,
+        this.fitMaxScale
+      );
+      this.scale = scale > 0 && Number.isFinite(scale) ? Math.min(scale, this.maxScale) : 1;
+      if (this.scrollable) {
+        this.apply();
+        this.container.scrollLeft = 0;
+        this.container.scrollTop = 0;
+        return;
+      }
+      this.panX = (bounds.width - this.naturalWidth * this.scale) / 2;
+      this.panY = (bounds.height - this.naturalHeight * this.scale) / 2;
+      this.apply();
+    }
+    zoomBy(factor, center) {
+      const bounds = this.container.getBoundingClientRect();
+      if (this.scrollable) {
+        const anchor2 = center || {
+          x: bounds.width / 2,
+          y: bounds.height / 2
+        };
+        const centerX = this.container.scrollLeft + anchor2.x;
+        const centerY = this.container.scrollTop + anchor2.y;
+        const nextScale2 = clamp(
+          this.scale * factor,
+          // Fitting a very wide diagram can land below minScale; never let a
+          // zoom-out request bounce the scale back up to minScale.
+          Math.min(this.minScale, this.scale),
+          this.maxScale
+        );
+        const ratio2 = nextScale2 / this.scale;
+        this.scale = nextScale2;
+        this.apply();
+        this.container.scrollLeft = centerX * ratio2 - anchor2.x;
+        this.container.scrollTop = centerY * ratio2 - anchor2.y;
+        return;
+      }
+      const anchor = center || {
+        x: bounds.width / 2,
+        y: bounds.height / 2
+      };
+      const nextScale = clamp(
+        this.scale * factor,
+        Math.min(this.minScale, this.scale),
+        this.maxScale
+      );
+      const ratio = nextScale / this.scale;
+      this.panX = anchor.x - (anchor.x - this.panX) * ratio;
+      this.panY = anchor.y - (anchor.y - this.panY) * ratio;
+      this.scale = nextScale;
+      this.apply();
+    }
+    panBy(dx, dy) {
+      if (this.scrollable) {
+        this.container.scrollLeft -= dx;
+        this.container.scrollTop -= dy;
+        return;
+      }
+      this.panX += dx;
+      this.panY += dy;
+      this.apply();
+    }
+    apply() {
+      if (this.scrollable) {
+        const width = this.naturalWidth * this.scale;
+        const height = this.naturalHeight * this.scale;
+        this.stage.style.width = `${width}px`;
+        this.stage.style.height = `${height}px`;
+        this.stage.style.left = `${Math.max(
+          0,
+          (this.container.clientWidth - width) / 2
+        )}px`;
+        this.stage.style.top = `${Math.max(
+          0,
+          (this.container.clientHeight - height) / 2
+        )}px`;
+        this.stage.style.transform = "none";
+        return;
+      }
+      this.stage.style.width = `${this.naturalWidth}px`;
+      this.stage.style.height = `${this.naturalHeight}px`;
+      this.stage.style.transform = `translate(${this.panX}px, ${this.panY}px) scale(${this.scale})`;
+    }
+    bindMouse() {
+      this.container.addEventListener("wheel", (event) => {
+        if (this.wheelZoom === "modifier" && !event.ctrlKey && !event.metaKey) {
+          return;
+        }
+        event.preventDefault();
+        const bounds = this.container.getBoundingClientRect();
+        const factor = event.deltaY < 0 ? 1.12 : 0.89;
+        this.zoomBy(factor, {
+          x: event.clientX - bounds.left,
+          y: event.clientY - bounds.top
+        });
+        this.onUserZoom();
+      });
+      this.container.addEventListener("pointerdown", (event) => {
+        if (event.button !== 0 || !this.canStartPan(event)) {
+          return;
+        }
+        event.preventDefault();
+        this.dragging = true;
+        this.moved = false;
+        this.lastX = event.clientX;
+        this.lastY = event.clientY;
+        this.container.classList.add("is-dragging");
+        this.container.setPointerCapture?.(event.pointerId);
+      });
+      this.container.addEventListener("pointermove", (event) => {
+        if (!this.dragging) {
+          return;
+        }
+        event.preventDefault();
+        const dx = event.clientX - this.lastX;
+        const dy = event.clientY - this.lastY;
+        if (Math.abs(dx) + Math.abs(dy) > 0) {
+          this.moved = true;
+          this.onUserZoom();
+        }
+        this.panBy(dx, dy);
+        this.lastX = event.clientX;
+        this.lastY = event.clientY;
+      });
+      const stopDrag = (event) => {
+        if (!this.dragging) {
+          return;
+        }
+        this.dragging = false;
+        this.container.classList.remove("is-dragging");
+        if (event.pointerId !== void 0) {
+          this.container.releasePointerCapture?.(event.pointerId);
+        }
+      };
+      this.container.addEventListener("pointerup", stopDrag);
+      this.container.addEventListener("pointercancel", stopDrag);
+    }
+  };
+  function getMermaidConfig(colorized = true) {
+    if (!colorized) {
+      return {
+        startOnLoad: false,
+        securityLevel: "strict",
+        theme: document.documentElement.dataset.richTheme === "default" ? "default" : "dark"
+      };
+    }
+    return {
+      startOnLoad: false,
+      securityLevel: "strict",
+      theme: "base",
+      themeVariables: {
+        background: "transparent",
+        primaryColor: "#dbeafe",
+        primaryTextColor: "#172033",
+        primaryBorderColor: "#2563eb",
+        secondaryColor: "#dcfce7",
+        secondaryTextColor: "#172033",
+        secondaryBorderColor: "#16a34a",
+        tertiaryColor: "#fef3c7",
+        tertiaryTextColor: "#172033",
+        tertiaryBorderColor: "#d97706",
+        mainBkg: "#dbeafe",
+        secondBkg: "#dcfce7",
+        nodeBorder: "#2563eb",
+        clusterBkg: "#f8fafc",
+        clusterBorder: "#94a3b8",
+        lineColor: "#64748b",
+        edgeLabelBackground: "#f8fafc",
+        textColor: "#172033",
+        titleColor: "#172033",
+        actorBkg: "#dbeafe",
+        actorBorder: "#2563eb",
+        actorTextColor: "#172033",
+        actorLineColor: "#64748b",
+        signalColor: "#64748b",
+        signalTextColor: "#172033",
+        noteBkgColor: "#fef3c7",
+        noteTextColor: "#172033",
+        noteBorderColor: "#d97706",
+        labelBoxBkgColor: "#f8fafc",
+        labelBoxBorderColor: "#94a3b8",
+        labelTextColor: "#172033",
+        loopTextColor: "#172033",
+        stateBkg: "#dbeafe",
+        stateBorder: "#2563eb",
+        classText: "#172033",
+        taskBkgColor: "#dbeafe",
+        taskTextColor: "#172033",
+        taskTextOutsideColor: "#172033",
+        taskBorderColor: "#2563eb",
+        activeTaskBkgColor: "#fef3c7",
+        doneTaskBkgColor: "#dcfce7",
+        critBkgColor: "#fee2e2",
+        sectionBkgColor: "#dbeafe",
+        sectionBkgColor2: "#dcfce7",
+        gridColor: "#cbd5e1"
+      }
+    };
+  }
+
+  // src/rich-editor/presentation/mermaid/mermaidTableEditor.js
+  function createMermaidTableEditor({ spec, getCode, apply, revealLine }) {
+    const root2 = document.createElement("div");
+    root2.className = "cm-mermaid-table";
+    const table = document.createElement("table");
+    const head = document.createElement("thead");
+    const body2 = document.createElement("tbody");
+    table.append(head, body2);
+    const footer = document.createElement("div");
+    footer.className = "cm-mermaid-table-footer";
+    root2.append(table, footer);
+    let currentSpec = spec;
+    let stale = false;
+    let renderedCode = null;
+    let focusAfterRender = null;
+    footer.append(
+      button("+ Row", "Add a row at the end", () => insert2({ kind: "row" })),
+      ...spec.groups ? [button("+ Section", "Add a section at the end", () => insert2({ kind: "group" }))] : []
+    );
+    function button(label, title, run) {
+      const element = document.createElement("button");
+      element.type = "button";
+      element.className = "cm-mermaid-surface-button";
+      element.textContent = label;
+      element.title = title;
+      element.setAttribute("aria-label", title);
+      element.addEventListener("mousedown", (event) => event.preventDefault());
+      element.addEventListener("click", (event) => {
+        stopInteractiveEvent3(event);
+        flushActiveCell();
+        run();
+      });
+      return element;
+    }
+    function flushActiveCell() {
+      const active = document.activeElement;
+      if (active && root2.contains(active) && active.matches(".cm-mermaid-table-input")) {
+        active.dispatchEvent(new Event("change"));
+      }
+    }
+    function insert2(options) {
+      const result = insertMermaidTableRow(getCode(), currentSpec, options);
+      if (result.lineIndex < 0) return;
+      focusAfterRender = { lineIndex: result.lineIndex, column: 0, select: true };
+      commit(result.code);
+    }
+    function commit(code3) {
+      if (code3 === getCode()) return;
+      apply(code3);
+      if (renderedCode !== getCode()) render();
+    }
+    function renderHead() {
+      const row = document.createElement("tr");
+      for (const column of currentSpec.columns) {
+        const cell = document.createElement("th");
+        cell.textContent = column.label;
+        row.appendChild(cell);
+      }
+      row.appendChild(document.createElement("th"));
+      head.replaceChildren(row);
+    }
+    function createInput(column, value, row, columnIndex) {
+      let input;
+      if (column.type === "select") {
+        input = document.createElement("select");
+        const options = column.options.includes(value) ? column.options : [...column.options, value];
+        for (const option of options) {
+          const element = document.createElement("option");
+          element.value = option;
+          element.textContent = option || "\u2014";
+          input.appendChild(element);
+        }
+        input.value = value;
+        input.addEventListener("change", () => commitCell(row, columnIndex, input.value));
+      } else {
+        input = document.createElement("input");
+        input.type = "text";
+        input.inputMode = column.type === "number" ? "decimal" : "text";
+        input.value = value;
+        input.addEventListener("change", () => commitCell(row, columnIndex, input.value));
+      }
+      input.className = "cm-mermaid-table-input";
+      input.setAttribute("aria-label", column.label);
+      input.dataset.line = String(row.lineIndex);
+      input.dataset.column = String(columnIndex);
+      input.addEventListener("focus", () => revealLine(row.lineIndex));
+      input.addEventListener("keydown", (event) => handleKey(event, input, row, columnIndex));
+      return input;
+    }
+    function locateRow(row) {
+      const rows = readMermaidTable(getCode(), currentSpec);
+      const same = (candidate) => candidate.kind === row.kind && candidate.cells.length === row.cells.length && candidate.cells.every((cell, index) => cell === row.cells[index]);
+      const atLine = rows.find((candidate) => candidate.lineIndex === row.lineIndex);
+      if (atLine && same(atLine)) return atLine.lineIndex;
+      return rows.find(same)?.lineIndex ?? -1;
+    }
+    function commitCell(row, columnIndex, value) {
+      if ((row.cells[columnIndex] ?? "") === value) return;
+      const lineIndex = locateRow(row);
+      if (lineIndex < 0) {
+        stale = true;
+        return;
+      }
+      const cells = [...row.cells];
+      cells[columnIndex] = value;
+      const next2 = updateMermaidTableRow(getCode(), currentSpec, lineIndex, cells);
+      if (next2 !== getCode()) {
+        row.cells = cells;
+        row.lineIndex = lineIndex;
+        apply(next2);
+      }
+    }
+    function handleKey(event, input, row, columnIndex) {
+      event.stopPropagation();
+      if (event.key === "Escape") {
+        event.preventDefault();
+        input.blur();
+        return;
+      }
+      if (event.key !== "Enter") return;
+      event.preventDefault();
+      input.dispatchEvent(new Event("change"));
+      const inputs = [...body2.querySelectorAll(`[data-column="${columnIndex}"]`)];
+      const next2 = inputs[inputs.indexOf(input) + 1];
+      if (next2) {
+        next2.focus();
+        next2.select?.();
+      } else if (row.kind === "row") {
+        const result = insertMermaidTableRow(getCode(), currentSpec, { afterLine: row.lineIndex });
+        focusAfterRender = { lineIndex: result.lineIndex, column: 0, select: true };
+        commit(result.code);
+      }
+    }
+    function rowActions(row) {
+      const actions2 = document.createElement("td");
+      actions2.className = "cm-mermaid-table-actions";
+      actions2.append(
+        button("\u2191", "Move up", () => move(row, -1)),
+        button("\u2193", "Move down", () => move(row, 1)),
+        button("\xD7", "Delete", () => {
+          const lineIndex = locateRow(row);
+          if (lineIndex < 0) return render();
+          commit(removeMermaidTableRow(getCode(), lineIndex));
+        })
+      );
+      return actions2;
+    }
+    function move(row, delta) {
+      const lineIndex = locateRow(row);
+      if (lineIndex < 0) return render();
+      commit(moveMermaidTableRow(getCode(), currentSpec, lineIndex, delta).code);
+    }
+    function render() {
+      stale = false;
+      renderedCode = getCode();
+      const rows = readMermaidTable(renderedCode, currentSpec);
+      const fragment = document.createDocumentFragment();
+      for (const row of rows) {
+        const element = document.createElement("tr");
+        element.className = row.kind === "group" ? "is-group" : "is-row";
+        if (row.kind === "group") {
+          const cell = document.createElement("td");
+          cell.colSpan = currentSpec.columns.length;
+          cell.appendChild(createInput({ label: "Section" }, row.cells[0], row, 0));
+          element.appendChild(cell);
+        } else {
+          currentSpec.columns.forEach((column, columnIndex) => {
+            const cell = document.createElement("td");
+            cell.appendChild(createInput(column, row.cells[columnIndex] ?? "", row, columnIndex));
+            element.appendChild(cell);
+          });
+        }
+        element.appendChild(rowActions(row));
+        fragment.appendChild(element);
+      }
+      if (!rows.length) {
+        const empty2 = document.createElement("tr");
+        const cell = document.createElement("td");
+        cell.colSpan = currentSpec.columns.length + 1;
+        cell.className = "cm-mermaid-table-empty";
+        cell.textContent = "No rows yet.";
+        empty2.appendChild(cell);
+        fragment.appendChild(empty2);
+      }
+      body2.replaceChildren(fragment);
+      if (focusAfterRender) {
+        const target = body2.querySelector(
+          `[data-line="${focusAfterRender.lineIndex}"][data-column="${focusAfterRender.column}"]`
+        );
+        const select = focusAfterRender.select;
+        focusAfterRender = null;
+        target?.focus();
+        if (select) target?.select?.();
+      }
+    }
+    root2.addEventListener("focusout", (event) => {
+      if (stale && !root2.contains(event.relatedTarget)) {
+        render();
+      }
+    });
+    renderHead();
+    render();
+    return {
+      element: root2,
+      refresh(nextSpec) {
+        if (nextSpec && nextSpec !== currentSpec) {
+          currentSpec = nextSpec;
+          renderHead();
+        }
+        if (root2.contains(document.activeElement)) {
+          stale = true;
+          return;
+        }
+        render();
+      }
+    };
+  }
+
+  // src/rich-editor/presentation/mermaid/mermaidSvgTargets.js
+  var TEXT_SELECTOR = "text, foreignObject, .nodeLabel, .edgeLabel, .messageText, .label, .cluster-label";
+  var CANDIDATE_SELECTOR = [
+    "g.node",
+    "g.cluster",
+    "g.statediagram-cluster",
+    "g[data-et='participant']",
+    "[data-et='message']",
+    "[data-et='note']",
+    "[data-et='control-structure']",
+    "path[data-id]",
+    "rect.task",
+    "text.taskText",
+    "text.taskTextOutsideLeft",
+    "text.taskTextOutsideRight",
+    "text.sectionTitle",
+    "text.titleText",
+    "path.pieCircle",
+    "g.legend",
+    "text.pieTitleText",
+    "circle.commit",
+    "text.commit-label",
+    "text.tag-label",
+    "g.branchLabel",
+    "g.data-point",
+    "path[id*='-node-']",
+    "g[class*='-plot-']",
+    "g.architecture-service",
+    "g.links > g.link",
+    "rect.node-bkg",
+    "text.task",
+    "text",
+    // HTML labels (class members, ER attributes, requirement fields).
+    "g.label",
+    "foreignObject"
+  ].join(", ");
+  var GIT_COMMIT_CLASSES = /^(commit|commit\d+|commit-merge|commit-reverse|commit-cherry-pick|commit-highlight\d*|commit-highlight-inner|commit-bullets)$/;
+  function describeMermaidElement(element, context) {
+    const { stage } = context;
+    if (!element || !stage.contains(element)) {
+      return null;
+    }
+    const describe = DESCRIBERS[context.type];
+    const described = describe?.(element, context);
+    if (described) {
+      return described;
+    }
+    return describeByText(element, context);
+  }
+  function findMermaidTargets(context, { keys, texts }) {
+    const found = [];
+    const seen = /* @__PURE__ */ new Set();
+    if (!keys.size && !texts.size) {
+      return found;
+    }
+    for (const candidate of context.stage.querySelectorAll(CANDIDATE_SELECTOR)) {
+      const description = describeMermaidElement(candidate, context);
+      if (!description?.element) continue;
+      const identity = `${description.keys[0] ?? description.text}`;
+      if (seen.has(description.element) && seen.has(identity)) continue;
+      const matched = description.keys.length ? description.keys.some((key) => keys.has(key)) : texts.has(normalizeLabel(description.text));
+      if (matched) {
+        seen.add(description.element);
+        seen.add(identity);
+        found.push(description);
+      }
+    }
+    return found;
+  }
+  function findMermaidElements(context, query) {
+    return new Set(findMermaidTargets(context, query).map((description) => description.element));
+  }
+  function collectMermaidNodeIds(context) {
+    const ids = /* @__PURE__ */ new Set();
+    for (const node of context.stage.querySelectorAll("g.node")) {
+      const parsed = parseMermaidNodeDomId(node.id, context.renderId);
+      if (parsed) ids.add(parsed.id);
+    }
+    return ids;
+  }
+  function stripRenderId(id3, renderId) {
+    const value = String(id3 ?? "");
+    return renderId && value.startsWith(`${renderId}-`) ? value.slice(renderId.length + 1) : value;
+  }
+  function readText(element) {
+    return element ? element.textContent.replace(/\s+/g, " ").trim() : "";
+  }
+  function closestIn(element, selector, stage) {
+    const found = element.closest(selector);
+    return found && stage.contains(found) ? found : null;
+  }
+  function indexIn(stage, selector, element) {
+    return [...stage.querySelectorAll(selector)].indexOf(element);
+  }
+  function clickedText(element, group2) {
+    const label = element.closest(TEXT_SELECTOR);
+    return label && group2.contains(label) ? readText(label) : "";
+  }
+  function firstLabelText(group2) {
+    return readText(group2.querySelector("g.label, text, foreignObject"));
+  }
+  function describeByText(element, context) {
+    const label = closestIn(element, TEXT_SELECTOR, context.stage);
+    const text2 = readText(label);
+    if (!text2) return null;
+    return {
+      kind: "text",
+      keys: [],
+      text: text2,
+      element: label.closest("g") && context.stage.contains(label.closest("g")) ? label.closest("g") : label
+    };
+  }
+  function describeNodeGroup(element, context, toKeys) {
+    const group2 = closestIn(
+      element,
+      "g.node, g.cluster, g.statediagram-cluster",
+      context.stage
+    );
+    if (!group2) return null;
+    const parsed = parseMermaidNodeDomId(group2.id, context.renderId);
+    const id3 = parsed?.id ?? group2.getAttribute("data-id");
+    if (!id3) return null;
+    return { ...toKeys(id3, group2), element: group2 };
+  }
+  var DESCRIBERS = {
+    flowchart(element, context) {
+      const node = describeNodeGroup(element, context, (id3, group2) => ({
+        kind: "node",
+        id: id3,
+        keys: [`node:${id3}`],
+        text: readText(group2) || id3
+      }));
+      if (node) return node;
+      const data2 = closestIn(element, "[data-id]", context.stage);
+      const edge = data2 && parseFlowchartEdgeDomId(data2.getAttribute("data-id"), context.nodeIds);
+      if (edge) {
+        const dataId = data2.getAttribute("data-id");
+        const path = findByDataId(context.stage, "path", dataId);
+        return {
+          kind: "edge",
+          ...edge,
+          dataId,
+          keys: [`edge:${edge.from}>${edge.to}#${edge.occurrence}`, `edge:${edge.from}>${edge.to}`],
+          text: readText(findByDataId(context.stage, "g.label", dataId)),
+          element: path || data2,
+          extraElements: [findByDataId(context.stage, "g.label", dataId)].filter(Boolean)
+        };
+      }
+      return null;
+    },
+    sequence(element, context) {
+      const { stage } = context;
+      let statement = closestIn(
+        element,
+        "[data-et='message'], [data-et='note'], [data-et='control-structure']",
+        stage
+      );
+      if (!statement && element.matches("text.messageText")) {
+        let next2 = element.nextElementSibling;
+        while (next2 && !next2.matches("[data-et='message']")) next2 = next2.nextElementSibling;
+        statement = next2;
+      }
+      if (statement) {
+        const index = statement.getAttribute("data-id");
+        let text2 = readText(statement);
+        if (statement.matches("[data-et='control-structure']")) {
+          text2 = normalizeLabel(readText(statement.querySelector("text.loopText")));
+        }
+        if (statement.matches("[data-et='message']")) {
+          let previous = statement.previousElementSibling;
+          while (previous && !previous.matches("text.messageText")) {
+            previous = previous.previousElementSibling;
+          }
+          text2 = readText(previous);
+        }
+        return {
+          kind: "statement",
+          keys: [`stmt:${index.replace(/^i/, "")}`],
+          text: text2,
+          element: statement
+        };
+      }
+      const participant = closestIn(
+        element,
+        "[data-et='participant'], [data-et='life-line']",
+        stage
+      );
+      if (participant) {
+        const id3 = participant.getAttribute("data-id");
+        const group2 = [...stage.querySelectorAll("[data-et='participant']")].find(
+          (candidate) => candidate.getAttribute("data-id") === id3
+        ) || participant;
+        return {
+          kind: "node",
+          id: id3,
+          keys: [`participant:${id3}`],
+          text: readText(group2) || id3,
+          element: group2
+        };
+      }
+      if (element.matches("rect.actor, text.actor, text.actor tspan")) {
+        const label = element.matches("rect") ? element.nextElementSibling?.matches("text") ? element.nextElementSibling : null : element.closest("text");
+        const text2 = readText(label);
+        if (text2) {
+          return {
+            kind: "node",
+            keys: [`participantLabel:${normalizeLabel(text2)}`],
+            text: text2,
+            element: element.matches("rect") ? element : label
+          };
+        }
+      }
+      return null;
+    },
+    class(element, context) {
+      const node = describeNodeGroup(element, context, (id3, group2) => {
+        const name2 = firstLabelText(group2) || id3;
+        const text2 = clickedText(element, group2) || name2;
+        const keys = text2 !== name2 ? [`member:${id3}:${normalizeLabel(text2)}`] : [];
+        return { kind: "node", id: id3, keys: [...keys, `node:${id3}`], text: text2 };
+      });
+      if (node) return node;
+      const data2 = closestIn(element, "[data-id]", context.stage);
+      const match2 = data2?.getAttribute("data-id").match(/^id_(.+)_(\d+)$/);
+      if (match2) {
+        const pair2 = splitPair(match2[1], context.nodeIds, "_");
+        return {
+          kind: "edge",
+          keys: [`rel:${match2[2]}`, ...pair2 ? [`edge:${pair2.from}>${pair2.to}`] : []],
+          text: readText(findByDataId(context.stage, "g.label", data2.getAttribute("data-id"))),
+          element: findByDataId(context.stage, "path", data2.getAttribute("data-id")) || data2
+        };
+      }
+      return null;
+    },
+    state(element, context) {
+      const node = describeNodeGroup(element, context, (id3, group2) => {
+        const note = id3.match(/^(.+)----note(?:-\d+)?$/);
+        return {
+          kind: "node",
+          id: note ? void 0 : id3,
+          keys: note ? [`note:${note[1]}`] : [`node:${id3}`],
+          text: firstLabelText(group2) || (note ? "" : id3)
+        };
+      });
+      if (node) return node;
+      const data2 = closestIn(element, "[data-id]", context.stage);
+      const edge = data2?.getAttribute("data-id").match(/^edge(\d+)$/);
+      if (edge) {
+        const dataId = data2.getAttribute("data-id");
+        return {
+          kind: "edge",
+          keys: [`stateEdge:${edge[1]}`],
+          text: readText(findByDataId(context.stage, "g.label", dataId)),
+          element: findByDataId(context.stage, "path", dataId) || data2
+        };
+      }
+      return null;
+    },
+    er(element, context) {
+      const node = describeNodeGroup(element, context, (id3, group2) => {
+        const attribute2 = element.closest("g.label[class*='attribute-']");
+        if (attribute2 && group2.contains(attribute2)) {
+          const labels = [...group2.querySelectorAll("g.label[class*='attribute-']")];
+          const types5 = labels.filter((label) => label.matches(".attribute-type"));
+          const row = types5.filter(
+            (type4) => labels.indexOf(type4) <= labels.indexOf(attribute2)
+          ).length - 1;
+          const text2 = readText(attribute2);
+          const keys = [`attrRow:${id3}:${Math.max(0, row)}`];
+          if (attribute2.matches(".attribute-name")) keys.unshift(`attr:${id3}:${text2}`);
+          return { kind: "node", keys: [...keys, `node:${id3}`], text: text2 };
+        }
+        return { kind: "node", id: id3, keys: [`node:${id3}`], text: readText(group2.querySelector("g.label.name, g.label")) || id3 };
+      });
+      if (node) return node;
+      const data2 = closestIn(element, "[data-id]", context.stage);
+      const match2 = data2?.getAttribute("data-id").match(/^id_entity-(.+)-\d+_entity-(.+)-\d+_\d+$/);
+      if (match2) {
+        const dataId = data2.getAttribute("data-id");
+        return {
+          kind: "edge",
+          keys: [`edge:${match2[1]}>${match2[2]}`],
+          text: readText(findByDataId(context.stage, "g.label", dataId)),
+          element: findByDataId(context.stage, "path", dataId) || data2
+        };
+      }
+      return null;
+    },
+    gantt(element, context) {
+      const { stage, renderId } = context;
+      const task = closestIn(element, "rect.task, text[id$='-text']", stage);
+      if (task) {
+        const raw = stripRenderId(task.id, renderId);
+        const id3 = task.matches("rect") ? raw : raw.replace(/-text$/, "");
+        const label = stage.querySelector(`[id="${cssEscape(`${renderId}-${id3}-text`)}"]`);
+        const rect = stage.querySelector(`rect[id="${cssEscape(`${renderId}-${id3}`)}"]`);
+        return { kind: "task", keys: [`task:${id3}`], text: readText(label), element: rect || task };
+      }
+      if (element.matches("text.sectionTitle, text.sectionTitle *")) {
+        const text2 = readText(element.closest("text"));
+        return { kind: "text", keys: [`section:${normalizeLabel(text2)}`], text: text2, element: element.closest("text") };
+      }
+      if (element.matches("text.titleText")) {
+        return { kind: "text", keys: ["title"], text: readText(element), element };
+      }
+      return null;
+    },
+    pie(element, context) {
+      const { stage } = context;
+      for (const [selector, target] of [
+        ["path.pieCircle", (el) => el],
+        ["text.slice", (el) => el],
+        ["g.legend", (el) => el]
+      ]) {
+        const hit = closestIn(element, selector, stage);
+        if (hit) {
+          const index = indexIn(stage, selector, hit);
+          const legend = stage.querySelectorAll("g.legend")[index];
+          return { kind: "slice", keys: [`slice:${index}`], text: readText(legend), element: target(hit) };
+        }
+      }
+      if (element.matches("text.pieTitleText")) {
+        return { kind: "text", keys: ["title"], text: readText(element), element };
+      }
+      return null;
+    },
+    mindmap(element, context) {
+      const group2 = closestIn(element, "g.node", context.stage);
+      const index = group2 && stripRenderId(group2.id, context.renderId).match(/^node_(\d+)$/)?.[1];
+      if (index !== void 0 && index !== null) {
+        return { kind: "node", keys: [`mindmap:${index}`], text: readText(group2), element: group2 };
+      }
+      const data2 = closestIn(element, "[data-id]", context.stage);
+      const edge = data2?.getAttribute("data-id").match(/^edge_\d+_(\d+)$/);
+      if (edge) {
+        return { kind: "edge", keys: [`mindmap:${edge[1]}`], text: "", element: data2 };
+      }
+      return null;
+    },
+    journey(element, context) {
+      const { stage, renderId } = context;
+      for (const selector of ["rect.task", "text.task"]) {
+        const hit = closestIn(element, selector, stage);
+        if (hit) {
+          const index2 = indexIn(stage, selector, hit);
+          return {
+            kind: "task",
+            keys: [`journeyTask:${index2}`],
+            text: readText(stage.querySelectorAll("text.task")[index2]),
+            element: stage.querySelectorAll("rect.task")[index2] || hit
+          };
+        }
+      }
+      const line = closestIn(element, "line.task-line", stage);
+      const index = line && stripRenderId(line.id, renderId).match(/^task(\d+)$/)?.[1];
+      if (index !== void 0 && index !== null) {
+        return { kind: "task", keys: [`journeyTask:${index}`], text: "", element: line };
+      }
+      return null;
+    },
+    timeline(element, context) {
+      const { stage, renderId } = context;
+      const shape = closestIn(element, "path[id*='-node-']", stage);
+      const index = shape && stripRenderId(shape.id, renderId).match(/^node-(\d+)$/)?.[1];
+      if (index !== void 0 && index !== null) {
+        return { kind: "node", keys: [`timeline:${index}`], text: "", element: shape.closest("g") || shape };
+      }
+      return null;
+    },
+    git(element, context) {
+      const { stage } = context;
+      const commit = closestIn(element, "circle.commit, rect.commit, text.commit-label", stage);
+      if (commit) {
+        const id3 = commit.matches("text") ? readText(commit) : [...commit.classList].find((name2) => !GIT_COMMIT_CLASSES.test(name2));
+        if (id3) {
+          const sequence = id3.match(/^(\d+)-[0-9a-f]+$/);
+          return {
+            kind: "commit",
+            keys: [sequence ? `commitSeq:${sequence[1]}` : `commit:${id3}`],
+            text: sequence ? "" : id3,
+            element: commit
+          };
+        }
+      }
+      const tag2 = closestIn(element, "text.tag-label", stage);
+      if (tag2) {
+        return { kind: "text", keys: [`tag:${readText(tag2)}`], text: readText(tag2), element: tag2 };
+      }
+      const branch = closestIn(element, "g.branchLabel", stage);
+      if (branch) {
+        return { kind: "text", keys: [`branch:${readText(branch)}`], text: readText(branch), element: branch };
+      }
+      return null;
+    },
+    other(element, context) {
+      const { stage, renderId } = context;
+      const sankey = describeSankey(element, stage);
+      if (sankey) return sankey;
+      const plot = closestIn(element, "g[class*='-plot-']", stage);
+      const plotIndex = plot?.getAttribute("class").match(/(?:bar|line)-plot-(\d+)/)?.[1];
+      if (plotIndex !== void 0 && plotIndex !== null) {
+        return { kind: "plot", keys: [`plot:${plotIndex}`], text: "", element: plot };
+      }
+      const owner = closestIn(
+        element,
+        "g.node, g.cluster, g.architecture-service, rect.node-bkg",
+        stage
+      );
+      if (owner?.id && renderId && owner.id.startsWith(`${renderId}-`)) {
+        const id3 = stripRenderId(owner.id, renderId).replace(/^(service|group|junction)-/, "");
+        const text2 = owner.matches("rect") ? "" : clickedText(element, owner) || firstLabelText(owner);
+        const keys = [`node:${id3}`];
+        const field2 = text2.match(/^([\w ]+):\s/);
+        if (field2) keys.unshift(`field:${id3}:${field2[1].toLowerCase()}`);
+        return { kind: "node", keys, text: text2, element: owner };
+      }
+      return null;
+    }
+  };
+  DESCRIBERS.quadrant = (element, context) => {
+    const point = closestIn(element, "g.data-point", context.stage);
+    return point ? { kind: "text", keys: [], text: readText(point), element: point } : null;
+  };
+  function describeSankey(element, stage) {
+    if (!stage.querySelector("g.node-labels")) return null;
+    const link = closestIn(element, "g.links > g.link", stage);
+    if (link) {
+      return { kind: "link", keys: [`sankeyLink:${indexIn(stage, "g.links > g.link", link)}`], text: "", element: link };
+    }
+    const node = closestIn(element, "g.nodes > g.node", stage);
+    const label = closestIn(element, "g.node-labels > text", stage);
+    if (!node && !label) return null;
+    const index = node ? indexIn(stage, "g.nodes > g.node", node) : indexIn(stage, "g.node-labels > text", label);
+    const text2 = stage.querySelectorAll("g.node-labels > text")[index]?.textContent.split("\n")[0].trim() ?? "";
+    return {
+      kind: "node",
+      keys: [`sankeyNode:${index}`],
+      text: text2,
+      element: stage.querySelectorAll("g.nodes > g.node")[index] || node || label
+    };
+  }
+  function findByDataId(stage, selector, dataId) {
+    return [...stage.querySelectorAll(`${selector}[data-id]`)].find(
+      (element) => element.getAttribute("data-id") === dataId
+    ) || null;
+  }
+  function splitPair(body2, ids, separator) {
+    for (let index = 1; index < body2.length - 1; index += 1) {
+      if (body2[index] !== separator) continue;
+      const from3 = body2.slice(0, index);
+      const to = body2.slice(index + 1);
+      if (ids.has(from3) && ids.has(to)) return { from: from3, to };
+    }
+    return null;
+  }
+  function cssEscape(value) {
+    return String(value).replace(/["\\]/g, "\\$&");
+  }
+
+  // src/rich-editor/presentation/mermaid/mermaidEditorSurface.js
+  var RENDER_DELAY = 220;
+  var SELECTED_CLASS = "is-rd-selected";
+  var LINKED_CLASS = "is-rd-linked";
+  var CONNECT_SOURCE_CLASS = "is-rd-connect-source";
+  function createMermaidEditorSurface({
+    renderer,
+    colorized = true,
+    variant = "inline",
+    readOnly: readOnly2 = false,
+    code: initialCode = "",
+    applyCode,
+    revealLine,
+    onDiagnostics = () => {
+    },
+    onResize = () => {
+    },
+    // Called after an in-place rename closes, so the host can put focus back
+    // where typing should continue.
+    onFocusReturn = null,
+    actions: actions2 = []
+  }) {
+    const state = {
+      code: initialCode,
+      type: detectMermaidDiagramType(initialCode),
+      renderId: "",
+      nodeIds: /* @__PURE__ */ new Set(),
+      hasDiagram: false,
+      selected: null,
+      connectMode: false,
+      connectSource: null,
+      connectDrag: null,
+      userZoomed: false,
+      // { keys } or { line }, plus rename: what to select after the next render.
+      pendingSelect: null,
+      tableOpen: true,
+      highlightedLine: -1,
+      renderTimer: 0,
+      renderToken: 0,
+      lastDiagnostic: void 0,
+      pointerStart: null,
+      destroyed: false,
+      renaming: null
+    };
+    const root2 = document.createElement("div");
+    root2.className = `cm-mermaid-surface is-${variant}`;
+    const toolbar = document.createElement("div");
+    toolbar.className = "cm-mermaid-surface-toolbar";
+    toolbar.setAttribute("role", "toolbar");
+    toolbar.setAttribute("aria-label", "Mermaid diagram tools");
+    const viewport = document.createElement("div");
+    viewport.className = "cm-mermaid-surface-viewport";
+    viewport.tabIndex = 0;
+    viewport.setAttribute("aria-label", "Mermaid diagram");
+    const stage = document.createElement("div");
+    stage.className = "cm-mermaid-surface-stage";
+    const connector = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    connector.setAttribute("class", "cm-mermaid-surface-connector");
+    const connectorLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
+    connector.appendChild(connectorLine);
+    connector.style.display = "none";
+    const renameInput = document.createElement("input");
+    renameInput.type = "text";
+    renameInput.className = "cm-mermaid-surface-rename";
+    renameInput.setAttribute("aria-label", "Rename diagram element");
+    renameInput.hidden = true;
+    const templates = document.createElement("div");
+    templates.className = "cm-mermaid-surface-templates";
+    templates.hidden = true;
+    const status = document.createElement("div");
+    status.className = "cm-mermaid-surface-status";
+    status.setAttribute("role", "status");
+    const panel = document.createElement("div");
+    panel.className = "cm-mermaid-surface-panel";
+    panel.hidden = true;
+    viewport.append(stage, connector, renameInput, templates);
+    root2.append(toolbar, viewport, panel, status);
+    const controller = new MermaidViewportController(viewport, stage, {
+      maxScale: 6,
+      fitMaxScale: variant === "modal" ? 1.6 : 1,
+      enableMouse: true,
+      wheelZoom: variant === "modal" ? "always" : "modifier",
+      canStartPan: (event) => !resolveTarget(event.target) && !state.renaming,
+      onUserZoom: () => {
+        state.userZoomed = true;
+      }
+    });
+    const diagramTools = document.createElement("div");
+    diagramTools.className = "cm-mermaid-surface-group is-diagram";
+    const connectButton = createButton(
+      "Connect",
+      "Connect: drag from one element to another",
+      () => toggleConnectMode()
+    );
+    const deleteButton = createButton("Delete", "Delete the selected element", deleteSelected);
+    const tableButton = createButton("Table", "Show or hide the data table", () => {
+      state.tableOpen = !state.tableOpen;
+      syncTable();
+      syncToolbar();
+    });
+    let toolkit = null;
+    let toolkitType;
+    let tableEditor = null;
+    let tableSpec = null;
+    const toolkitApi = {
+      getCode: () => state.code,
+      lines: () => state.code.split("\n"),
+      getSelection: () => state.selected,
+      selectionLine() {
+        if (!state.selected) return null;
+        const line = findMermaidSourceLine(state.code, state.selected, state.type);
+        return line >= 0 ? line : null;
+      },
+      entryOf: (target) => findMermaidSourceEntry(buildMermaidSourceIndex(state.code, state.type), target),
+      apply: applyEdit,
+      createButton,
+      createSelect
+    };
+    const viewTools = document.createElement("div");
+    viewTools.className = "cm-mermaid-surface-group is-view";
+    viewTools.append(
+      createButton("-", "Zoom out", () => zoom(0.82)),
+      createButton("+", "Zoom in", () => zoom(1.22)),
+      createButton("Fit", "Fit diagram", () => {
+        state.userZoomed = false;
+        controller.fit();
+      }),
+      ...actions2.map((action) => {
+        const button = createButton(action.label, action.title, action.run);
+        if (action.className) button.classList.add(action.className);
+        return button;
+      })
+    );
+    toolbar.append(diagramTools, viewTools);
+    function createButton(label, title, run) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "cm-mermaid-surface-button";
+      button.textContent = label;
+      button.title = title;
+      button.setAttribute("aria-label", title);
+      button.addEventListener("mousedown", (event) => event.preventDefault());
+      button.addEventListener("click", (event) => {
+        stopInteractiveEvent3(event);
+        run();
+      });
+      return button;
+    }
+    function createSelect(title, options, onChange) {
+      const select2 = document.createElement("select");
+      select2.className = "cm-mermaid-surface-select";
+      select2.title = title;
+      select2.setAttribute("aria-label", title);
+      for (const [value, label] of options) {
+        const option = document.createElement("option");
+        option.value = value;
+        option.textContent = label;
+        select2.appendChild(option);
+      }
+      select2.addEventListener("change", () => onChange(select2.value));
+      return select2;
+    }
+    function zoom(factor) {
+      state.userZoomed = true;
+      controller.zoomBy(factor);
+    }
+    function ensureToolkit() {
+      if (toolkitType === state.type) return;
+      toolkitType = state.type;
+      toolkit = readOnly2 ? null : createMermaidToolkit(state.type, toolkitApi);
+      if (state.connectMode && !toolkit?.canConnect) {
+        state.connectMode = false;
+        state.connectSource = null;
+      }
+      diagramTools.replaceChildren(
+        ...[
+          toolkit?.element,
+          toolkit?.canConnect ? connectButton : null,
+          toolkit?.remove ? deleteButton : null,
+          tableButton
+        ].filter(Boolean)
+      );
+    }
+    function syncToolbar() {
+      ensureToolkit();
+      tableSpec = readOnly2 ? null : getMermaidTableSpec(state.code, state.type);
+      tableButton.hidden = !tableSpec;
+      tableButton.setAttribute("aria-pressed", String(Boolean(tableSpec && state.tableOpen)));
+      tableButton.classList.toggle("is-active", Boolean(tableSpec && state.tableOpen));
+      diagramTools.hidden = !toolkit && !tableSpec;
+      deleteButton.disabled = !(state.selected && toolkit?.canRemove?.(state.selected));
+      connectButton.setAttribute("aria-pressed", String(state.connectMode));
+      connectButton.classList.toggle("is-active", state.connectMode);
+      root2.classList.toggle("is-connecting", state.connectMode);
+      toolkit?.sync();
+    }
+    function syncTable() {
+      const visible = Boolean(tableSpec && state.tableOpen);
+      panel.hidden = !visible;
+      root2.classList.toggle("has-panel", visible);
+      if (!visible) {
+        tableEditor = null;
+        panel.replaceChildren();
+        return;
+      }
+      if (!tableEditor || tableEditor.spec !== tableSpec) {
+        const editor = createMermaidTableEditor({
+          spec: tableSpec,
+          getCode: () => state.code,
+          apply: (code3) => apply(code3),
+          revealLine
+        });
+        tableEditor = { ...editor, spec: tableSpec };
+        panel.replaceChildren(editor.element);
+        return;
+      }
+      tableEditor.refresh();
+    }
+    function update(code3) {
+      if (state.destroyed || code3 === state.code) {
+        return;
+      }
+      state.code = code3;
+      state.type = detectMermaidDiagramType(code3);
+      syncToolbar();
+      syncTable();
+      scheduleRender();
+    }
+    function scheduleRender(delay = RENDER_DELAY) {
+      window.clearTimeout(state.renderTimer);
+      state.renderTimer = window.setTimeout(renderNow, delay);
+    }
+    async function renderNow() {
+      const token = ++state.renderToken;
+      const code3 = state.code;
+      if (!code3.trim()) {
+        stage.replaceChildren();
+        state.hasDiagram = false;
+        showTemplates(!readOnly2);
+        setStatus(readOnly2 ? "Empty Mermaid diagram" : "Pick a template or start typing.");
+        report(null);
+        return;
+      }
+      showTemplates(false);
+      if (!state.hasDiagram) {
+        setStatus("Rendering Mermaid...");
+      }
+      try {
+        const result = await renderer.render(code3, {
+          colorized,
+          idPrefix: "richdown-mermaid-edit"
+        });
+        if (token !== state.renderToken || state.destroyed) {
+          return;
+        }
+        const { size } = installMermaidSvg(stage, result.svg, colorized);
+        if (typeof result.bindFunctions === "function") {
+          result.bindFunctions(stage);
+        }
+        state.renderId = result.renderId;
+        state.nodeIds = state.type === "flowchart" ? getFlowchartNodeIds(code3) : collectMermaidNodeIds({ stage, renderId: state.renderId });
+        state.hasDiagram = true;
+        root2.classList.remove("has-error");
+        controller.setNaturalSize(size.width, size.height);
+        if (!state.userZoomed) {
+          controller.fit();
+        }
+        restoreSelection();
+        applyLineHighlight();
+        setStatus(getHint());
+        report(null);
+      } catch (error) {
+        if (token !== state.renderToken || state.destroyed) {
+          return;
+        }
+        const message = summarizeMermaidError(error);
+        const lineIndex = getMermaidErrorLine(error, code3);
+        root2.classList.toggle("has-error", true);
+        setStatus(
+          lineIndex >= 0 ? `Line ${lineIndex + 1}: ${message}` : message,
+          true
+        );
+        status.title = String(error?.message ?? error);
+        report({ lineIndex, message });
+      }
+    }
+    function report(diagnostic) {
+      const key = diagnostic ? `${diagnostic.lineIndex}:${diagnostic.message}` : null;
+      if (key === state.lastDiagnostic) {
+        return;
+      }
+      state.lastDiagnostic = key;
+      onDiagnostics(diagnostic);
+    }
+    function setStatus(text2, isError = false) {
+      status.textContent = text2;
+      status.title = "";
+      status.classList.toggle("is-error", isError);
+    }
+    function getHint() {
+      if (readOnly2) {
+        return "Click an element to find it in the source.";
+      }
+      if (state.connectMode) {
+        return state.connectSource ? `Connecting from ${state.connectSource.text || "the selection"}: click or drop on another element.` : toolkit?.connectHint || "Drag from one element to another to connect them.";
+      }
+      const base4 = "Click to jump to source \xB7 Double-click to rename";
+      return toolkit?.canConnect ? `${base4} \xB7 Shift-drag to connect` : base4;
+    }
+    function showTemplates(visible) {
+      templates.hidden = !visible;
+      if (!visible || templates.childElementCount) {
+        return;
+      }
+      const title = document.createElement("div");
+      title.className = "cm-mermaid-surface-templates-title";
+      title.textContent = "Start from a template";
+      templates.appendChild(title);
+      for (const template of MERMAID_TEMPLATES) {
+        const button = createButton(
+          template.label,
+          `Insert a ${template.label} diagram`,
+          () => apply(template.code)
+        );
+        button.classList.add("cm-mermaid-surface-template");
+        templates.appendChild(button);
+      }
+    }
+    function svgContext() {
+      return { stage, renderId: state.renderId, type: state.type, nodeIds: state.nodeIds };
+    }
+    function resolveTarget(element) {
+      return state.hasDiagram ? describeMermaidElement(element, svgContext()) : null;
+    }
+    function readLabel(element) {
+      return element ? element.textContent.replace(/\s+/g, " ").trim() : "";
+    }
+    function findNodeElement(id3) {
+      return [...stage.querySelectorAll("g.node")].find(
+        (node) => parseMermaidNodeDomId(node.id, state.renderId)?.id === id3
+      );
+    }
+    function findTarget(target) {
+      const context = svgContext();
+      for (const key of target.keys || []) {
+        const [match2] = findMermaidTargets(context, { keys: /* @__PURE__ */ new Set([key]), texts: /* @__PURE__ */ new Set() });
+        if (match2) return match2;
+      }
+      if (!target.keys?.length && target.text) {
+        const [match2] = findMermaidTargets(context, {
+          keys: /* @__PURE__ */ new Set(),
+          texts: /* @__PURE__ */ new Set([normalizeLabel(target.text)])
+        });
+        if (match2) return match2;
+      }
+      return null;
+    }
+    function select(target, { reveal = true } = {}) {
+      stage.querySelectorAll(`.${SELECTED_CLASS}`).forEach((element) => element.classList.remove(SELECTED_CLASS));
+      state.selected = target;
+      for (const element of [target?.element, ...target?.extraElements || []]) {
+        element?.classList.add(SELECTED_CLASS);
+      }
+      syncToolbar();
+      if (reveal && target) {
+        const line = findMermaidSourceLine(state.code, target, state.type);
+        if (line >= 0) {
+          revealLine(line);
+        }
+      }
+    }
+    function restoreSelection() {
+      if (state.pendingSelect) {
+        const { keys, line, rename } = state.pendingSelect;
+        state.pendingSelect = null;
+        const wanted = keys || buildMermaidSourceIndex(state.code, state.type).entries.filter((entry) => entry.lineIndex === line).flatMap((entry) => entry.keys);
+        const target2 = wanted?.length ? findTarget({ keys: wanted }) : null;
+        if (target2) {
+          select(target2, { reveal: !rename });
+          if (rename) {
+            startRename(target2);
+          }
+          return;
+        }
+      }
+      if (!state.selected) {
+        syncToolbar();
+        return;
+      }
+      const target = findTarget(state.selected);
+      select(target, { reveal: false });
+    }
+    function highlightLine(lineIndex) {
+      state.highlightedLine = lineIndex;
+      applyLineHighlight();
+    }
+    function applyLineHighlight() {
+      stage.querySelectorAll(`.${LINKED_CLASS}`).forEach((element) => element.classList.remove(LINKED_CLASS));
+      if (!state.hasDiagram || state.highlightedLine < 0) {
+        return;
+      }
+      const { keys, texts } = getMermaidLineReferences(
+        state.code,
+        state.highlightedLine,
+        state.type
+      );
+      for (const element of findMermaidElements(svgContext(), { keys, texts })) {
+        element.classList.add(LINKED_CLASS);
+      }
+    }
+    function apply(nextCode) {
+      if (readOnly2 || nextCode === state.code) {
+        return;
+      }
+      applyCode(nextCode);
+      update(nextCode);
+    }
+    function applyEdit(nextCode, { select: selection = null, rename = false } = {}) {
+      if (readOnly2 || nextCode === state.code) {
+        return;
+      }
+      if (selection) {
+        state.pendingSelect = { ...selection, rename };
+      }
+      apply(nextCode);
+    }
+    function deleteSelected() {
+      const target = state.selected;
+      if (readOnly2 || !target || !toolkit?.remove || !toolkit.canRemove(target)) {
+        return;
+      }
+      const next2 = toolkit.remove(target);
+      if (next2 !== state.code) {
+        select(null, { reveal: false });
+        apply(next2);
+      }
+    }
+    function toggleConnectMode(force) {
+      state.connectMode = typeof force === "boolean" ? force : !state.connectMode;
+      setConnectSource(null);
+      syncToolbar();
+      setStatus(getHint());
+    }
+    function setConnectSource(target) {
+      stage.querySelectorAll(`.${CONNECT_SOURCE_CLASS}`).forEach((element) => element.classList.remove(CONNECT_SOURCE_CLASS));
+      state.connectSource = target;
+      target?.element?.classList.add(CONNECT_SOURCE_CLASS);
+      if (state.hasDiagram) {
+        setStatus(getHint());
+      }
+    }
+    function sameTarget(a2, b) {
+      return Boolean(a2 && b) && (a2.keys?.[0] ?? a2.text) === (b.keys?.[0] ?? b.text);
+    }
+    function connect(from3, to) {
+      if (!from3 || !to || !toolkit?.connect) {
+        return;
+      }
+      toolkit.connect(from3, to);
+    }
+    function startRename(target) {
+      if (readOnly2 || !target?.element) {
+        return;
+      }
+      const bounds = target.element.getBoundingClientRect();
+      const frame = viewport.getBoundingClientRect();
+      const width = Math.max(140, bounds.width + 24);
+      renameInput.style.left = `${Math.max(4, bounds.left - frame.left + bounds.width / 2 - width / 2)}px`;
+      renameInput.style.top = `${Math.max(4, bounds.top - frame.top + bounds.height / 2 - 15)}px`;
+      renameInput.style.width = `${width}px`;
+      renameInput.value = getMermaidTargetLabel(state.code, target, state.type) || target.text || "";
+      renameInput.hidden = false;
+      state.renaming = target;
+      renameInput.focus({ preventScroll: true });
+      renameInput.select();
+    }
+    function finishRename(commit, { returnFocus = true } = {}) {
+      const target = state.renaming;
+      if (!target) {
+        return;
+      }
+      state.renaming = null;
+      renameInput.hidden = true;
+      const value = renameInput.value;
+      const original = getMermaidTargetLabel(state.code, target, state.type) || target.text || "";
+      if (commit && value.trim() && value.trim() !== original.trim()) {
+        const next2 = renameMermaidTarget(state.code, target, value, state.type);
+        if (next2 === state.code) {
+          setStatus("This name is used as an identifier here; use a single word.", true);
+        } else {
+          apply(next2);
+        }
+      } else if (commit && target.kind === "edge" && !value.trim() && target.text) {
+        apply(renameMermaidTarget(state.code, target, "", state.type));
+      }
+      if (!returnFocus) {
+        return;
+      }
+      if (onFocusReturn) {
+        onFocusReturn();
+      } else {
+        viewport.focus({ preventScroll: true });
+      }
+    }
+    renameInput.addEventListener("keydown", (event) => {
+      event.stopPropagation();
+      if (event.key === "Enter") {
+        event.preventDefault();
+        finishRename(true);
+      } else if (event.key === "Escape") {
+        event.preventDefault();
+        finishRename(false);
+      }
+    });
+    renameInput.addEventListener("blur", () => finishRename(true, { returnFocus: false }));
+    renameInput.addEventListener("pointerdown", (event) => event.stopPropagation());
+    root2.addEventListener("mousedown", (event) => {
+      if (event.target.closest("input, select")) {
+        return;
+      }
+      event.preventDefault();
+      if (variant === "modal") {
+        viewport.focus({ preventScroll: true });
+      }
+    });
+    viewport.addEventListener("pointerdown", (event) => {
+      if (event.button !== 0 || state.renaming) {
+        return;
+      }
+      state.pointerStart = { x: event.clientX, y: event.clientY };
+      const target = resolveTarget(event.target);
+      if (readOnly2 || !toolkit?.canConnect?.(target) || !(state.connectMode || event.shiftKey)) {
+        return;
+      }
+      event.preventDefault();
+      if (state.connectSource && !sameTarget(state.connectSource, target)) {
+        const from3 = state.connectSource;
+        setConnectSource(null);
+        connect(from3, target);
+        return;
+      }
+      state.connectDrag = { source: target, pointerId: event.pointerId };
+      viewport.setPointerCapture?.(event.pointerId);
+      drawConnector(target.element, event);
+    });
+    viewport.addEventListener("pointermove", (event) => {
+      if (!state.connectDrag) {
+        return;
+      }
+      event.preventDefault();
+      drawConnector(state.connectDrag.source.element, event);
+    });
+    viewport.addEventListener("pointerup", (event) => {
+      const drag = state.connectDrag;
+      if (!drag) {
+        return;
+      }
+      state.connectDrag = null;
+      connector.style.display = "none";
+      viewport.releasePointerCapture?.(drag.pointerId);
+      const dropTarget = resolveTarget(
+        document.elementFromPoint?.(event.clientX, event.clientY) ?? event.target
+      );
+      if (toolkit?.canConnect?.(dropTarget) && !sameTarget(dropTarget, drag.source)) {
+        setConnectSource(null);
+        connect(drag.source, dropTarget);
+        state.pointerStart = null;
+        return;
+      }
+      if (state.connectMode) {
+        setConnectSource(drag.source);
+      }
+    });
+    viewport.addEventListener("click", (event) => {
+      if (state.renaming || movedSincePointerDown(event) || controller.moved) {
+        controller.moved = false;
+        return;
+      }
+      if (state.connectMode) {
+        return;
+      }
+      const target = resolveTarget(event.target);
+      select(target);
+    });
+    viewport.addEventListener("dblclick", (event) => {
+      const target = resolveTarget(event.target);
+      if (!target) {
+        return;
+      }
+      event.preventDefault();
+      select(target);
+      startRename(target);
+    });
+    viewport.addEventListener("keydown", (event) => {
+      if (state.renaming) {
+        return;
+      }
+      if ((event.key === "Delete" || event.key === "Backspace") && state.selected) {
+        event.preventDefault();
+        event.stopPropagation();
+        deleteSelected();
+      } else if ((event.key === "Enter" || event.key === "F2") && state.selected) {
+        event.preventDefault();
+        event.stopPropagation();
+        startRename(state.selected.element ? state.selected : null);
+      } else if (event.key === "Escape" && (state.connectMode || state.selected)) {
+        event.preventDefault();
+        event.stopPropagation();
+        if (state.connectMode) {
+          toggleConnectMode(false);
+        } else {
+          select(null, { reveal: false });
+        }
+      }
+    });
+    function movedSincePointerDown(event) {
+      const start2 = state.pointerStart;
+      state.pointerStart = null;
+      return Boolean(
+        start2 && Math.abs(event.clientX - start2.x) + Math.abs(event.clientY - start2.y) > 4
+      );
+    }
+    function drawConnector(fromElement, event) {
+      const frame = viewport.getBoundingClientRect();
+      const bounds = fromElement.getBoundingClientRect();
+      connectorLine.setAttribute("x1", String(bounds.left - frame.left + bounds.width / 2));
+      connectorLine.setAttribute("y1", String(bounds.top - frame.top + bounds.height / 2));
+      connectorLine.setAttribute("x2", String(event.clientX - frame.left));
+      connectorLine.setAttribute("y2", String(event.clientY - frame.top));
+      connector.style.display = "block";
+    }
+    let resizeObserver = null;
+    if (typeof ResizeObserver === "function") {
+      resizeObserver = new ResizeObserver(() => {
+        if (!state.userZoomed) {
+          controller.fit();
+        }
+        onResize();
+      });
+      resizeObserver.observe(viewport);
+    }
+    syncToolbar();
+    syncTable();
+    scheduleRender(0);
+    return {
+      element: root2,
+      update,
+      highlightLine,
+      fit: () => controller.fit(),
+      focus: () => viewport.focus({ preventScroll: true }),
+      getSelection: () => state.selected,
+      selectNode(id3) {
+        const element = findNodeElement(id3);
+        if (element) {
+          select({ kind: "node", id: id3, text: readLabel(element) || id3, element }, { reveal: false });
+        }
+      },
+      renderNow,
+      destroy() {
+        state.destroyed = true;
+        window.clearTimeout(state.renderTimer);
+        resizeObserver?.disconnect();
+      }
+    };
+  }
+
+  // src/rich-editor/presentation/mermaid/mermaidEditorModal.js
+  var SYNC_DELAY = 160;
+  var TYPE_LABELS = {
+    flowchart: "Flowchart",
+    sequence: "Sequence",
+    class: "Class",
+    state: "State",
+    er: "ER",
+    gantt: "Gantt",
+    pie: "Pie",
+    mindmap: "Mindmap",
+    journey: "Journey",
+    git: "Git graph",
+    timeline: "Timeline",
+    quadrant: "Quadrant",
+    other: "Diagram"
+  };
+  var setErrorLine = StateEffect.define();
+  var errorLineField = StateField.define({
+    create: () => Decoration.none,
+    update(value, transaction) {
+      let next2 = value.map(transaction.changes);
+      for (const effect of transaction.effects) {
+        if (!effect.is(setErrorLine)) continue;
+        const builder = new RangeSetBuilder();
+        const lineIndex = effect.value;
+        if (lineIndex >= 0 && lineIndex < transaction.state.doc.lines) {
+          const line = transaction.state.doc.line(lineIndex + 1);
+          builder.add(line.from, line.from, Decoration.line({ class: "cm-mermaid-error-line" }));
+        }
+        next2 = builder.finish();
+      }
+      return next2;
+    },
+    provide: (field2) => EditorView.decorations.from(field2)
+  });
+  function openMermaidEditorModal({
+    view: hostView,
+    blockFrom,
+    renderer,
+    colorized = true,
+    onClose = () => {
+    }
+  }) {
+    document.querySelector(".cm-mermaid-editor-backdrop")?.__richdownClose?.();
+    document.querySelector(".cm-mermaid-modal-backdrop")?.remove();
+    const blocks = findMermaidBlocks(hostView.state.doc);
+    const blockIndex = blocks.findIndex((block2) => block2.from === blockFrom);
+    if (blockIndex < 0) {
+      return null;
+    }
+    const tracked = { from: blockFrom, lost: false };
+    let lastSyncedCode = readMermaidBlockContent(hostView.state.doc, blocks[blockIndex]);
+    let syncTimer = 0;
+    let closed = false;
+    let syncing = false;
+    let pullingOutsideChange = false;
+    const backdrop = document.createElement("div");
+    backdrop.className = "cm-mermaid-editor-backdrop";
+    const modal = document.createElement("div");
+    modal.className = "cm-mermaid-editor-modal";
+    modal.setAttribute("role", "dialog");
+    modal.setAttribute("aria-modal", "true");
+    modal.setAttribute("aria-label", "Mermaid editor");
+    const header2 = document.createElement("div");
+    header2.className = "cm-mermaid-editor-header";
+    const title = document.createElement("div");
+    title.className = "cm-mermaid-editor-title";
+    title.textContent = "Mermaid editor";
+    const badge = document.createElement("span");
+    badge.className = "cm-mermaid-editor-badge";
+    const notice = document.createElement("span");
+    notice.className = "cm-mermaid-editor-notice";
+    const doneButton = document.createElement("button");
+    doneButton.type = "button";
+    doneButton.className = "cm-mermaid-editor-done";
+    doneButton.textContent = "Done";
+    doneButton.title = "Close the Mermaid editor";
+    doneButton.addEventListener("click", (event) => {
+      stopInteractiveEvent3(event);
+      close();
+    });
+    header2.append(title, badge, notice, doneButton);
+    const body2 = document.createElement("div");
+    body2.className = "cm-mermaid-editor-body";
+    const sourcePane = document.createElement("div");
+    sourcePane.className = "cm-mermaid-editor-source";
+    const splitter = document.createElement("div");
+    splitter.className = "cm-mermaid-editor-splitter";
+    splitter.setAttribute("role", "separator");
+    splitter.setAttribute("aria-orientation", "vertical");
+    splitter.setAttribute("aria-label", "Resize source and diagram panes");
+    const diagramPane = document.createElement("div");
+    diagramPane.className = "cm-mermaid-editor-diagram";
+    body2.append(sourcePane, splitter, diagramPane);
+    modal.append(header2, body2);
+    backdrop.appendChild(modal);
+    const surface = createMermaidEditorSurface({
+      renderer,
+      colorized,
+      variant: "modal",
+      code: lastSyncedCode,
+      applyCode: (nextCode) => {
+        const current = sourceView.state.doc.toString();
+        if (current === nextCode) return;
+        sourceView.dispatch({
+          changes: getMinimalTextChange(current, nextCode),
+          userEvent: "input.mermaid"
+        });
+      },
+      revealLine: (lineIndex) => {
+        const lineNumber = Math.min(lineIndex + 1, sourceView.state.doc.lines);
+        const line = sourceView.state.doc.line(lineNumber);
+        sourceView.dispatch({
+          selection: { anchor: line.to },
+          effects: EditorView.scrollIntoView(line.from, { y: "center" })
+        });
+      },
+      onDiagnostics: (diagnostic) => {
+        window.setTimeout(() => {
+          if (closed) return;
+          sourceView.dispatch({
+            effects: setErrorLine.of(diagnostic ? diagnostic.lineIndex : -1)
+          });
+        }, 0);
+      }
+    });
+    diagramPane.appendChild(surface.element);
+    const sourceView = new EditorView({
+      parent: sourcePane,
+      state: EditorState.create({
+        doc: lastSyncedCode,
+        extensions: [
+          lineNumbers(),
+          history(),
+          highlightActiveLine(),
+          mermaidLanguage(),
+          syntaxHighlighting(markdownHighlightStyle),
+          errorLineField,
+          EditorView.lineWrapping,
+          keymap.of([
+            {
+              key: "Escape",
+              run: () => {
+                close();
+                return true;
+              }
+            },
+            indentWithTab,
+            ...defaultKeymap,
+            ...historyKeymap
+          ]),
+          EditorView.updateListener.of((update) => {
+            if (update.docChanged) {
+              const code3 = update.state.doc.toString();
+              surface.update(code3);
+              badge.textContent = TYPE_LABELS[detectMermaidDiagramType(code3)] || "";
+              if (!pullingOutsideChange) scheduleSync();
+            }
+            if (update.docChanged || update.selectionSet) {
+              const head = update.state.selection.main.head;
+              surface.highlightLine(update.state.doc.lineAt(head).number - 1);
+            }
+          })
+        ]
+      })
+    });
+    badge.textContent = TYPE_LABELS[detectMermaidDiagramType(lastSyncedCode)] || "";
+    function locateBlock() {
+      return findMermaidBlocks(hostView.state.doc).find((candidate) => candidate.from === tracked.from) || null;
+    }
+    function markLost() {
+      tracked.lost = true;
+      notice.textContent = "This diagram is no longer in the document; changes are not saved.";
+    }
+    function onHostUpdate(update) {
+      if (!update.docChanged || syncing || closed || tracked.lost) return;
+      const mapped = update.changes.mapPos(tracked.from, 1, MapMode.TrackDel);
+      tracked.from = mapped ?? -1;
+      const block2 = mapped === null ? null : locateBlock();
+      if (!block2) {
+        markLost();
+        return;
+      }
+      const outside = readMermaidBlockContent(hostView.state.doc, block2);
+      if (outside === lastSyncedCode) return;
+      const local = sourceView.state.doc.toString();
+      if (local !== lastSyncedCode) {
+        notice.textContent = "The diagram also changed outside this editor; this version will be kept.";
+        return;
+      }
+      pullingOutsideChange = true;
+      try {
+        sourceView.dispatch({ changes: getMinimalTextChange(local, outside) });
+      } finally {
+        pullingOutsideChange = false;
+      }
+      lastSyncedCode = outside;
+    }
+    const hostWatcher = new Compartment();
+    hostView.dispatch({
+      effects: StateEffect.appendConfig.of(
+        hostWatcher.of(EditorView.updateListener.of(onHostUpdate))
+      )
+    });
+    function scheduleSync() {
+      window.clearTimeout(syncTimer);
+      syncTimer = window.setTimeout(sync, SYNC_DELAY);
+    }
+    function sync() {
+      window.clearTimeout(syncTimer);
+      if (tracked.lost || closed) return;
+      const code3 = sourceView.state.doc.toString();
+      if (code3 === lastSyncedCode) return;
+      const block2 = locateBlock();
+      if (!block2) {
+        markLost();
+        return;
+      }
+      const change = getMermaidBlockContentChange(
+        block2,
+        readMermaidBlockContent(hostView.state.doc, block2),
+        code3
+      );
+      if (change) {
+        syncing = true;
+        try {
+          hostView.dispatch({ changes: change, userEvent: "input.mermaid" });
+        } finally {
+          syncing = false;
+        }
+      }
+      lastSyncedCode = code3;
+      notice.textContent = "";
+    }
+    const flushOnHide = () => {
+      if (document.visibilityState === "hidden") sync();
+    };
+    document.addEventListener("visibilitychange", flushOnHide);
+    window.addEventListener("pagehide", sync);
+    splitter.addEventListener("pointerdown", (event) => {
+      if (event.button !== 0) return;
+      event.preventDefault();
+      splitter.setPointerCapture?.(event.pointerId);
+      const bounds = body2.getBoundingClientRect();
+      const move = (moveEvent) => {
+        const ratio = (moveEvent.clientX - bounds.left) / Math.max(1, bounds.width);
+        body2.style.setProperty(
+          "--mermaid-editor-split",
+          `${Math.round(Math.min(0.75, Math.max(0.2, ratio)) * 100)}%`
+        );
+      };
+      const stop = () => {
+        splitter.removeEventListener("pointermove", move);
+        splitter.removeEventListener("pointerup", stop);
+        splitter.removeEventListener("pointercancel", stop);
+        surface.fit();
+      };
+      splitter.addEventListener("pointermove", move);
+      splitter.addEventListener("pointerup", stop);
+      splitter.addEventListener("pointercancel", stop);
+    });
+    backdrop.addEventListener("mousedown", (event) => {
+      if (event.target === backdrop) {
+        close();
+      }
+    });
+    backdrop.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && !event.defaultPrevented) {
+        event.preventDefault();
+        close();
+      }
+    });
+    function close() {
+      if (closed) return;
+      sync();
+      closed = true;
+      document.removeEventListener("visibilitychange", flushOnHide);
+      window.removeEventListener("pagehide", sync);
+      hostView.dispatch({ effects: hostWatcher.reconfigure([]) });
+      surface.destroy();
+      sourceView.destroy();
+      backdrop.remove();
+      onClose();
+      hostView.focus();
+    }
+    backdrop.__richdownClose = close;
+    document.body.appendChild(backdrop);
+    sourceView.focus();
+    return {
+      close,
+      sourceView,
+      surface,
+      element: backdrop,
+      sync
+    };
+  }
+
+  // src/rich-editor/presentation/mermaid/mermaidLiveEditor.js
+  function createMermaidLiveEditorWidgetClass({
+    renderer,
+    setMermaidDiagnostic,
+    exitMermaidEdit,
+    openMermaidEditor,
+    requestEditorMeasure: requestEditorMeasure2
+  }) {
+    class MermaidLiveEditorWidget extends WidgetType {
+      constructor(mermaidBlock, code3, caretLine, colorized, revision) {
+        super();
+        this.mermaidBlock = mermaidBlock;
+        this.code = code3;
+        this.caretLine = caretLine;
+        this.colorized = colorized !== false;
+        this.revision = revision;
+      }
+      eq(other) {
+        return other.mermaidBlock.from === this.mermaidBlock.from && other.code === this.code && other.caretLine === this.caretLine && other.colorized === this.colorized && other.revision === this.revision;
+      }
+      get estimatedHeight() {
+        return 380;
+      }
+      toDOM(view2) {
+        const wrapper = document.createElement("div");
+        wrapper.className = "cm-mermaid-live";
+        wrapper.__richdownMermaidWidget = this;
+        const currentBlock = () => {
+          const from3 = wrapper.__richdownMermaidWidget.mermaidBlock.from;
+          return findMermaidBlocks(view2.state.doc).find((block2) => block2.from === from3) || null;
+        };
+        const surface = createMermaidEditorSurface({
+          renderer,
+          colorized: this.colorized,
+          variant: "inline",
+          readOnly: view2.state.readOnly,
+          code: this.code,
+          applyCode: (nextCode) => {
+            const block2 = currentBlock();
+            if (!block2) {
+              return;
+            }
+            const change = getMermaidBlockContentChange(
+              block2,
+              readMermaidBlockContent(view2.state.doc, block2),
+              nextCode
+            );
+            if (change) {
+              view2.dispatch({ changes: change, userEvent: "input.mermaid" });
+            }
+          },
+          revealLine: (lineIndex) => {
+            const block2 = currentBlock();
+            if (!block2?.hasContentLines) {
+              return;
+            }
+            const lineNumber = Math.min(
+              block2.firstContentLineNumber + lineIndex,
+              view2.state.doc.lineAt(block2.contentTo).number
+            );
+            const line = view2.state.doc.line(lineNumber);
+            view2.dispatch({
+              selection: { anchor: line.to },
+              effects: EditorView.scrollIntoView(line.from, { y: "nearest" })
+            });
+          },
+          onDiagnostics: (diagnostic) => {
+            const block2 = currentBlock();
+            if (!block2) {
+              return;
+            }
+            window.setTimeout(() => {
+              if (wrapper.__richdownDestroyed) return;
+              view2.dispatch({
+                effects: setMermaidDiagnostic.of(
+                  diagnostic && diagnostic.lineIndex >= 0 ? { from: block2.from, lineIndex: diagnostic.lineIndex } : null
+                )
+              });
+            }, 0);
+          },
+          onResize: () => requestEditorMeasure2(view2),
+          onFocusReturn: () => view2.focus(),
+          actions: [
+            {
+              label: "\u2922",
+              title: "Open in Mermaid editor",
+              run: () => openMermaidEditor(view2, currentBlock()?.from ?? this.mermaidBlock.from)
+            },
+            {
+              label: "Done",
+              title: "Finish editing the diagram",
+              className: "is-primary",
+              run: () => exitMermaidEdit(view2, currentBlock()?.from ?? this.mermaidBlock.from)
+            }
+          ]
+        });
+        wrapper.__richdownMermaidSurface = surface;
+        surface.highlightLine(this.caretLine);
+        wrapper.appendChild(surface.element);
+        return wrapper;
+      }
+      updateDOM(dom) {
+        const surface = dom.__richdownMermaidSurface;
+        const previous = dom.__richdownMermaidWidget;
+        if (!surface || !previous || previous.colorized !== this.colorized) {
+          return false;
+        }
+        dom.__richdownMermaidWidget = this;
+        surface.update(this.code);
+        surface.highlightLine(this.caretLine);
+        return true;
+      }
+      destroy(dom) {
+        if (dom) dom.__richdownDestroyed = true;
+        dom?.__richdownMermaidSurface?.destroy();
+      }
+      ignoreEvent() {
+        return true;
+      }
+    }
+    return MermaidLiveEditorWidget;
+  }
+
   // src/rich-editor/presentation/mermaid/mermaidPreview.js
   function createMermaidPreviewWidgetClass({
-    mermaidScriptUri: mermaidScriptUri2,
-    setActiveMermaidEdit
+    renderer,
+    setActiveMermaidEdit,
+    openMermaidEditor
   }) {
-    let mermaidLoadPromise = null;
     class MermaidPreviewWidget extends WidgetType {
       constructor(mermaidBlock, previewSize, colorized, revision) {
         super();
@@ -50407,7 +56362,8 @@ ${rowText}` },
             if (this.svgMarkup) {
               openMermaidModal(this.svgMarkup);
             }
-          }
+          },
+          onEdit: view2.state.readOnly || !openMermaidEditor ? null : () => openMermaidEditor(view2, this.mermaidBlock.from)
         });
         const output = document.createElement("div");
         output.className = "cm-mermaid-output";
@@ -50450,10 +56406,10 @@ ${rowText}` },
       }
       async render(wrapper, output, view2, sourceHeight, setController) {
         try {
-          const mermaid = await loadMermaid();
-          mermaid.initialize(getMermaidConfig(this.colorized));
-          const id3 = `richdown-mermaid-${this.mermaidBlock.from}-${Math.random().toString(36).slice(2)}`;
-          const result = await mermaid.render(id3, this.mermaidBlock.code);
+          const result = await renderer.render(this.mermaidBlock.code, {
+            colorized: this.colorized,
+            idPrefix: `richdown-mermaid-${this.mermaidBlock.from}`
+          });
           const { canvas, stage, svgMarkup, naturalSize } = createMermaidCanvas(
             result.svg,
             "cm-mermaid",
@@ -50553,6 +56509,11 @@ ${rowText}` },
       toolbar.appendChild(
         createMermaidToolButton("\u25A1", "Open diagram", actions2.onOpen)
       );
+      if (actions2.onEdit) {
+        toolbar.appendChild(
+          createMermaidToolButton("\u270E", "Edit diagram", actions2.onEdit)
+        );
+      }
       return toolbar;
     }
     function createMermaidToolButton(label, title, action, className2 = "") {
@@ -50568,280 +56529,6 @@ ${rowText}` },
         action();
       });
       return button;
-    }
-    function stopInteractiveEvent3(event) {
-      event.preventDefault();
-      event.stopPropagation();
-    }
-    function createMermaidCanvas(svgMarkup, classPrefix, colorized = true) {
-      const canvas = document.createElement("div");
-      canvas.className = `${classPrefix}-canvas`;
-      const stage = document.createElement("div");
-      stage.className = `${classPrefix}-stage`;
-      stage.innerHTML = svgMarkup;
-      const svg = stage.querySelector("svg");
-      if (colorized) {
-        colorizeMermaidSvg(svg);
-      }
-      const size = getSvgNaturalSize(svg);
-      stage.style.width = `${size.width}px`;
-      stage.style.height = `${size.height}px`;
-      if (svg) {
-        svg.style.maxWidth = "none";
-        svg.style.maxHeight = "none";
-        svg.style.width = "100%";
-        svg.style.height = "100%";
-      }
-      canvas.appendChild(stage);
-      return {
-        canvas,
-        stage,
-        svgMarkup: stage.innerHTML,
-        naturalSize: size
-      };
-    }
-    function colorizeMermaidSvg(svg) {
-      if (!svg || svg.querySelector("style[data-richdown-mermaid]")) {
-        return;
-      }
-      svg.setAttribute("data-richdown-colorized", "true");
-      const style2 = document.createElementNS("http://www.w3.org/2000/svg", "style");
-      style2.setAttribute("data-richdown-mermaid", "true");
-      style2.textContent = getMermaidSvgPaletteCss();
-      svg.insertBefore(style2, svg.firstChild);
-    }
-    function getMermaidSvgPaletteCss() {
-      return `
-      .node:nth-of-type(6n+1) rect,
-      .node:nth-of-type(6n+1) polygon,
-      .node:nth-of-type(6n+1) circle,
-      .node:nth-of-type(6n+1) ellipse { fill: #dbeafe !important; stroke: #2563eb !important; }
-      .node:nth-of-type(6n+2) rect,
-      .node:nth-of-type(6n+2) polygon,
-      .node:nth-of-type(6n+2) circle,
-      .node:nth-of-type(6n+2) ellipse { fill: #dcfce7 !important; stroke: #16a34a !important; }
-      .node:nth-of-type(6n+3) rect,
-      .node:nth-of-type(6n+3) polygon,
-      .node:nth-of-type(6n+3) circle,
-      .node:nth-of-type(6n+3) ellipse { fill: #fef3c7 !important; stroke: #d97706 !important; }
-      .node:nth-of-type(6n+4) rect,
-      .node:nth-of-type(6n+4) polygon,
-      .node:nth-of-type(6n+4) circle,
-      .node:nth-of-type(6n+4) ellipse { fill: #fce7f3 !important; stroke: #db2777 !important; }
-      .node:nth-of-type(6n+5) rect,
-      .node:nth-of-type(6n+5) polygon,
-      .node:nth-of-type(6n+5) circle,
-      .node:nth-of-type(6n+5) ellipse { fill: #ede9fe !important; stroke: #7c3aed !important; }
-      .node:nth-of-type(6n) rect,
-      .node:nth-of-type(6n) polygon,
-      .node:nth-of-type(6n) circle,
-      .node:nth-of-type(6n) ellipse { fill: #ccfbf1 !important; stroke: #0f766e !important; }
-      .node rect,
-      .node polygon,
-      .node circle,
-      .node ellipse,
-      .classGroup rect,
-      .stateGroup rect { stroke-width: 1.5px !important; }
-      .cluster rect { fill: #f8fafc !important; stroke: #94a3b8 !important; stroke-width: 1.4px !important; stroke-dasharray: 5 4 !important; }
-      .edgeLabel rect,
-      .labelBkg { fill: #f8fafc !important; opacity: 0.96 !important; }
-      .edgePath .path,
-      .flowchart-link,
-      .messageLine0,
-      .messageLine1,
-      .transition { stroke: #64748b !important; stroke-width: 1.5px !important; }
-      marker path { fill: #64748b !important; stroke: #64748b !important; }
-      .actor,
-      .participant rect { fill: #dbeafe !important; stroke: #2563eb !important; }
-      .activation0,
-      .activation1,
-      .activation2 { fill: #fef3c7 !important; stroke: #d97706 !important; }
-      .note { fill: #fef3c7 !important; stroke: #d97706 !important; }
-      text,
-      .label,
-      .nodeLabel,
-      .edgeLabel,
-      .cluster-label,
-      .messageText,
-      .actor > text { fill: #172033 !important; color: #172033 !important; }
-    `;
-    }
-    function getSvgNaturalSize(svg) {
-      if (!svg) {
-        return { width: 800, height: 480 };
-      }
-      const viewBox = svg.viewBox && svg.viewBox.baseVal;
-      if (viewBox && viewBox.width > 0 && viewBox.height > 0) {
-        return { width: viewBox.width, height: viewBox.height };
-      }
-      const width = parseSvgLength(svg.getAttribute("width"));
-      const height = parseSvgLength(svg.getAttribute("height"));
-      if (width > 0 && height > 0) {
-        return { width, height };
-      }
-      return { width: 800, height: 480 };
-    }
-    function parseSvgLength(value) {
-      if (!value) {
-        return 0;
-      }
-      const parsed = Number.parseFloat(String(value).replace("px", ""));
-      return Number.isFinite(parsed) ? parsed : 0;
-    }
-    class MermaidViewportController {
-      constructor(container, stage, options = {}) {
-        this.container = container;
-        this.stage = stage;
-        this.scale = 1;
-        this.panX = 0;
-        this.panY = 0;
-        this.minScale = options.minScale ?? 0.08;
-        this.maxScale = options.maxScale ?? 8;
-        this.fitMaxScale = options.fitMaxScale ?? 2;
-        this.scrollable = options.scrollable === true;
-        this.dragging = false;
-        const width = parseSvgLength(stage.style.width);
-        const height = parseSvgLength(stage.style.height);
-        this.naturalWidth = width || 800;
-        this.naturalHeight = height || 480;
-        if (options.enableMouse) {
-          this.bindMouse();
-        }
-        window.setTimeout(() => this.fit(), 0);
-      }
-      fit() {
-        const bounds = this.container.getBoundingClientRect();
-        const scale = Math.min(
-          bounds.width / this.naturalWidth,
-          bounds.height / this.naturalHeight,
-          this.fitMaxScale
-        );
-        this.scale = scale > 0 && Number.isFinite(scale) ? Math.min(scale, this.maxScale) : 1;
-        if (this.scrollable) {
-          this.apply();
-          this.container.scrollLeft = 0;
-          this.container.scrollTop = 0;
-          return;
-        }
-        this.panX = (bounds.width - this.naturalWidth * this.scale) / 2;
-        this.panY = (bounds.height - this.naturalHeight * this.scale) / 2;
-        this.apply();
-      }
-      zoomBy(factor, center) {
-        const bounds = this.container.getBoundingClientRect();
-        if (this.scrollable) {
-          const anchor2 = center || {
-            x: bounds.width / 2,
-            y: bounds.height / 2
-          };
-          const centerX = this.container.scrollLeft + anchor2.x;
-          const centerY = this.container.scrollTop + anchor2.y;
-          const nextScale2 = clamp2(
-            this.scale * factor,
-            // Fitting a very wide diagram can land below minScale; never let a
-            // zoom-out request bounce the scale back up to minScale.
-            Math.min(this.minScale, this.scale),
-            this.maxScale
-          );
-          const ratio2 = nextScale2 / this.scale;
-          this.scale = nextScale2;
-          this.apply();
-          this.container.scrollLeft = centerX * ratio2 - anchor2.x;
-          this.container.scrollTop = centerY * ratio2 - anchor2.y;
-          return;
-        }
-        const anchor = center || {
-          x: bounds.width / 2,
-          y: bounds.height / 2
-        };
-        const nextScale = clamp2(
-          this.scale * factor,
-          Math.min(this.minScale, this.scale),
-          this.maxScale
-        );
-        const ratio = nextScale / this.scale;
-        this.panX = anchor.x - (anchor.x - this.panX) * ratio;
-        this.panY = anchor.y - (anchor.y - this.panY) * ratio;
-        this.scale = nextScale;
-        this.apply();
-      }
-      panBy(dx, dy) {
-        if (this.scrollable) {
-          this.container.scrollLeft -= dx;
-          this.container.scrollTop -= dy;
-          return;
-        }
-        this.panX += dx;
-        this.panY += dy;
-        this.apply();
-      }
-      apply() {
-        if (this.scrollable) {
-          const width = this.naturalWidth * this.scale;
-          const height = this.naturalHeight * this.scale;
-          this.stage.style.width = `${width}px`;
-          this.stage.style.height = `${height}px`;
-          this.stage.style.left = `${Math.max(
-            0,
-            (this.container.clientWidth - width) / 2
-          )}px`;
-          this.stage.style.top = `${Math.max(
-            0,
-            (this.container.clientHeight - height) / 2
-          )}px`;
-          this.stage.style.transform = "none";
-          return;
-        }
-        this.stage.style.width = `${this.naturalWidth}px`;
-        this.stage.style.height = `${this.naturalHeight}px`;
-        this.stage.style.transform = `translate(${this.panX}px, ${this.panY}px) scale(${this.scale})`;
-      }
-      bindMouse() {
-        this.container.addEventListener("wheel", (event) => {
-          event.preventDefault();
-          const bounds = this.container.getBoundingClientRect();
-          const factor = event.deltaY < 0 ? 1.12 : 0.89;
-          this.zoomBy(factor, {
-            x: event.clientX - bounds.left,
-            y: event.clientY - bounds.top
-          });
-        });
-        this.container.addEventListener("pointerdown", (event) => {
-          if (event.button !== 0) {
-            return;
-          }
-          event.preventDefault();
-          this.dragging = true;
-          this.lastX = event.clientX;
-          this.lastY = event.clientY;
-          this.container.classList.add("is-dragging");
-          this.container.setPointerCapture(event.pointerId);
-        });
-        this.container.addEventListener("pointermove", (event) => {
-          if (!this.dragging) {
-            return;
-          }
-          event.preventDefault();
-          this.panBy(event.clientX - this.lastX, event.clientY - this.lastY);
-          this.lastX = event.clientX;
-          this.lastY = event.clientY;
-        });
-        const stopDrag = (event) => {
-          if (!this.dragging) {
-            return;
-          }
-          this.dragging = false;
-          this.container.classList.remove("is-dragging");
-          if (event.pointerId !== void 0) {
-            this.container.releasePointerCapture(event.pointerId);
-          }
-        };
-        this.container.addEventListener("pointerup", stopDrag);
-        this.container.addEventListener("pointercancel", stopDrag);
-      }
-    }
-    function clamp2(value, min, max) {
-      return Math.max(min, Math.min(max, value));
     }
     function openMermaidModal(svgMarkup) {
       document.querySelector(".cm-mermaid-modal-backdrop")?.remove();
@@ -50954,9 +56641,9 @@ ${rowText}` },
       const fittedHeight = height * Math.min(1, availableWidth / width);
       const isLarge = previewSize === "large";
       const minimumHeight = isLarge ? 280 : 140;
-      const maximumHeight = isLarge ? clamp2(viewportHeight * 1.15, 760, 1200) : clamp2(viewportHeight * 0.82, 560, 900);
+      const maximumHeight = isLarge ? clamp(viewportHeight * 1.15, 760, 1200) : clamp(viewportHeight * 0.82, 560, 900);
       return Math.round(
-        clamp2(fittedHeight + 22, minimumHeight, maximumHeight)
+        clamp(fittedHeight + 22, minimumHeight, maximumHeight)
       );
     }
     function estimateLargeMermaidPreviewHeight(code3) {
@@ -50966,92 +56653,6 @@ ${rowText}` },
       ).length;
       const complexity = Math.max(lines.length, nodeLikeLines);
       return Math.max(320, Math.min(620, 260 + complexity * 18));
-    }
-    function loadMermaid() {
-      if (window.__richdownMermaid) {
-        return Promise.resolve(window.__richdownMermaid);
-      }
-      if (!mermaidLoadPromise) {
-        mermaidLoadPromise = new Promise((resolve, reject) => {
-          const script = document.createElement("script");
-          script.src = mermaidScriptUri2;
-          script.onload = () => {
-            const mermaid = window.__richdownMermaid;
-            if (!mermaid) {
-              reject(new Error("Mermaid loader did not expose Mermaid."));
-              return;
-            }
-            mermaid.initialize(getMermaidConfig(true));
-            resolve(mermaid);
-          };
-          script.onerror = () => {
-            reject(new Error("Failed to load Mermaid renderer."));
-          };
-          document.head.appendChild(script);
-        });
-      }
-      return mermaidLoadPromise;
-    }
-    function getMermaidConfig(colorized = true) {
-      if (!colorized) {
-        return {
-          startOnLoad: false,
-          securityLevel: "strict",
-          theme: document.documentElement.dataset.richTheme === "default" ? "default" : "dark"
-        };
-      }
-      return {
-        startOnLoad: false,
-        securityLevel: "strict",
-        theme: "base",
-        themeVariables: {
-          background: "transparent",
-          primaryColor: "#dbeafe",
-          primaryTextColor: "#172033",
-          primaryBorderColor: "#2563eb",
-          secondaryColor: "#dcfce7",
-          secondaryTextColor: "#172033",
-          secondaryBorderColor: "#16a34a",
-          tertiaryColor: "#fef3c7",
-          tertiaryTextColor: "#172033",
-          tertiaryBorderColor: "#d97706",
-          mainBkg: "#dbeafe",
-          secondBkg: "#dcfce7",
-          nodeBorder: "#2563eb",
-          clusterBkg: "#f8fafc",
-          clusterBorder: "#94a3b8",
-          lineColor: "#64748b",
-          edgeLabelBackground: "#f8fafc",
-          textColor: "#172033",
-          titleColor: "#172033",
-          actorBkg: "#dbeafe",
-          actorBorder: "#2563eb",
-          actorTextColor: "#172033",
-          actorLineColor: "#64748b",
-          signalColor: "#64748b",
-          signalTextColor: "#172033",
-          noteBkgColor: "#fef3c7",
-          noteTextColor: "#172033",
-          noteBorderColor: "#d97706",
-          labelBoxBkgColor: "#f8fafc",
-          labelBoxBorderColor: "#94a3b8",
-          labelTextColor: "#172033",
-          loopTextColor: "#172033",
-          stateBkg: "#dbeafe",
-          stateBorder: "#2563eb",
-          classText: "#172033",
-          taskBkgColor: "#dbeafe",
-          taskTextColor: "#172033",
-          taskTextOutsideColor: "#172033",
-          taskBorderColor: "#2563eb",
-          activeTaskBkgColor: "#fef3c7",
-          doneTaskBkgColor: "#dcfce7",
-          critBkgColor: "#fee2e2",
-          sectionBkgColor: "#dbeafe",
-          sectionBkgColor2: "#dcfce7",
-          gridColor: "#cbd5e1"
-        }
-      };
     }
     return MermaidPreviewWidget;
   }
@@ -51855,13 +57456,14 @@ ${rowText}` },
         };
       }
     }
-    function safeBuildMermaidDecorationState(state, activeEdit) {
+    function safeBuildMermaidDecorationState(state, activeEdit, diagnostic) {
       try {
-        return buildMermaidDecorationState(state, activeEdit);
+        return buildMermaidDecorationState(state, activeEdit, diagnostic);
       } catch (error) {
         reportError("mermaid-preview", error);
         return {
           activeEdit: null,
+          diagnostic: null,
           decorations: Decoration.none
         };
       }
@@ -51954,7 +57556,7 @@ ${rowText}` },
           activeEdit
         );
       },
-      provide: (field) => EditorView.decorations.from(field, (value) => value.decorations)
+      provide: (field2) => EditorView.decorations.from(field2, (value) => value.decorations)
     });
     const setActiveTableEdit = StateEffect.define({
       map(value, changes) {
@@ -52008,7 +57610,7 @@ ${rowText}` },
         }
         return safeBuildTableDecorationState(transaction.state, activeEdit);
       },
-      provide: (field) => EditorView.decorations.from(field, (value) => value.decorations)
+      provide: (field2) => EditorView.decorations.from(field2, (value) => value.decorations)
     });
     const setActiveMermaidEdit = StateEffect.define({
       map(value, changes) {
@@ -52021,16 +57623,63 @@ ${rowText}` },
         };
       }
     });
+    const setMermaidDiagnostic = StateEffect.define({
+      map(value, changes) {
+        return value ? { ...value, from: changes.mapPos(value.from) } : null;
+      }
+    });
+    const mermaidRenderer = createMermaidRenderer({ mermaidScriptUri: mermaidScriptUri2 });
+    function moveCaretOutOfMermaidBlock(view2, blockFrom) {
+      const block2 = findMermaidBlocks(view2.state.doc).find((candidate) => candidate.from === blockFrom);
+      const effects = setActiveMermaidEdit.of(null);
+      if (!block2) {
+        view2.dispatch({ effects });
+        return;
+      }
+      const { doc: doc2 } = view2.state;
+      if (block2.sourceTo < doc2.length) {
+        view2.dispatch({ selection: { anchor: block2.sourceTo + 1 }, effects });
+      } else if (block2.from > 0) {
+        view2.dispatch({ selection: { anchor: block2.from - 1 }, effects });
+      } else {
+        view2.dispatch({
+          changes: { from: doc2.length, insert: "\n" },
+          selection: { anchor: doc2.length + 1 },
+          effects
+        });
+      }
+    }
+    function openMermaidEditor(view2, blockFrom) {
+      moveCaretOutOfMermaidBlock(view2, blockFrom);
+      openMermaidEditorModal({
+        view: view2,
+        blockFrom,
+        renderer: mermaidRenderer,
+        colorized: getSettings().mermaidColorized
+      });
+    }
     const MermaidPreviewWidget = createMermaidPreviewWidgetClass({
-      mermaidScriptUri: mermaidScriptUri2,
-      setActiveMermaidEdit
+      renderer: mermaidRenderer,
+      setActiveMermaidEdit,
+      openMermaidEditor
+    });
+    const MermaidLiveEditorWidget = createMermaidLiveEditorWidgetClass({
+      renderer: mermaidRenderer,
+      setMermaidDiagnostic,
+      exitMermaidEdit: (view2, blockFrom) => {
+        moveCaretOutOfMermaidBlock(view2, blockFrom);
+        view2.focus();
+      },
+      openMermaidEditor,
+      requestEditorMeasure: requestEditorMeasure2
     });
     const mermaidDecorationField = StateField.define({
       create(state) {
-        return safeBuildMermaidDecorationState(state, null);
+        return safeBuildMermaidDecorationState(state, null, null);
       },
       update(value, transaction) {
         let activeEdit = value.activeEdit;
+        let diagnostic = value.diagnostic;
         let editChanged = false;
         if (activeEdit && transaction.docChanged) {
           activeEdit = {
@@ -52039,9 +57688,16 @@ ${rowText}` },
           };
           editChanged = true;
         }
+        if (diagnostic && transaction.docChanged) {
+          diagnostic = { ...diagnostic, from: transaction.changes.mapPos(diagnostic.from) };
+        }
         for (const effect of transaction.effects) {
           if (effect.is(setActiveMermaidEdit)) {
             activeEdit = effect.value;
+            editChanged = true;
+          }
+          if (effect.is(setMermaidDiagnostic)) {
+            diagnostic = effect.value;
             editChanged = true;
           }
           if (effect.is(refreshPreviewDecorations)) {
@@ -52059,9 +57715,13 @@ ${rowText}` },
         if (!transaction.docChanged && !transaction.selection && !editChanged) {
           return value;
         }
-        return safeBuildMermaidDecorationState(transaction.state, activeEdit);
+        return safeBuildMermaidDecorationState(
+          transaction.state,
+          activeEdit,
+          diagnostic
+        );
       },
-      provide: (field) => EditorView.decorations.from(field, (value) => value.decorations)
+      provide: (field2) => EditorView.decorations.from(field2, (value) => value.decorations)
     });
     const setActiveGherkinEdit = StateEffect.define({
       map(value, changes) {
@@ -52126,7 +57786,7 @@ ${rowText}` },
           modes
         );
       },
-      provide: (field) => EditorView.decorations.from(field, (value) => value.decorations)
+      provide: (field2) => EditorView.decorations.from(field2, (value) => value.decorations)
     });
     const setActiveFrontmatterEdit = StateEffect.define({
       map(value, changes) {
@@ -52190,7 +57850,7 @@ ${rowText}` },
         }
         return safeBuildFrontmatterDecorationState(transaction.state, activeEdit);
       },
-      provide: (field) => EditorView.decorations.from(field, (value) => value.decorations)
+      provide: (field2) => EditorView.decorations.from(field2, (value) => value.decorations)
     });
     function buildFrontmatterDecorationState(state, activeEdit) {
       const builder = new RangeSetBuilder();
@@ -52377,17 +58037,19 @@ ${rowText}` },
         decorations: builder.finish()
       };
     }
-    function buildMermaidDecorationState(state, activeEdit) {
+    function buildMermaidDecorationState(state, activeEdit, diagnostic) {
       const builder = new RangeSetBuilder();
       if (!getSettings().mermaidPreview) {
         return {
           activeEdit: null,
+          diagnostic: null,
           decorations: builder.finish()
         };
       }
       const mermaidBlocks = findMermaidBlocks(state.doc);
       const previewedBlockRanges = getPreviewedBlockRanges(state);
       let nextActiveEdit = activeEdit;
+      let editedBlock = null;
       for (const mermaidBlock of mermaidBlocks) {
         if (rangeIntersectsRanges(
           mermaidBlock.from,
@@ -52401,6 +58063,8 @@ ${rowText}` },
             from: mermaidBlock.from,
             to: mermaidBlock.sourceTo
           };
+          editedBlock = mermaidBlock;
+          addMermaidLiveEditor(builder, state, mermaidBlock, diagnostic);
           continue;
         }
         builder.add(
@@ -52424,8 +58088,39 @@ ${rowText}` },
       }
       return {
         activeEdit: nextActiveEdit,
+        diagnostic: editedBlock && diagnostic && diagnostic.from === editedBlock.from ? diagnostic : null,
         decorations: builder.finish()
       };
+    }
+    function addMermaidLiveEditor(builder, state, mermaidBlock, diagnostic) {
+      const firstLine = state.doc.lineAt(mermaidBlock.from).number;
+      const lastLine = state.doc.lineAt(mermaidBlock.sourceTo).number;
+      const errorLine = diagnostic && diagnostic.from === mermaidBlock.from && mermaidBlock.hasContentLines ? mermaidBlock.firstContentLineNumber + diagnostic.lineIndex : -1;
+      for (let lineNumber = firstLine; lineNumber <= lastLine; lineNumber += 1) {
+        const classes = ["cm-mermaid-source-line"];
+        if (lineNumber === firstLine) classes.push("is-first");
+        if (lineNumber === lastLine) classes.push("is-last");
+        if (lineNumber === errorLine) classes.push("cm-mermaid-error-line");
+        const line = state.doc.line(lineNumber);
+        builder.add(line.from, line.from, Decoration.line({ class: classes.join(" ") }));
+      }
+      const head = state.selection.main.head;
+      const caretLine = mermaidBlock.hasContentLines && head >= mermaidBlock.contentFrom && head <= mermaidBlock.contentTo ? state.doc.lineAt(head).number - mermaidBlock.firstContentLineNumber : -1;
+      builder.add(
+        mermaidBlock.sourceTo,
+        mermaidBlock.sourceTo,
+        Decoration.widget({
+          block: true,
+          side: 1,
+          widget: new MermaidLiveEditorWidget(
+            mermaidBlock,
+            readMermaidBlockContent(state.doc, mermaidBlock),
+            caretLine,
+            getSettings().mermaidColorized,
+            previewDecorationRevision
+          )
+        })
+      );
     }
     function buildGherkinDecorationState(state, activeEdit, modes) {
       const builder = new RangeSetBuilder();
@@ -52550,6 +58245,7 @@ ${rowText}` },
         taskCheckboxes
       ],
       refresh,
+      openMermaidEditor,
       exitDetailsEditMode,
       exitFrontmatterEditMode,
       exitTableEditMode,
@@ -53104,7 +58800,7 @@ ${rowText}` },
       }
       return highlight;
     },
-    provide: (field) => EditorView.decorations.from(field)
+    provide: (field2) => EditorView.decorations.from(field2)
   });
   function resolveRevealRange(doc2, target) {
     if (target?.selection) {
@@ -53152,11 +58848,11 @@ ${rowText}` },
     return true;
   }
   function toOffset(doc2, position) {
-    const lineNumber = clamp(Math.trunc(Number(position?.line) || 0) + 1, 1, doc2.lines);
+    const lineNumber = clamp2(Math.trunc(Number(position?.line) || 0) + 1, 1, doc2.lines);
     const line = doc2.line(lineNumber);
-    return line.from + clamp(Math.trunc(Number(position?.character) || 0), 0, line.to - line.from);
+    return line.from + clamp2(Math.trunc(Number(position?.character) || 0), 0, line.to - line.from);
   }
-  function clamp(value, min, max) {
+  function clamp2(value, min, max) {
     return Math.min(Math.max(value, min), max);
   }
 
@@ -54315,7 +60011,7 @@ ${rowText}` },
       "keydown",
       (event) => {
         const view2 = getView();
-        if (!view2 || !isSearchShortcut(event)) {
+        if (!view2 || !isSearchShortcut(event) || event.target?.closest?.(".cm-mermaid-editor-backdrop")) {
           return;
         }
         event.preventDefault();
@@ -56870,6 +62566,463 @@ ${rowText}` },
       width: 100%;
       height: 100%;
     }
+    .cm-mermaid-live {
+      box-sizing: border-box;
+      height: var(--mermaid-live-height, 380px);
+      min-height: 220px;
+      margin: 6px 0 4px;
+      border: 1px solid var(--rip-focus);
+      border-radius: 8px;
+      overflow: hidden;
+      resize: vertical;
+      background: var(--rip-panel);
+      cursor: default;
+    }
+    .cm-mermaid-live:has(.cm-mermaid-surface.has-panel) {
+      height: var(--mermaid-live-height, 540px);
+    }
+    .cm-line.cm-mermaid-source-line {
+      box-shadow: inset 3px 0 0 color-mix(in srgb, var(--rip-focus) 70%, transparent);
+    }
+    .cm-line.cm-mermaid-error-line,
+    .cm-mermaid-editor-source .cm-line.cm-mermaid-error-line {
+      background: color-mix(in srgb, var(--rip-danger) 16%, transparent);
+      text-decoration: wavy underline color-mix(in srgb, var(--rip-danger) 80%, transparent);
+      text-underline-offset: 3px;
+    }
+    .cm-mermaid-surface {
+      height: 100%;
+      min-height: 0;
+      display: grid;
+      grid-template-rows: auto minmax(120px, 1fr) auto auto;
+      color: var(--rip-fg);
+      font: 12px var(--vscode-font-family);
+    }
+    .cm-mermaid-surface-toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
+      padding: 6px 8px;
+      border-bottom: 1px solid var(--rip-border);
+      background: color-mix(in srgb, var(--rip-panel) 88%, var(--rip-bg));
+    }
+    .cm-mermaid-surface-group {
+      display: inline-flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 4px;
+    }
+    .cm-mermaid-surface-group[hidden] {
+      display: none;
+    }
+    .cm-mermaid-surface-group.is-view {
+      margin-left: auto;
+    }
+    .cm-mermaid-surface-tools {
+      display: inline-flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 4px;
+      padding-right: 4px;
+      margin-right: 2px;
+      border-right: 1px solid var(--rip-border);
+    }
+    .cm-mermaid-surface-button[hidden] {
+      display: none;
+    }
+    /* Fixed units: a percentage of an auto-sized grid row resolves cyclically
+       and squeezes the table. */
+    .cm-mermaid-surface-panel {
+      max-height: 210px;
+      min-height: 0;
+      overflow: auto;
+      border-top: 1px solid var(--rip-border);
+      background: var(--rip-panel);
+    }
+    .cm-mermaid-surface-panel[hidden] {
+      display: none;
+    }
+    .cm-mermaid-surface.is-modal .cm-mermaid-surface-panel {
+      max-height: 38vh;
+    }
+    .cm-mermaid-table {
+      padding: 6px 8px 8px;
+    }
+    .cm-mermaid-table table {
+      width: 100%;
+      border-collapse: collapse;
+      font: 12px var(--vscode-font-family);
+    }
+    .cm-mermaid-table th {
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      padding: 4px 6px;
+      border-bottom: 1px solid var(--rip-border);
+      color: var(--rip-muted);
+      background: var(--rip-panel);
+      font-weight: 600;
+      text-align: left;
+      white-space: nowrap;
+    }
+    .cm-mermaid-table td {
+      padding: 2px 3px;
+      border-bottom: 1px solid color-mix(in srgb, var(--rip-border) 55%, transparent);
+    }
+    .cm-mermaid-table tr.is-group td {
+      padding-top: 6px;
+    }
+    .cm-mermaid-table tr.is-group .cm-mermaid-table-input {
+      color: var(--rip-heading);
+      font-weight: 700;
+    }
+    .cm-mermaid-table-input {
+      box-sizing: border-box;
+      width: 100%;
+      min-width: 60px;
+      height: 24px;
+      border: 1px solid transparent;
+      border-radius: 4px;
+      padding: 0 6px;
+      color: var(--rip-fg);
+      background: transparent;
+      font: 12px var(--vscode-font-family);
+    }
+    .cm-mermaid-table-input:hover {
+      border-color: var(--rip-border);
+    }
+    .cm-mermaid-table-input:focus {
+      outline: none;
+      border-color: var(--rip-focus);
+      background: var(--rip-input-bg);
+    }
+    .cm-mermaid-table-actions {
+      width: 1%;
+      white-space: nowrap;
+    }
+    .cm-mermaid-table-actions .cm-mermaid-surface-button {
+      height: 22px;
+      min-width: 22px;
+      padding: 0 5px;
+      border-color: transparent;
+      background: transparent;
+      color: var(--rip-muted);
+    }
+    .cm-mermaid-table-actions .cm-mermaid-surface-button:hover {
+      color: var(--rip-fg);
+    }
+    .cm-mermaid-table-empty {
+      padding: 8px;
+      color: var(--rip-muted);
+      text-align: center;
+    }
+    .cm-mermaid-table-footer {
+      display: flex;
+      gap: 6px;
+      padding-top: 6px;
+    }
+    .cm-mermaid-surface-button,
+    .cm-mermaid-surface-select {
+      height: 26px;
+      border: 1px solid var(--rip-border);
+      border-radius: 6px;
+      padding: 0 8px;
+      color: var(--rip-fg);
+      background: var(--rip-input-bg);
+      font: 12px var(--vscode-font-family);
+      cursor: pointer;
+    }
+    .cm-mermaid-surface-select {
+      padding: 0 4px;
+    }
+    .cm-mermaid-surface-button:hover:not(:disabled),
+    .cm-mermaid-surface-select:hover:not(:disabled) {
+      border-color: var(--rip-focus);
+      background: var(--rip-hover);
+    }
+    .cm-mermaid-surface-button:focus-visible,
+    .cm-mermaid-surface-select:focus-visible,
+    .cm-mermaid-surface-viewport:focus-visible {
+      outline: 2px solid var(--rip-focus);
+      outline-offset: -2px;
+    }
+    .cm-mermaid-surface-button:disabled,
+    .cm-mermaid-surface-select:disabled {
+      opacity: 0.45;
+      cursor: default;
+    }
+    .cm-mermaid-surface-button.is-active,
+    .cm-mermaid-surface-button.is-primary {
+      border-color: var(--rip-accent);
+      color: var(--rip-button-fg);
+      background: var(--rip-accent);
+    }
+    .cm-mermaid-surface-colors {
+      display: inline-flex;
+      gap: 3px;
+      padding: 0 2px;
+    }
+    .cm-mermaid-surface-swatch {
+      width: 20px;
+      min-width: 20px;
+      height: 20px;
+      padding: 0;
+      border: 2px solid var(--swatch-stroke, var(--rip-border));
+      border-radius: 50%;
+      background: var(--swatch-fill, var(--rip-input-bg));
+    }
+    .cm-mermaid-surface-swatch[aria-pressed="true"] {
+      box-shadow: 0 0 0 2px var(--rip-panel), 0 0 0 4px var(--rip-focus);
+    }
+    .cm-mermaid-surface-swatch.is-clear {
+      display: inline-grid;
+      place-items: center;
+      line-height: 1;
+      color: var(--rip-muted);
+    }
+    .cm-mermaid-surface-viewport {
+      min-width: 0;
+      min-height: 0;
+      position: relative;
+      overflow: hidden;
+      background:
+        linear-gradient(color-mix(in srgb, var(--rip-border) 22%, transparent) 1px, transparent 1px),
+        linear-gradient(90deg, color-mix(in srgb, var(--rip-border) 22%, transparent) 1px, transparent 1px),
+        var(--rip-bg);
+      background-size: 24px 24px;
+      cursor: grab;
+      touch-action: none;
+    }
+    .cm-mermaid-surface-viewport.is-dragging {
+      cursor: grabbing;
+    }
+    .cm-mermaid-surface.is-connecting .cm-mermaid-surface-viewport {
+      cursor: crosshair;
+    }
+    .cm-mermaid-surface-stage {
+      position: absolute;
+      left: 0;
+      top: 0;
+      transform-origin: 0 0;
+      will-change: transform;
+      transition: opacity 120ms ease;
+    }
+    .cm-mermaid-surface.has-error .cm-mermaid-surface-stage {
+      opacity: 0.35;
+    }
+    .cm-mermaid-surface-stage svg {
+      display: block;
+      max-width: none;
+      max-height: none;
+      width: 100%;
+      height: 100%;
+    }
+    .cm-mermaid-surface-stage g.node,
+    .cm-mermaid-surface-stage g[data-id],
+    .cm-mermaid-surface-stage path[data-id],
+    .cm-mermaid-surface-stage g.edgeLabel {
+      cursor: pointer;
+    }
+    .cm-mermaid-surface-stage path[data-id] {
+      pointer-events: visibleStroke;
+    }
+    .cm-mermaid-surface-stage .is-rd-linked {
+      filter: drop-shadow(0 0 5px color-mix(in srgb, var(--rip-accent) 85%, transparent));
+    }
+    .cm-mermaid-surface-stage .is-rd-selected {
+      filter:
+        drop-shadow(0 0 1.5px var(--rip-focus))
+        drop-shadow(0 0 1.5px var(--rip-focus))
+        drop-shadow(0 0 6px var(--rip-focus));
+    }
+    .cm-mermaid-surface-stage path.is-rd-selected {
+      stroke: var(--rip-focus) !important;
+      stroke-width: 3px !important;
+    }
+    .cm-mermaid-surface-stage .is-rd-connect-source {
+      filter: drop-shadow(0 0 7px var(--rip-accent));
+    }
+    .cm-mermaid-surface-connector {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      overflow: visible;
+    }
+    .cm-mermaid-surface-connector line {
+      stroke: var(--rip-accent);
+      stroke-width: 2px;
+      stroke-dasharray: 6 4;
+    }
+    .cm-mermaid-surface-rename {
+      position: absolute;
+      z-index: 3;
+      box-sizing: border-box;
+      height: 30px;
+      border: 2px solid var(--rip-focus);
+      border-radius: 6px;
+      padding: 0 8px;
+      color: var(--rip-fg);
+      background: var(--rip-input-bg);
+      box-shadow: 0 8px 22px rgba(0, 0, 0, 0.28);
+      font: 13px var(--vscode-font-family);
+      text-align: center;
+    }
+    .cm-mermaid-surface-rename[hidden],
+    .cm-mermaid-surface-templates[hidden] {
+      display: none;
+    }
+    .cm-mermaid-surface-templates {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-wrap: wrap;
+      align-content: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 16px;
+    }
+    .cm-mermaid-surface-templates-title {
+      flex-basis: 100%;
+      text-align: center;
+      color: var(--rip-muted);
+      font-size: 13px;
+    }
+    .cm-mermaid-surface-template {
+      height: 32px;
+      padding: 0 14px;
+    }
+    .cm-mermaid-surface-status {
+      min-height: 22px;
+      padding: 3px 10px;
+      border-top: 1px solid var(--rip-border);
+      color: var(--rip-muted);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      line-height: 16px;
+    }
+    .cm-mermaid-surface-status.is-error {
+      color: var(--rip-danger);
+      white-space: normal;
+    }
+    .cm-mermaid-editor-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 10003;
+      display: grid;
+      padding: 20px;
+      background: rgba(0, 0, 0, 0.56);
+    }
+    .cm-mermaid-editor-modal {
+      min-width: 0;
+      min-height: 0;
+      display: grid;
+      grid-template-rows: auto 1fr;
+      border: 1px solid var(--rip-border);
+      border-radius: 10px;
+      overflow: hidden;
+      color: var(--rip-fg);
+      background: var(--rip-panel);
+      box-shadow: 0 24px 70px rgba(0, 0, 0, 0.42);
+      font-family: var(--vscode-font-family);
+    }
+    .cm-mermaid-editor-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--rip-border);
+      background: color-mix(in srgb, var(--rip-panel) 88%, var(--rip-bg));
+    }
+    .cm-mermaid-editor-title {
+      color: var(--rip-heading);
+      font-size: 13px;
+      font-weight: 700;
+    }
+    .cm-mermaid-editor-badge:not(:empty) {
+      border: 1px solid var(--rip-border);
+      border-radius: 999px;
+      padding: 1px 8px;
+      color: var(--rip-muted);
+      font-size: 11px;
+    }
+    .cm-mermaid-editor-notice {
+      flex: 1;
+      min-width: 0;
+      color: var(--rip-danger);
+      font-size: 12px;
+    }
+    .cm-mermaid-editor-done {
+      height: 28px;
+      border: 1px solid var(--rip-accent);
+      border-radius: 6px;
+      padding: 0 14px;
+      color: var(--rip-button-fg);
+      background: var(--rip-accent);
+      font: 12px var(--vscode-font-family);
+      cursor: pointer;
+    }
+    .cm-mermaid-editor-body {
+      min-height: 0;
+      display: grid;
+      grid-template-columns: var(--mermaid-editor-split, 38%) 6px minmax(0, 1fr);
+    }
+    .cm-mermaid-editor-source {
+      min-width: 0;
+      min-height: 0;
+      overflow: hidden;
+      background: var(--rip-bg);
+    }
+    .cm-mermaid-editor-source .cm-editor {
+      height: 100%;
+      color: var(--rip-fg);
+      background: var(--rip-bg);
+      font: 13px/1.6 var(--vscode-editor-font-family, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace);
+    }
+    .cm-mermaid-editor-source .cm-editor.cm-focused {
+      outline: none;
+    }
+    /* The document's reading-width rules target every .cm-content; the
+       modal's source editor must use its whole pane instead. */
+    html[data-preview-width] body .cm-mermaid-editor-source .cm-editor .cm-content,
+    .cm-mermaid-editor-source .cm-editor .cm-content {
+      max-width: none;
+      margin: 0;
+    }
+    .cm-mermaid-editor-source .cm-scroller {
+      overflow: auto;
+    }
+    .cm-mermaid-editor-source .cm-content {
+      caret-color: var(--rip-caret, var(--rip-fg));
+    }
+    .cm-mermaid-editor-source .cm-gutters {
+      border-right: 1px solid var(--rip-border);
+      color: var(--rip-muted);
+      background: var(--rip-panel);
+    }
+    .cm-mermaid-editor-source .cm-activeLine {
+      background: color-mix(in srgb, var(--rip-hover) 70%, transparent);
+    }
+    .cm-mermaid-editor-source .cm-selectionBackground,
+    .cm-mermaid-editor-source .cm-editor.cm-focused .cm-selectionBackground {
+      background: color-mix(in srgb, var(--rip-focus) 30%, transparent);
+    }
+    .cm-mermaid-editor-splitter {
+      cursor: col-resize;
+      background: var(--rip-border);
+      touch-action: none;
+    }
+    .cm-mermaid-editor-splitter:hover {
+      background: var(--rip-focus);
+    }
+    .cm-mermaid-editor-diagram {
+      min-width: 0;
+      min-height: 0;
+    }
   `;
     document.head.appendChild(style2);
   }
@@ -57035,7 +63188,9 @@ ${rowText}` },
                 previewExtensions.exitDetailsEditMode(view2, true);
                 previewExtensions.exitFrontmatterEditMode(view2, true);
                 previewExtensions.exitTableEditMode(view2, true);
-                previewExtensions.exitMermaidEditMode(view2, true);
+                if (!event.relatedTarget?.closest?.(".cm-mermaid-live")) {
+                  previewExtensions.exitMermaidEditMode(view2, true);
+                }
                 previewExtensions.exitGherkinEditMode(view2, true);
                 return false;
               },

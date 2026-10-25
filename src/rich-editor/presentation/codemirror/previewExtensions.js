@@ -21,7 +21,11 @@ import {
 import { createDetailsPreviewWidgetClass } from "../details/detailsPreview.js";
 import { createFrontmatterPreviewWidgetClass } from "../frontmatter/frontmatterPreview.js";
 import { createGherkinPreviewWidgetClass } from "../gherkin/gherkinPreview.js";
+import { readMermaidBlockContent } from "../../domain/mermaidSource.js";
+import { openMermaidEditorModal } from "../mermaid/mermaidEditorModal.js";
+import { createMermaidLiveEditorWidgetClass } from "../mermaid/mermaidLiveEditor.js";
 import { createMermaidPreviewWidgetClass } from "../mermaid/mermaidPreview.js";
+import { createMermaidRenderer } from "../mermaid/mermaidRenderer.js";
 import { createSyntaxPreviewDecorations } from "./syntaxPreviewDecorations.js";
 import { createTablePreviewWidgetClass } from "../table/tablePreview.js";
 
@@ -72,13 +76,14 @@ export function createPreviewExtensions({
     }
   }
   
-  function safeBuildMermaidDecorationState(state, activeEdit) {
+  function safeBuildMermaidDecorationState(state, activeEdit, diagnostic) {
     try {
-      return buildMermaidDecorationState(state, activeEdit);
+      return buildMermaidDecorationState(state, activeEdit, diagnostic);
     } catch (error) {
       reportError("mermaid-preview", error);
       return {
         activeEdit: null,
+        diagnostic: null,
         decorations: Decoration.none,
       };
     }
@@ -274,18 +279,75 @@ export function createPreviewExtensions({
     },
   });
   
+  // Parse error reported by the live editor for the diagram being edited:
+  // { from: block start, lineIndex: 0-based diagram line } or null.
+  const setMermaidDiagnostic = StateEffect.define({
+    map(value, changes) {
+      return value ? { ...value, from: changes.mapPos(value.from) } : null;
+    },
+  });
+
+  const mermaidRenderer = createMermaidRenderer({ mermaidScriptUri });
+
+  // Leaving edit mode turns the source back into a preview widget. A caret
+  // left inside it would keep typing into the hidden diagram text, so it moves
+  // to the line after the block (or before it, or onto a new last line).
+  function moveCaretOutOfMermaidBlock(view, blockFrom) {
+    const block = findMermaidBlocks(view.state.doc).find((candidate) => candidate.from === blockFrom);
+    const effects = setActiveMermaidEdit.of(null);
+    if (!block) {
+      view.dispatch({ effects });
+      return;
+    }
+    const { doc } = view.state;
+    if (block.sourceTo < doc.length) {
+      view.dispatch({ selection: { anchor: block.sourceTo + 1 }, effects });
+    } else if (block.from > 0) {
+      view.dispatch({ selection: { anchor: block.from - 1 }, effects });
+    } else {
+      view.dispatch({
+        changes: { from: doc.length, insert: "\n" },
+        selection: { anchor: doc.length + 1 },
+        effects,
+      });
+    }
+  }
+
+  function openMermaidEditor(view, blockFrom) {
+    moveCaretOutOfMermaidBlock(view, blockFrom);
+    openMermaidEditorModal({
+      view,
+      blockFrom,
+      renderer: mermaidRenderer,
+      colorized: getSettings().mermaidColorized,
+    });
+  }
+
   const MermaidPreviewWidget = createMermaidPreviewWidgetClass({
-    mermaidScriptUri,
+    renderer: mermaidRenderer,
     setActiveMermaidEdit,
+    openMermaidEditor,
+  });
+
+  const MermaidLiveEditorWidget = createMermaidLiveEditorWidgetClass({
+    renderer: mermaidRenderer,
+    setMermaidDiagnostic,
+    exitMermaidEdit: (view, blockFrom) => {
+      moveCaretOutOfMermaidBlock(view, blockFrom);
+      view.focus();
+    },
+    openMermaidEditor,
+    requestEditorMeasure,
   });
   
   const mermaidDecorationField = StateField.define({
     create(state) {
-      return safeBuildMermaidDecorationState(state, null);
+      return safeBuildMermaidDecorationState(state, null, null);
     },
   
     update(value, transaction) {
       let activeEdit = value.activeEdit;
+      let diagnostic = value.diagnostic;
       let editChanged = false;
   
       if (activeEdit && transaction.docChanged) {
@@ -295,10 +357,17 @@ export function createPreviewExtensions({
         };
         editChanged = true;
       }
+      if (diagnostic && transaction.docChanged) {
+        diagnostic = { ...diagnostic, from: transaction.changes.mapPos(diagnostic.from) };
+      }
   
       for (const effect of transaction.effects) {
         if (effect.is(setActiveMermaidEdit)) {
           activeEdit = effect.value;
+          editChanged = true;
+        }
+        if (effect.is(setMermaidDiagnostic)) {
+          diagnostic = effect.value;
           editChanged = true;
         }
         if (effect.is(refreshPreviewDecorations)) {
@@ -322,7 +391,11 @@ export function createPreviewExtensions({
         return value;
       }
   
-      return safeBuildMermaidDecorationState(transaction.state, activeEdit);
+      return safeBuildMermaidDecorationState(
+        transaction.state,
+        activeEdit,
+        diagnostic,
+      );
     },
   
     provide: (field) =>
@@ -725,11 +798,12 @@ export function createPreviewExtensions({
     };
   }
   
-  function buildMermaidDecorationState(state, activeEdit) {
+  function buildMermaidDecorationState(state, activeEdit, diagnostic) {
     const builder = new RangeSetBuilder();
     if (!getSettings().mermaidPreview) {
       return {
         activeEdit: null,
+        diagnostic: null,
         decorations: builder.finish(),
       };
     }
@@ -737,6 +811,7 @@ export function createPreviewExtensions({
     const mermaidBlocks = findMermaidBlocks(state.doc);
     const previewedBlockRanges = getPreviewedBlockRanges(state);
     let nextActiveEdit = activeEdit;
+    let editedBlock = null;
   
     for (const mermaidBlock of mermaidBlocks) {
       if (
@@ -754,6 +829,8 @@ export function createPreviewExtensions({
           from: mermaidBlock.from,
           to: mermaidBlock.sourceTo,
         };
+        editedBlock = mermaidBlock;
+        addMermaidLiveEditor(builder, state, mermaidBlock, diagnostic);
         continue;
       }
   
@@ -783,8 +860,54 @@ export function createPreviewExtensions({
   
     return {
       activeEdit: nextActiveEdit,
+      diagnostic:
+        editedBlock && diagnostic && diagnostic.from === editedBlock.from
+          ? diagnostic
+          : null,
       decorations: builder.finish(),
     };
+  }
+
+  // Edit mode keeps the diagram source in the document and adds a live,
+  // interactive drawing right under the closing fence.
+  function addMermaidLiveEditor(builder, state, mermaidBlock, diagnostic) {
+    const firstLine = state.doc.lineAt(mermaidBlock.from).number;
+    const lastLine = state.doc.lineAt(mermaidBlock.sourceTo).number;
+    const errorLine =
+      diagnostic && diagnostic.from === mermaidBlock.from && mermaidBlock.hasContentLines
+        ? mermaidBlock.firstContentLineNumber + diagnostic.lineIndex
+        : -1;
+    for (let lineNumber = firstLine; lineNumber <= lastLine; lineNumber += 1) {
+      const classes = ["cm-mermaid-source-line"];
+      if (lineNumber === firstLine) classes.push("is-first");
+      if (lineNumber === lastLine) classes.push("is-last");
+      if (lineNumber === errorLine) classes.push("cm-mermaid-error-line");
+      const line = state.doc.line(lineNumber);
+      builder.add(line.from, line.from, Decoration.line({ class: classes.join(" ") }));
+    }
+
+    const head = state.selection.main.head;
+    const caretLine =
+      mermaidBlock.hasContentLines &&
+      head >= mermaidBlock.contentFrom &&
+      head <= mermaidBlock.contentTo
+        ? state.doc.lineAt(head).number - mermaidBlock.firstContentLineNumber
+        : -1;
+    builder.add(
+      mermaidBlock.sourceTo,
+      mermaidBlock.sourceTo,
+      Decoration.widget({
+        block: true,
+        side: 1,
+        widget: new MermaidLiveEditorWidget(
+          mermaidBlock,
+          readMermaidBlockContent(state.doc, mermaidBlock),
+          caretLine,
+          getSettings().mermaidColorized,
+          previewDecorationRevision,
+        ),
+      }),
+    );
   }
 
   function buildGherkinDecorationState(state, activeEdit, modes) {
@@ -941,6 +1064,7 @@ export function createPreviewExtensions({
       taskCheckboxes,
     ],
     refresh,
+    openMermaidEditor,
     exitDetailsEditMode,
     exitFrontmatterEditMode,
     exitTableEditMode,

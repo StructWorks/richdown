@@ -2,6 +2,20 @@
 
 All notable changes to Richdown will be documented in this file.
 
+## 0.10.0 - 2026-10-25
+
+- Added a rich Mermaid editor. Click a diagram to edit its source with a live, interactive drawing right under it. Parse errors underline the failing source line, and the last good drawing stays visible. **Edit diagram** (✎ on the diagram toolbar, or ⤢ while editing) opens a larger split view with the source on the left and the diagram on the right. Every visual edit is a small rewrite of the source, so undo works as usual. Empty diagrams offer templates, and Mermaid source is now syntax highlighted.
+- Clicking an element of any Mermaid diagram type jumps to the statement that draws it, double-clicking renames it in place, and the elements drawn by the caret's line are highlighted. This covers flowcharts, sequence, class, state, ER, gantt, pie, mindmap, journey, timeline, git, quadrant, xychart, sankey, block, kanban, architecture, requirement, C4, packet, radar, and treemap diagrams; for example a gantt bar maps to its task line and a pie wedge to its data line. Renaming something that other lines refer to by name (a class, state, entity, git branch, or sankey node) renames every reference; a multi-word name for a class or state becomes its display label.
+- Diagrams can be edited visually from the editor toolbar, and Shift-dragging (or **Connect**) from one element to another connects them:
+  - Flowcharts: add nodes, connect them, change shapes and colors, and switch the direction.
+  - Sequence diagrams: add participants and messages, change a message's arrow or reverse it, add notes, wrap statements in loop/alt/opt/par/critical/break blocks, reorder participants, and toggle autonumbering.
+  - State diagrams: add states, transitions, notes, and start and end markers, and set the direction.
+  - Class diagrams: add classes, members, and relations, and change the relation type.
+  - ER diagrams: add entities, attributes, and relationships, and set each side's cardinality and whether the relationship is identifying.
+  - Mindmaps: add children and siblings, move ideas up and down, and change their shape.
+  - Delete removes the selected element together with the lines that refer to it.
+- Pie charts, gantt charts, user journeys, timelines, sankey diagrams, and quadrant charts can be edited as a table under the diagram: edit cells (Enter moves down and adds a row at the end), add rows and sections, reorder, and delete. Gantt tasks get separate Status, Id, Start, and Duration columns.
+
 ## 0.9.4 - 2026-10-25
 
 - Writing a table from scratch with the keyboard is easier. Press `Enter` at the end of a header row such as `| Name | Age |` to add the delimiter row and an empty first row, with the caret in its first cell (a missing closing `|` is added). Inside table source, `Tab` and `Shift+Tab` move between cells and select their text, `Tab` on the last cell adds a row, `Enter` adds a row below, and `Enter` on an empty last row removes it and leaves the table. The `/Table` slash command now selects the first header so you can type over it right away.

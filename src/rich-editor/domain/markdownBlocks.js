@@ -415,12 +415,28 @@ function computeMermaidBlocks(doc, options = {}) {
     if (closingLine) {
       signatureLines.push(closingLine.text);
     }
+    // The raw (untrimmed) diagram text lives between these offsets. The rich
+    // Mermaid editor rewrites this range so fences are never touched; an
+    // empty block has no content line yet, so the range collapses onto the
+    // start of the closing fence.
+    const contentFrom = codeLines.length
+      ? doc.line(openingLine.number + 1).from
+      : closingLine
+        ? closingLine.from
+        : openingLine.to;
+    const contentTo = codeLines.length
+      ? doc.line(openingLine.number + codeLines.length).to
+      : contentFrom;
 
     blocks.push({
       from: openingLine.from,
       to: endLine.to,
       sourceTo: endLine.to,
       sourceLineCount: endLine.number - openingLine.number + 1,
+      contentFrom,
+      contentTo,
+      hasContentLines: codeLines.length > 0,
+      firstContentLineNumber: openingLine.number + 1,
       code: codeLines.join("\n").trim(),
       signature: signatureLines.join("\n"),
       fenceChar: opening.char,
