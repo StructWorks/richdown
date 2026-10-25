@@ -468,6 +468,7 @@ describe("cell context menu", () => {
       "Add row above",
       "Add row below",
       "Delete row",
+      "Edit as Markdown",
     ]);
   });
 
@@ -481,6 +482,7 @@ describe("cell context menu", () => {
       "Add column left",
       "Add column right",
       "Delete column",
+      "Edit as Markdown",
     ]);
   });
 
@@ -642,5 +644,123 @@ describe("pasting a grid into a cell", () => {
     const { dom } = mount();
     const event = paste(cellEditor(dom, 1, 0), "just text");
     expect(event.defaultPrevented).toBe(false);
+  });
+});
+
+describe("arrow keys between cells and the surrounding text", () => {
+  function editingCell(dom) {
+    const cell = dom.querySelector(".cm-rich-table-cell.is-editing");
+    return cell && [cell.dataset.rowIndex, cell.dataset.columnIndex];
+  }
+
+  function caretLine(view) {
+    return view.state.doc.lineAt(view.state.selection.main.head).number;
+  }
+
+  function placeCaret(editor, offset) {
+    const range = document.createRange();
+    range.setStart(editor.firstChild || editor, offset);
+    range.collapse(true);
+    window.getSelection().removeAllRanges();
+    window.getSelection().addRange(range);
+  }
+
+  it("moves to the cell below and above", () => {
+    const { dom } = mount();
+    keydown(cellEditor(dom, 0, 1), "ArrowDown");
+    expect(editingCell(dom)).toEqual(["1", "1"]);
+
+    keydown(cellEditor(dom, 1, 1), "ArrowUp");
+    expect(editingCell(dom)).toEqual(["0", "1"]);
+  });
+
+  it("leaves the table for the line above from the header row", () => {
+    const { dom, view } = mount();
+    keydown(cellEditor(dom, 0, 0), "ArrowUp");
+    expect(caretLine(view)).toBe(2);
+  });
+
+  it("leaves the table for the line below from the last row", () => {
+    const { dom, view } = mount();
+    keydown(cellEditor(dom, 2, 1), "ArrowDown");
+    expect(caretLine(view)).toBe(7);
+  });
+
+  it("adds a line to leave a table that ends the document", () => {
+    harness = createPreviewHarness({
+      doc: ["intro", "", "| A |", "| --- |", "| 1 |"].join("\n"),
+    });
+    const { view } = harness;
+    const dom = harness.widget("TablePreviewWidget").toDOM(view);
+    document.body.appendChild(dom);
+
+    keydown(cellEditor(dom, 1, 0), "ArrowDown");
+    expect(view.state.doc.toString().endsWith("| 1 |\n")).toBe(true);
+    expect(view.state.selection.main.head).toBe(view.state.doc.length);
+  });
+
+  it("leaves from the first cell's start with Left", () => {
+    const { dom, view } = mount();
+    const editor = cellEditor(dom, 0, 0);
+    placeCaret(editor, 0);
+    keydown(editor, "ArrowLeft");
+    expect(view.state.selection.main.head).toBe(view.state.doc.line(2).to);
+  });
+
+  it("opens the cell actions with Shift+F10 while editing", () => {
+    const { dom } = mount();
+    keydown(cellEditor(dom, 1, 0), "F10", { shiftKey: true });
+    expect(document.querySelector(".cm-table-context-menu")).toBeTruthy();
+  });
+});
+
+describe("committing cell edits", () => {
+  function clickAction(label) {
+    [...document.querySelectorAll(".cm-table-context-menu-item")]
+      .find((item) => item.textContent === label)
+      .dispatchEvent(new MouseEvent("click", { bubbles: true }));
+  }
+
+  it("writes the edits once when several commits are queued", () => {
+    const { widget, dom, view } = mount();
+    type(cellEditor(dom, 1, 0), "a much longer value");
+    widget.commitTableEdits(view, dom);
+    const committed = view.state.doc.toString();
+
+    // A second focusout commit from the same, now outdated widget.
+    dom.dataset.dirty = "true";
+    widget.commitTableEdits(view, dom);
+    expect(view.state.doc.toString()).toBe(committed);
+  });
+
+  it("keeps edits pending while the cell actions menu has focus", async () => {
+    const { dom, view } = mount();
+    const editor = cellEditor(dom, 1, 0);
+    type(editor, "z");
+    keydown(editor, "F10", { shiftKey: true });
+    await Promise.resolve();
+    expect(document.activeElement.closest(".cm-table-context-menu")).toBeTruthy();
+
+    dom.dispatchEvent(new FocusEvent("focusout"));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(view.state.doc.toString()).toBe(TABLE_DOC);
+
+    clickAction("Add row below");
+    expect(view.state.doc.toString().split("\n").slice(4, 7)).toEqual([
+      "| z | 1 |",
+      "|  |  |",
+      "| b | 2 |",
+    ]);
+  });
+
+  it("shows the Markdown with pending edits from Edit as Markdown", () => {
+    const { dom, view } = mount();
+    type(cellEditor(dom, 1, 0), "z");
+    keydown(cellEditor(dom, 1, 0), "F10", { shiftKey: true });
+    clickAction("Edit as Markdown");
+
+    expect(view.state.doc.toString()).toContain("| z | 1 |");
+    expect(harness.widget("TablePreviewWidget")).toBeNull();
+    expect(view.state.selection.main.head).toBe(TABLE_DOC.indexOf("| Name") + 2);
   });
 });

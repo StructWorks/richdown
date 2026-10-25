@@ -2,6 +2,13 @@
 
 All notable changes to Richdown will be documented in this file.
 
+## 0.9.4 - 2026-10-25
+
+- Writing a table from scratch with the keyboard is easier. Press `Enter` at the end of a header row such as `| Name | Age |` to add the delimiter row and an empty first row, with the caret in its first cell (a missing closing `|` is added). Inside table source, `Tab` and `Shift+Tab` move between cells and select their text, `Tab` on the last cell adds a row, `Enter` adds a row below, and `Enter` on an empty last row removes it and leaves the table. The `/Table` slash command now selects the first header so you can type over it right away.
+- Arrow keys now move through rich tables predictably. Up and Down from the line above or below a table enter its cells (in the column under the caret) instead of jumping over the whole table, move between rows inside it, and leave it from the top or bottom row; Down from the last row of a table that ends the document adds a line to continue on. Right at the end of the line above and Left at the start of the line below enter the first and last cell, and the same keys at the table's first and last cell leave it. Previously Up and Down inside a cell dropped the caret into the text around the table.
+- Added **Edit as Markdown** to the table cell actions (right-click or `Shift+F10`, which now also works while editing a cell) to show a table's Markdown source.
+- Fixed cell edits being written twice when moving between cells quickly and then leaving the table, which left stray `|` characters at the end of the table. Opening the cell actions menu no longer commits pending edits first, so its actions (such as adding a row) no longer apply to an outdated copy of the table.
+
 ## 0.9.3 - 2026-10-24
 
 - Fixed typing in the Richdown editor losing or doubling characters, most often when writing a new file from the top or typing headings with a Japanese (IME) input method. When a file turned dirty or was saved, the editor could be sent the document as it was a few keystrokes earlier; applying it undid what had been typed since and broke an IME composition in progress. The editor now ignores any update that does not include its own latest edit.

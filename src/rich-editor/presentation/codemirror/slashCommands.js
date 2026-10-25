@@ -70,7 +70,9 @@ const slashCommands = [
     label: "Table",
     description: "Three-column table",
     insert: "| Column | Column | Column |\n| --- | --- | --- |\n|  |  |  |",
+    // Select the first header so typing replaces it; Tab then walks the cells.
     cursor: 2,
+    selectTo: 8,
   },
   {
     label: "Details",
@@ -251,13 +253,14 @@ class SlashCommandMenu {
   accept() {
     const command = slashCommands[this.activeIndex];
     const anchor = this.from + command.cursor;
+    const head = this.from + (command.selectTo ?? command.cursor);
     const view = this.view;
     const from = this.from;
     const to = this.to;
     this.closeMenu();
     view.dispatch({
       changes: { from, to, insert: command.insert },
-      selection: { anchor },
+      selection: { anchor, head },
       scrollIntoView: true,
     });
     view.focus();

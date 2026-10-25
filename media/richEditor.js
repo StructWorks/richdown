@@ -47801,7 +47801,9 @@
       label: "Table",
       description: "Three-column table",
       insert: "| Column | Column | Column |\n| --- | --- | --- |\n|  |  |  |",
-      cursor: 2
+      // Select the first header so typing replaces it; Tab then walks the cells.
+      cursor: 2,
+      selectTo: 8
     },
     {
       label: "Details",
@@ -47960,13 +47962,14 @@
     accept() {
       const command2 = slashCommands[this.activeIndex];
       const anchor = this.from + command2.cursor;
+      const head = this.from + (command2.selectTo ?? command2.cursor);
       const view2 = this.view;
       const from3 = this.from;
       const to = this.to;
       this.closeMenu();
       view2.dispatch({
         changes: { from: from3, to, insert: command2.insert },
-        selection: { anchor },
+        selection: { anchor, head },
         scrollIntoView: true
       });
       view2.focus();
@@ -48004,6 +48007,1307 @@
       this.dom.remove();
     }
   };
+
+  // src/rich-editor/presentation/table/tablePreview.js
+  var tableContextMenu = null;
+  var tableContextMenuAnchor = null;
+  var tableContextMenuOnDismiss = null;
+  function stopInteractiveEvent(event) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
+  function showTableContextMenu({
+    x,
+    y,
+    rowIndex,
+    columnIndex,
+    columnCount,
+    onAction,
+    onDismiss = null,
+    anchor = null
+  }) {
+    closeTableContextMenu();
+    const menu = document.createElement("div");
+    menu.className = "cm-table-context-menu";
+    menu.setAttribute("role", "menu");
+    const addItem = (label, action, disabled = false) => {
+      const item = document.createElement("button");
+      item.type = "button";
+      item.className = "cm-table-context-menu-item";
+      item.textContent = label;
+      item.disabled = disabled;
+      item.setAttribute("role", "menuitem");
+      item.addEventListener("mousedown", stopInteractiveEvent);
+      item.addEventListener("click", (event) => {
+        stopInteractiveEvent(event);
+        if (item.disabled) {
+          return;
+        }
+        tableContextMenuOnDismiss = null;
+        closeTableContextMenu();
+        onAction(action);
+      });
+      menu.appendChild(item);
+    };
+    addItem("Add column left", "add-column-left");
+    addItem("Add column right", "add-column-right");
+    addItem("Delete column", "delete-column", columnCount <= 1);
+    if (rowIndex > 0) {
+      const divider = document.createElement("div");
+      divider.className = "cm-table-context-menu-divider";
+      menu.appendChild(divider);
+      addItem("Add row above", "add-row-above");
+      addItem("Add row below", "add-row-below");
+      addItem("Delete row", "delete-row");
+    }
+    const sourceDivider = document.createElement("div");
+    sourceDivider.className = "cm-table-context-menu-divider";
+    menu.appendChild(sourceDivider);
+    addItem("Edit as Markdown", "edit-source");
+    document.body.appendChild(menu);
+    tableContextMenu = menu;
+    tableContextMenuOnDismiss = onDismiss;
+    tableContextMenuAnchor = anchor ? {
+      element: anchor,
+      sourceFrom: anchor.closest(".cm-rich-table-preview")?.dataset.sourceFrom,
+      rowIndex,
+      columnIndex
+    } : null;
+    positionFixedMenu(menu, x, y);
+    menu.addEventListener("keydown", (event) => {
+      const items = [...menu.querySelectorAll(".cm-table-context-menu-item:not(:disabled)")];
+      const currentIndex = items.indexOf(document.activeElement);
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+        event.stopImmediatePropagation();
+        closeTableContextMenu({ restoreFocus: true });
+        return;
+      }
+      if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      let nextIndex = currentIndex;
+      if (event.key === "Home") nextIndex = 0;
+      if (event.key === "End") nextIndex = items.length - 1;
+      if (event.key === "ArrowDown") nextIndex = (currentIndex + 1 + items.length) % items.length;
+      if (event.key === "ArrowUp") nextIndex = (currentIndex - 1 + items.length) % items.length;
+      items[nextIndex]?.focus();
+    });
+    queueMicrotask(() => {
+      menu.querySelector(".cm-table-context-menu-item:not(:disabled)")?.focus();
+    });
+  }
+  function positionFixedMenu(menu, x, y) {
+    const margin = 8;
+    const menuWidth = menu.offsetWidth || 184;
+    const menuHeight = menu.offsetHeight || 120;
+    const left = Math.max(
+      margin,
+      Math.min(x, window.innerWidth - menuWidth - margin)
+    );
+    const top2 = Math.max(
+      margin,
+      Math.min(y, window.innerHeight - menuHeight - margin)
+    );
+    menu.style.left = `${left}px`;
+    menu.style.top = `${top2}px`;
+  }
+  function setRovingTableCell(wrapper, target) {
+    if (!wrapper || !target) {
+      return;
+    }
+    for (const preview of wrapper.querySelectorAll(
+      ".cm-rich-table-cell-preview[tabindex]"
+    )) {
+      preview.tabIndex = preview === target ? 0 : -1;
+    }
+  }
+  function scheduleTableCellFocus(focusTarget) {
+    const restore = () => {
+      const selector = `.cm-rich-table-preview[data-source-from="${focusTarget.sourceFrom}"] .cm-rich-table-cell-preview[data-row-index="${focusTarget.rowIndex}"][data-column-index="${focusTarget.columnIndex}"]`;
+      const currentTarget = document.querySelector(selector) || (focusTarget.element?.isConnected ? focusTarget.element : null);
+      if (!currentTarget) {
+        return;
+      }
+      setRovingTableCell(
+        currentTarget.closest(".cm-rich-table-preview"),
+        currentTarget
+      );
+      currentTarget.focus({ preventScroll: true });
+    };
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        restore();
+      });
+    });
+    window.setTimeout(restore, 100);
+  }
+  function focusOutsideTable(wrapper, reverse = false) {
+    const candidates = [
+      ...document.querySelectorAll(
+        'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [contenteditable="true"], [contenteditable="plaintext-only"], [tabindex]:not([tabindex="-1"])'
+      )
+    ].filter(
+      (element) => !wrapper.contains(element) && !element.hidden && element.getAttribute("aria-hidden") !== "true" && element.getClientRects().length > 0
+    );
+    const ordered = reverse ? candidates.reverse() : candidates;
+    const position = reverse ? Node.DOCUMENT_POSITION_PRECEDING : Node.DOCUMENT_POSITION_FOLLOWING;
+    const target = ordered.find(
+      (element) => wrapper.compareDocumentPosition(element) & position
+    );
+    target?.focus({ preventScroll: true });
+    return Boolean(target);
+  }
+  function activateRichTableCellEditor(editor, options = {}) {
+    const cell = editor.closest(".cm-rich-table-cell");
+    if (!cell) {
+      return;
+    }
+    const table = cell.closest(".cm-rich-table-preview");
+    if (table) {
+      for (const activeCell of table.querySelectorAll(
+        ".cm-rich-table-cell.is-editing"
+      )) {
+        if (activeCell !== cell) {
+          activeCell.classList.remove("is-editing");
+        }
+      }
+    }
+    cell.classList.add("is-editing");
+    if (options.focus !== false && document.activeElement !== editor) {
+      editor.focus({ preventScroll: true });
+    }
+    if (options.select) {
+      selectEditableText(editor);
+    } else if (options.caret === "start") {
+      placeCaretAtEdge(editor, "start");
+    } else if (options.focus !== false) {
+      placeCaretAtEnd(editor);
+    }
+  }
+  function isCaretAtEditableEdge(editor, edge) {
+    const selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0 || !selection.isCollapsed) {
+      return false;
+    }
+    const range = selection.getRangeAt(0);
+    if (!editor.contains(range.startContainer)) {
+      return false;
+    }
+    const measure = range.cloneRange();
+    measure.selectNodeContents(editor);
+    measure.setEnd(range.startContainer, range.startOffset);
+    const caretOffset = measure.toString().length;
+    return edge === "start" ? caretOffset === 0 : caretOffset === (editor.textContent || "").length;
+  }
+  function placeCaretAtEdge(element, edge) {
+    const selection = window.getSelection();
+    if (!selection) {
+      return;
+    }
+    const range = document.createRange();
+    range.selectNodeContents(element);
+    range.collapse(edge === "start");
+    selection.removeAllRanges();
+    selection.addRange(range);
+  }
+  function selectEditableText(element) {
+    const selection = window.getSelection();
+    if (!selection) {
+      return;
+    }
+    const range = document.createRange();
+    range.selectNodeContents(element);
+    selection.removeAllRanges();
+    selection.addRange(range);
+  }
+  function placeCaretAtEnd(element) {
+    placeCaretAtEdge(element, "end");
+  }
+  function isCaretOnEdgeLine(editor, edge) {
+    const selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0) {
+      return true;
+    }
+    const caretRect = selection.getRangeAt(0).getClientRects?.()[0];
+    const box = editor.getBoundingClientRect();
+    if (!caretRect || !box.height) {
+      return true;
+    }
+    const lineHeight = Number.parseFloat(window.getComputedStyle(editor).lineHeight) || caretRect.height;
+    return edge === "top" ? caretRect.top - box.top < lineHeight : box.bottom - caretRect.bottom < lineHeight;
+  }
+  function columnIndexAtX(cells, x) {
+    if (typeof x !== "number") {
+      return 0;
+    }
+    const index = cells.findIndex((cell) => {
+      const rect = cell.getBoundingClientRect();
+      return rect.width > 0 && x >= rect.left && x < rect.right;
+    });
+    if (index !== -1) {
+      return index;
+    }
+    const lastRect = cells.at(-1)?.getBoundingClientRect();
+    return lastRect?.width > 0 && x >= lastRect.right ? cells.length - 1 : 0;
+  }
+  function getCaretX(editor) {
+    const selection = window.getSelection();
+    const rect = selection?.rangeCount > 0 ? selection.getRangeAt(0).getClientRects?.()[0] : null;
+    return rect ? rect.left : editor.getBoundingClientRect().left;
+  }
+  function positionInLineAtX(view2, line, x, edge) {
+    if (typeof x !== "number") {
+      return line.to;
+    }
+    try {
+      const block2 = view2.lineBlockAt(line.from);
+      const y = view2.documentTop + (edge === "top" ? block2.top + 2 : block2.bottom - 2);
+      const pos = view2.posAtCoords({ x, y }, false);
+      return Math.max(line.from, Math.min(pos ?? line.to, line.to));
+    } catch {
+      return line.to;
+    }
+  }
+  function focusRichTableCell(wrapper, { row, column, x, caret = "end" }) {
+    const rows = [...wrapper.querySelectorAll(".cm-rich-table tr")];
+    const rowIndex = row === "last" ? rows.length - 1 : row === "first" ? 0 : row;
+    const editors = [
+      ...rows[rowIndex]?.querySelectorAll(".cm-rich-table-cell-editor") || []
+    ];
+    if (editors.length === 0) {
+      return false;
+    }
+    const columnIndex = column === "last" ? editors.length - 1 : column === "first" ? 0 : typeof column === "number" ? column : columnIndexAtX(
+      editors.map((editor2) => editor2.closest(".cm-rich-table-cell")),
+      x
+    );
+    const editor = editors[Math.min(columnIndex, editors.length - 1)];
+    activateRichTableCellEditor(editor, { caret });
+    return true;
+  }
+  function closeTableContextMenu({ restoreFocus = false } = {}) {
+    if (!tableContextMenu) {
+      return false;
+    }
+    const focusTarget = restoreFocus ? tableContextMenuAnchor : null;
+    const onDismiss = tableContextMenuOnDismiss;
+    tableContextMenu.remove();
+    tableContextMenu = null;
+    tableContextMenuAnchor = null;
+    tableContextMenuOnDismiss = null;
+    if (focusTarget) {
+      scheduleTableCellFocus(focusTarget);
+    } else {
+      onDismiss?.();
+    }
+    return true;
+  }
+  function createTablePreviewWidgetClass({
+    setActiveTableEdit,
+    requestEditorMeasure: requestEditorMeasure2,
+    appendInlineMarkdown: appendInlineMarkdown2
+  }) {
+    class TablePreviewWidget extends WidgetType {
+      constructor(tableBlock) {
+        super();
+        this.tableBlock = tableBlock;
+      }
+      eq(other) {
+        return other.tableBlock.from === this.tableBlock.from && other.tableBlock.to === this.tableBlock.to && other.tableBlock.signature === this.tableBlock.signature;
+      }
+      // Advisory height (header + body rows) so CodeMirror reserves space before
+      // first measure, avoiding scroll-momentum loss when a table is measured
+      // mid-scroll. CodeMirror corrects this on the real measure.
+      get estimatedHeight() {
+        const rows = this.tableBlock.rows?.length || 1;
+        return rows * 40 + 24;
+      }
+      toDOM(view2) {
+        const wrapper = document.createElement("div");
+        wrapper.className = "cm-rich-table-preview";
+        wrapper.setAttribute("role", "region");
+        wrapper.dataset.sourceFrom = String(this.tableBlock.from);
+        wrapper.dataset.dirty = "false";
+        const readOnly2 = view2.state.readOnly;
+        wrapper.classList.toggle("is-read-only", readOnly2);
+        wrapper.setAttribute(
+          "aria-label",
+          readOnly2 ? "Markdown table" : "Editable Markdown table"
+        );
+        if (!readOnly2) {
+          wrapper.title = "Edit table cells";
+        }
+        const scroll = document.createElement("div");
+        scroll.className = "cm-rich-table-scroll";
+        const table = document.createElement("table");
+        table.className = "cm-rich-table";
+        const headerRow = this.tableBlock.rows[0];
+        const thead = document.createElement("thead");
+        thead.appendChild(this.renderRow(headerRow, "th", 0, view2, wrapper));
+        table.appendChild(thead);
+        const tbody = document.createElement("tbody");
+        for (let rowIndex = 1; rowIndex < this.tableBlock.rows.length; rowIndex += 1) {
+          tbody.appendChild(
+            this.renderRow(
+              this.tableBlock.rows[rowIndex],
+              "td",
+              rowIndex,
+              view2,
+              wrapper
+            )
+          );
+        }
+        table.appendChild(tbody);
+        if (!readOnly2) {
+          const toolbar = document.createElement("div");
+          toolbar.className = "cm-rich-table-toolbar";
+          const toolbarHint = document.createElement("span");
+          toolbarHint.className = "cm-rich-table-toolbar-hint";
+          toolbarHint.textContent = "Enter: edit \xB7 Arrow keys: move \xB7 Shift+F10: actions";
+          toolbar.appendChild(toolbarHint);
+          const addRowButton = document.createElement("button");
+          addRowButton.type = "button";
+          addRowButton.className = "cm-rich-table-action";
+          addRowButton.title = "Add row";
+          addRowButton.innerHTML = '<span class="cm-rich-table-action-icon">+</span><span>Row</span>';
+          addRowButton.addEventListener("mousedown", (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+          });
+          addRowButton.addEventListener("click", (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            this.addRowFromPreview(view2, wrapper);
+          });
+          toolbar.appendChild(addRowButton);
+          const addColumnButton = document.createElement("button");
+          addColumnButton.type = "button";
+          addColumnButton.className = "cm-rich-table-action";
+          addColumnButton.title = "Add column";
+          addColumnButton.innerHTML = '<span class="cm-rich-table-action-icon">+</span><span>Column</span>';
+          addColumnButton.addEventListener("mousedown", stopInteractiveEvent);
+          addColumnButton.addEventListener("click", (event) => {
+            stopInteractiveEvent(event);
+            this.addColumnFromPreview(view2, wrapper);
+          });
+          toolbar.appendChild(addColumnButton);
+          wrapper.appendChild(toolbar);
+        }
+        scroll.appendChild(table);
+        wrapper.appendChild(scroll);
+        wrapper.addEventListener("input", (event) => {
+          if (readOnly2) {
+            return;
+          }
+          if (event.target.closest(".cm-rich-table-cell-editor")) {
+            wrapper.dataset.dirty = "true";
+          }
+        });
+        wrapper.addEventListener("contextmenu", (event) => {
+          if (readOnly2) {
+            return;
+          }
+          const cell = event.target.closest(".cm-rich-table-cell");
+          if (!cell || !wrapper.contains(cell)) {
+            return;
+          }
+          event.preventDefault();
+          event.stopPropagation();
+          const rowIndex = Number.parseInt(cell.dataset.rowIndex || "0", 10);
+          const columnIndex = Number.parseInt(cell.dataset.columnIndex || "0", 10);
+          showTableContextMenu({
+            x: event.clientX,
+            y: event.clientY,
+            rowIndex,
+            columnIndex,
+            columnCount: this.tableBlock.columnCount,
+            anchor: cell.querySelector(".cm-rich-table-cell-preview"),
+            onDismiss: () => this.scheduleCommit(view2, wrapper),
+            onAction: (action) => {
+              this.applyTableContextAction(
+                view2,
+                wrapper,
+                rowIndex,
+                columnIndex,
+                action
+              );
+            }
+          });
+        });
+        wrapper.addEventListener("focusout", () => {
+          if (readOnly2) {
+            return;
+          }
+          this.scheduleCommit(view2, wrapper);
+        });
+        queueMicrotask(() => requestEditorMeasure2(view2));
+        return wrapper;
+      }
+      renderRow(row, cellTag, rowIndex, view2, wrapper) {
+        const tr = document.createElement("tr");
+        tr.dataset.rowIndex = String(rowIndex);
+        for (let columnIndex = 0; columnIndex < this.tableBlock.columnCount; columnIndex += 1) {
+          const sourceCell = row.cells[columnIndex];
+          const cell = document.createElement(cellTag);
+          cell.classList.add("cm-rich-table-cell");
+          cell.dataset.rowIndex = String(rowIndex);
+          cell.dataset.columnIndex = String(columnIndex);
+          const alignment = this.tableBlock.alignments[columnIndex];
+          if (alignment === "center") cell.classList.add("align-center");
+          if (alignment === "right") cell.classList.add("align-right");
+          if (sourceCell.from !== null) {
+            cell.dataset.sourceFrom = String(sourceCell.from);
+          }
+          const preview = document.createElement("div");
+          preview.className = "cm-rich-table-cell-preview";
+          if (!view2.state.readOnly) {
+            preview.tabIndex = rowIndex === 0 && columnIndex === 0 ? 0 : -1;
+            preview.setAttribute("role", "button");
+          }
+          preview.dataset.rowIndex = String(rowIndex);
+          preview.dataset.columnIndex = String(columnIndex);
+          const headerText = this.tableBlock.rows[0]?.cells[columnIndex]?.text || `Column ${columnIndex + 1}`;
+          const cellLabel = `${rowIndex === 0 ? "Header" : `Row ${rowIndex}`}, ${headerText}: ${sourceCell.text || "Empty cell"}`;
+          preview.setAttribute(
+            "aria-label",
+            view2.state.readOnly ? cellLabel : `Edit ${cellLabel}`
+          );
+          renderRichTableCellPreview(preview, sourceCell.text, view2);
+          const editor = document.createElement("div");
+          editor.className = "cm-rich-table-cell-editor";
+          editor.contentEditable = view2.state.readOnly ? "false" : "plaintext-only";
+          editor.spellcheck = true;
+          editor.dataset.rowIndex = String(rowIndex);
+          editor.dataset.columnIndex = String(columnIndex);
+          editor.textContent = sourceCell.text;
+          editor.setAttribute("aria-label", cellLabel);
+          preview.addEventListener("mousedown", (event) => {
+            if (isRichTablePreviewInteractiveTarget(event.target)) {
+              return;
+            }
+            event.preventDefault();
+            event.stopPropagation();
+            activateRichTableCellEditor(editor);
+          });
+          preview.addEventListener("keydown", (event) => {
+            this.handleCellPreviewKeydown(event, editor, view2, wrapper);
+          });
+          editor.addEventListener("focus", () => {
+            setRovingTableCell(wrapper, preview);
+            editor.dataset.editStartValue = editor.textContent || "";
+            editor.dataset.editStartDirty = wrapper.dataset.dirty || "false";
+            activateRichTableCellEditor(editor, { focus: false });
+          });
+          editor.addEventListener("blur", () => {
+            window.setTimeout(() => {
+              deactivateRichTableCellEditor(editor);
+            }, 0);
+          });
+          editor.addEventListener("input", () => {
+            const cellPreview = editor.closest(".cm-rich-table-cell")?.querySelector(".cm-rich-table-cell-preview");
+            renderRichTableCellPreview(
+              cellPreview,
+              editor.textContent,
+              view2
+            );
+          });
+          editor.addEventListener("keydown", (event) => {
+            this.handleCellKeydown(event, view2, wrapper);
+          });
+          editor.addEventListener("paste", (event) => {
+            this.handleCellPaste(event, view2, wrapper);
+          });
+          cell.appendChild(preview);
+          if (!view2.state.readOnly) {
+            const actionsButton = document.createElement("button");
+            actionsButton.type = "button";
+            actionsButton.className = "cm-rich-table-cell-actions";
+            actionsButton.textContent = "Actions";
+            actionsButton.tabIndex = -1;
+            actionsButton.setAttribute("aria-label", `Row and column actions for ${cellLabel}`);
+            actionsButton.addEventListener("mousedown", stopInteractiveEvent);
+            actionsButton.addEventListener("click", (event) => {
+              stopInteractiveEvent(event);
+              this.openCellActions(view2, wrapper, cell, preview);
+            });
+            cell.appendChild(actionsButton);
+          }
+          cell.appendChild(editor);
+          tr.appendChild(cell);
+        }
+        return tr;
+      }
+      handleCellPreviewKeydown(event, editor, view2, wrapper) {
+        if (event.key === "Enter" || event.key === "F2") {
+          event.preventDefault();
+          event.stopPropagation();
+          activateRichTableCellEditor(editor, { select: event.key === "Enter" });
+          return;
+        }
+        if (event.shiftKey && event.key === "F10" || event.key === "ContextMenu") {
+          event.preventDefault();
+          event.stopPropagation();
+          const cell = event.currentTarget.closest(".cm-rich-table-cell");
+          this.openCellActions(view2, wrapper, cell, event.currentTarget);
+          return;
+        }
+        const directions = {
+          ArrowLeft: [0, -1],
+          ArrowRight: [0, 1],
+          ArrowUp: [-1, 0],
+          ArrowDown: [1, 0]
+        };
+        const direction = directions[event.key];
+        if (!direction) {
+          return;
+        }
+        event.preventDefault();
+        event.stopPropagation();
+        this.focusRelativeCell(wrapper, event.currentTarget, ...direction);
+      }
+      handleCellKeydown(event, view2, wrapper) {
+        if (event.key === "Escape") {
+          event.preventDefault();
+          const editor = event.currentTarget;
+          editor.textContent = editor.dataset.editStartValue || "";
+          const preview = editor.closest(".cm-rich-table-cell")?.querySelector(".cm-rich-table-cell-preview");
+          renderRichTableCellPreview(preview, editor.textContent, view2);
+          wrapper.dataset.dirty = editor.dataset.editStartDirty || "false";
+          const focusTarget = {
+            element: preview,
+            sourceFrom: wrapper.dataset.sourceFrom,
+            rowIndex: editor.dataset.rowIndex,
+            columnIndex: editor.dataset.columnIndex
+          };
+          editor.blur();
+          scheduleTableCellFocus(focusTarget);
+          return;
+        }
+        if (event.key === "Enter" && !event.shiftKey) {
+          event.preventDefault();
+          const moved = this.focusRelativeCell(wrapper, event.currentTarget, 1, 0, {
+            activate: true
+          });
+          if (!moved) {
+            event.currentTarget.blur();
+          }
+          return;
+        }
+        if (event.shiftKey && event.key === "F10" || event.key === "ContextMenu") {
+          event.preventDefault();
+          event.stopPropagation();
+          const cell = event.currentTarget.closest(".cm-rich-table-cell");
+          this.openCellActions(
+            view2,
+            wrapper,
+            cell,
+            cell?.querySelector(".cm-rich-table-cell-preview") || event.currentTarget
+          );
+          return;
+        }
+        const plainArrow = !event.shiftKey && !event.altKey && !event.metaKey && !event.ctrlKey;
+        if ((event.key === "ArrowRight" || event.key === "ArrowLeft") && plainArrow) {
+          const forward = event.key === "ArrowRight";
+          if (!isCaretAtEditableEdge(event.currentTarget, forward ? "end" : "start")) {
+            return;
+          }
+          const editors2 = [
+            ...wrapper.querySelectorAll(".cm-rich-table-cell-editor")
+          ];
+          const currentIndex2 = editors2.indexOf(event.currentTarget);
+          if (currentIndex2 === -1) {
+            return;
+          }
+          event.preventDefault();
+          const nextIndex2 = currentIndex2 + (forward ? 1 : -1);
+          if (nextIndex2 < 0 || nextIndex2 >= editors2.length) {
+            this.exitToEditor(view2, forward ? "right" : "left");
+            return;
+          }
+          activateRichTableCellEditor(editors2[nextIndex2], {
+            caret: forward ? "start" : "end"
+          });
+          return;
+        }
+        if ((event.key === "ArrowUp" || event.key === "ArrowDown") && plainArrow) {
+          const forward = event.key === "ArrowDown";
+          if (!isCaretOnEdgeLine(event.currentTarget, forward ? "bottom" : "top")) {
+            return;
+          }
+          event.preventDefault();
+          const caretX = getCaretX(event.currentTarget);
+          const moved = this.focusRelativeCell(
+            wrapper,
+            event.currentTarget,
+            forward ? 1 : -1,
+            0,
+            { activate: true, caret: "end" }
+          );
+          if (!moved) {
+            this.exitToEditor(view2, forward ? "down" : "up", caretX);
+          }
+          return;
+        }
+        if (event.key !== "Tab") {
+          return;
+        }
+        if (!wrapper) {
+          return;
+        }
+        const editors = [
+          ...wrapper.querySelectorAll(".cm-rich-table-cell-editor")
+        ];
+        const currentIndex = editors.indexOf(event.currentTarget);
+        if (currentIndex === -1) {
+          return;
+        }
+        const delta = event.shiftKey ? -1 : 1;
+        const nextIndex = currentIndex + delta;
+        if (nextIndex < 0 || nextIndex >= editors.length) {
+          event.preventDefault();
+          focusOutsideTable(wrapper, event.shiftKey);
+          return;
+        }
+        event.preventDefault();
+        const nextEditor = editors[nextIndex];
+        activateRichTableCellEditor(nextEditor, { select: true });
+      }
+      focusRelativeCell(wrapper, current, rowDelta, columnDelta, options = {}) {
+        const rowIndex = Number.parseInt(current.dataset.rowIndex || "0", 10);
+        const columnIndex = Number.parseInt(current.dataset.columnIndex || "0", 10);
+        const nextRow = rowIndex + rowDelta;
+        const nextColumn = columnIndex + columnDelta;
+        const selector = options.activate ? ".cm-rich-table-cell-editor" : ".cm-rich-table-cell-preview";
+        const next2 = wrapper.querySelector(
+          `${selector}[data-row-index="${nextRow}"][data-column-index="${nextColumn}"]`
+        );
+        if (!next2) {
+          return false;
+        }
+        if (options.activate) {
+          activateRichTableCellEditor(
+            next2,
+            options.caret ? { caret: options.caret } : { select: true }
+          );
+        } else {
+          setRovingTableCell(wrapper, next2);
+          next2.focus({ preventScroll: true });
+        }
+        return true;
+      }
+      // Returns the caret to the Markdown text next to the table: the line above
+      // for "up"/"left", the line below for "down"/"right". Pending cell edits
+      // are committed by the wrapper's focusout handler once the editor has
+      // focus. A table that ends the document gets a new line to land on.
+      exitToEditor(view2, direction, x) {
+        const doc2 = view2.state.doc;
+        const before = direction === "up" || direction === "left";
+        let spec;
+        if (before) {
+          if (this.tableBlock.from === 0) {
+            return false;
+          }
+          const line = doc2.lineAt(this.tableBlock.from - 1);
+          const anchor = direction === "left" ? line.to : positionInLineAtX(view2, line, x, "bottom");
+          spec = { selection: { anchor } };
+        } else if (this.tableBlock.sourceTo >= doc2.length) {
+          spec = {
+            changes: { from: doc2.length, insert: "\n" },
+            selection: { anchor: doc2.length + 1 }
+          };
+        } else {
+          const line = doc2.lineAt(this.tableBlock.sourceTo + 1);
+          const anchor = direction === "right" ? line.from : positionInLineAtX(view2, line, x, "top");
+          spec = { selection: { anchor } };
+        }
+        view2.dispatch({ ...spec, scrollIntoView: true });
+        view2.focus();
+        return true;
+      }
+      // Shows the table as Markdown source with the caret in its first cell,
+      // keeping cell edits that were not committed yet.
+      editSource(view2, wrapper) {
+        if (view2.state.readOnly || this.isStale(view2)) {
+          return;
+        }
+        const rows = collectEditableTableRows(wrapper, this.tableBlock);
+        const nextText = serializeMarkdownTable(this.tableBlock, rows);
+        const from3 = this.tableBlock.from;
+        const currentText = view2.state.doc.sliceString(from3, this.tableBlock.sourceTo);
+        const firstCellOffset = nextText.match(/^[\t ]*\|?[\t ]*/)[0].length;
+        wrapper.dataset.dirty = "false";
+        view2.dispatch({
+          ...nextText === currentText ? {} : { changes: { from: from3, to: this.tableBlock.sourceTo, insert: nextText } },
+          effects: setActiveTableEdit.of({ from: from3, to: from3 + nextText.length }),
+          selection: { anchor: from3 + firstCellOffset },
+          scrollIntoView: true
+        });
+        view2.focus();
+        requestEditorMeasure2(view2);
+      }
+      openCellActions(view2, wrapper, cell, anchor) {
+        if (!cell) {
+          return;
+        }
+        const rowIndex = Number.parseInt(cell.dataset.rowIndex || "0", 10);
+        const columnIndex = Number.parseInt(cell.dataset.columnIndex || "0", 10);
+        let rect = anchor.getBoundingClientRect();
+        if (!rect.width && !rect.height) {
+          rect = cell.getBoundingClientRect();
+        }
+        showTableContextMenu({
+          x: rect.left + Math.min(rect.width, 28),
+          y: rect.bottom,
+          rowIndex,
+          columnIndex,
+          columnCount: this.tableBlock.columnCount,
+          anchor,
+          onDismiss: () => this.scheduleCommit(view2, wrapper),
+          onAction: (action) => {
+            this.applyTableContextAction(view2, wrapper, rowIndex, columnIndex, action);
+          }
+        });
+      }
+      handleCellPaste(event, view2, wrapper) {
+        const pastedText = event.clipboardData?.getData("text/plain") || "";
+        if (!pastedText.includes("	") && !/\r?\n/.test(pastedText.trimEnd())) {
+          return;
+        }
+        event.preventDefault();
+        event.stopPropagation();
+        const startRow = Number.parseInt(event.currentTarget.dataset.rowIndex || "0", 10);
+        const startColumn = Number.parseInt(event.currentTarget.dataset.columnIndex || "0", 10);
+        const pastedRows = pastedText.replace(/\r/g, "").replace(/\n$/, "").split("\n").map((row) => row.split("	"));
+        const rows = collectEditableTableRows(wrapper, this.tableBlock);
+        const requiredColumns = Math.max(
+          this.tableBlock.columnCount,
+          ...pastedRows.map((row) => startColumn + row.length)
+        );
+        while (rows.length < startRow + pastedRows.length) {
+          rows.push(Array.from({ length: requiredColumns }, () => ""));
+        }
+        rows.forEach((row) => {
+          while (row.length < requiredColumns) row.push("");
+        });
+        pastedRows.forEach((pastedRow, rowOffset) => {
+          pastedRow.forEach((value, columnOffset) => {
+            rows[startRow + rowOffset][startColumn + columnOffset] = value;
+          });
+        });
+        const alignments = [...this.tableBlock.alignments];
+        while (alignments.length < requiredColumns) alignments.push("left");
+        this.replaceTable(view2, rows, alignments);
+      }
+      focusSource(view2, sourceFrom) {
+        if (view2.state.readOnly) {
+          return;
+        }
+        const fallbackCell = this.tableBlock.rows.flatMap((row) => row.cells).find((cell) => cell.from !== null);
+        const target = sourceFrom === this.tableBlock.from && fallbackCell ? fallbackCell.from : sourceFrom;
+        const anchor = Math.max(0, Math.min(target, view2.state.doc.length));
+        view2.dispatch({
+          effects: setActiveTableEdit.of({
+            from: this.tableBlock.from,
+            to: this.tableBlock.sourceTo
+          }),
+          selection: { anchor },
+          scrollIntoView: true
+        });
+        view2.focus();
+      }
+      addRow(view2) {
+        if (view2.state.readOnly) {
+          return;
+        }
+        const rowText = buildEmptyTableRow(this.tableBlock);
+        const insertText = `
+${rowText}`;
+        const anchor = this.tableBlock.to + insertText.length;
+        view2.dispatch({
+          changes: {
+            from: this.tableBlock.sourceTo,
+            insert: insertText
+          },
+          effects: setActiveTableEdit.of(null),
+          selection: { anchor },
+          scrollIntoView: true
+        });
+        view2.focus();
+      }
+      addRowFromPreview(view2, wrapper) {
+        if (view2.state.readOnly) {
+          return;
+        }
+        const rows = collectEditableTableRows(wrapper, this.tableBlock);
+        rows.push(Array.from({ length: this.tableBlock.columnCount }, () => ""));
+        this.replaceTable(view2, rows);
+      }
+      addColumnFromPreview(view2, wrapper) {
+        if (view2.state.readOnly) {
+          return;
+        }
+        const rows = collectEditableTableRows(wrapper, this.tableBlock);
+        rows.forEach((row) => row.push(""));
+        this.replaceTable(view2, rows, [...this.tableBlock.alignments, "left"]);
+      }
+      applyTableContextAction(view2, wrapper, rowIndex, columnIndex, action) {
+        if (view2.state.readOnly) {
+          return;
+        }
+        if (action === "edit-source") {
+          this.editSource(view2, wrapper);
+          return;
+        }
+        const rows = collectEditableTableRows(wrapper, this.tableBlock);
+        const alignments = [...this.tableBlock.alignments];
+        const columnCount = Math.max(1, this.tableBlock.columnCount);
+        if (action === "add-column-left" || action === "add-column-right") {
+          const insertAt = action === "add-column-left" ? Math.max(0, Math.min(columnIndex, columnCount)) : Math.min(columnIndex + 1, columnCount);
+          rows.forEach((row) => row.splice(insertAt, 0, ""));
+          alignments.splice(insertAt, 0, "left");
+        } else if (action === "delete-column") {
+          if (columnCount <= 1) {
+            return;
+          }
+          const deleteAt = Math.max(0, Math.min(columnIndex, columnCount - 1));
+          rows.forEach((row) => row.splice(deleteAt, 1));
+          alignments.splice(deleteAt, 1);
+        } else if (action === "add-row-above" || action === "add-row-below") {
+          if (rowIndex <= 0) {
+            return;
+          }
+          const insertAt = action === "add-row-above" ? Math.max(1, Math.min(rowIndex, rows.length)) : Math.min(rowIndex + 1, rows.length);
+          rows.splice(
+            insertAt,
+            0,
+            Array.from({ length: alignments.length }, () => "")
+          );
+        } else if (action === "delete-row") {
+          if (rowIndex <= 0 || rowIndex >= rows.length) {
+            return;
+          }
+          rows.splice(rowIndex, 1);
+        } else {
+          return;
+        }
+        this.replaceTable(view2, rows, alignments);
+      }
+      // Commits cell edits once focus has settled outside the table. The table
+      // context menu does not count as outside: its action still needs the
+      // uncommitted cells, and dismissing it schedules this again.
+      scheduleCommit(view2, wrapper) {
+        window.setTimeout(() => {
+          const active = document.activeElement;
+          if (wrapper.contains(active) || tableContextMenu?.contains(active)) {
+            return;
+          }
+          this.commitTableEdits(view2, wrapper);
+        }, 0);
+      }
+      commitTableEdits(view2, wrapper) {
+        if (view2.state.readOnly) {
+          return;
+        }
+        if (wrapper.dataset.dirty !== "true") {
+          return;
+        }
+        wrapper.dataset.dirty = "false";
+        const rows = collectEditableTableRows(wrapper, this.tableBlock);
+        this.replaceTable(view2, rows);
+      }
+      // True once the document no longer holds the Markdown this widget was
+      // built from. Its offsets are then out of date, and writing through them
+      // would leave fragments of the old table behind.
+      isStale(view2) {
+        return view2.state.doc.sliceString(this.tableBlock.from, this.tableBlock.sourceTo) !== this.tableBlock.signature;
+      }
+      replaceTable(view2, rows, alignments = this.tableBlock.alignments) {
+        if (view2.state.readOnly || this.isStale(view2)) {
+          return;
+        }
+        const nextText = serializeMarkdownTable(this.tableBlock, rows, alignments);
+        const currentText = view2.state.doc.sliceString(
+          this.tableBlock.from,
+          this.tableBlock.sourceTo
+        );
+        if (nextText === currentText) {
+          return;
+        }
+        view2.dispatch({
+          changes: {
+            from: this.tableBlock.from,
+            to: this.tableBlock.sourceTo,
+            insert: nextText
+          },
+          effects: setActiveTableEdit.of(null)
+        });
+        requestEditorMeasure2(view2);
+      }
+      ignoreEvent() {
+        return true;
+      }
+    }
+    function renderRichTableCellPreview(preview, text2, view2) {
+      if (!preview) {
+        return;
+      }
+      preview.replaceChildren();
+      appendInlineMarkdown2(preview, unescapeMarkdownTableCellPipes(text2), {
+        renderImages: true,
+        onImageReady: () => requestEditorMeasure2(view2)
+      });
+    }
+    function isRichTablePreviewInteractiveTarget(target) {
+      return Boolean(target.closest("a, img"));
+    }
+    function deactivateRichTableCellEditor(editor) {
+      if (document.activeElement === editor) {
+        return;
+      }
+      const cell = editor.closest(".cm-rich-table-cell");
+      if (cell) {
+        cell.classList.remove("is-editing");
+      }
+    }
+    function buildEmptyTableRow(tableBlock) {
+      const cells = Array.from({ length: tableBlock.columnCount }, () => "");
+      return formatMarkdownTableRow(tableBlock, cells);
+    }
+    function collectEditableTableRows(wrapper, tableBlock) {
+      return tableBlock.rows.map(
+        (row, rowIndex) => Array.from({ length: tableBlock.columnCount }, (_, columnIndex) => {
+          const editor = wrapper.querySelector(
+            `.cm-rich-table-cell-editor[data-row-index="${rowIndex}"][data-column-index="${columnIndex}"]`
+          );
+          return sanitizeEditedTableCellText(editor?.textContent || "");
+        })
+      );
+    }
+    function serializeMarkdownTable(tableBlock, rows, alignments = tableBlock.alignments) {
+      const columnCount = Math.max(
+        1,
+        alignments.length,
+        ...rows.map((row) => row.length)
+      );
+      const normalizedAlignments = Array.from(
+        { length: columnCount },
+        (_, index) => alignments[index] || "left"
+      );
+      const normalizedRows = rows.map(
+        (row) => Array.from({ length: columnCount }, (_, index) => row[index] || "")
+      );
+      const header2 = normalizedRows[0] || Array.from({ length: columnCount }, () => "");
+      const bodyRows = normalizedRows.slice(1);
+      return [
+        formatMarkdownTableRow(tableBlock, header2),
+        formatMarkdownTableRow(
+          tableBlock,
+          buildTableDelimiterCells(normalizedAlignments)
+        ),
+        ...bodyRows.map((row) => formatMarkdownTableRow(tableBlock, row))
+      ].join("\n");
+    }
+    function buildTableDelimiterCells(alignments) {
+      return alignments.map((alignment) => {
+        if (alignment === "center") return ":---:";
+        if (alignment === "right") return "---:";
+        return "---";
+      });
+    }
+    function formatMarkdownTableRow(tableBlock, cells) {
+      const segments = cells.map(
+        (cell) => ` ${escapeMarkdownTableCellPipes(sanitizeEditedTableCellText(cell))} `
+      );
+      const row = segments.join("|");
+      const prefix2 = `${tableBlock.indent || ""}${tableBlock.usesLeadingPipe ? "|" : ""}`;
+      const suffix2 = tableBlock.usesTrailingPipe ? "|" : "";
+      return `${prefix2}${row}${suffix2}`;
+    }
+    function sanitizeEditedTableCellText(text2) {
+      return text2.replace(/\r?\n/g, " ").trim();
+    }
+    return TablePreviewWidget;
+  }
+
+  // src/rich-editor/presentation/codemirror/tableKeymap.js
+  var NON_TABLE_CONTAINERS = /* @__PURE__ */ new Set([
+    "FencedCode",
+    "CodeBlock",
+    "HTMLBlock",
+    "CommentBlock"
+  ]);
+  var tableKeymap = [
+    { key: "Tab", run: nextTableCell },
+    { key: "Shift-Tab", run: previousTableCell },
+    { key: "Enter", run: insertTableRow }
+  ];
+  var tablePreviewEntryKeymap = [
+    { key: "ArrowDown", run: (view2) => enterTablePreview(view2, "down") },
+    { key: "ArrowUp", run: (view2) => enterTablePreview(view2, "up") },
+    { key: "ArrowRight", run: (view2) => enterTablePreview(view2, "right") },
+    { key: "ArrowLeft", run: (view2) => enterTablePreview(view2, "left") }
+  ];
+  function enterTablePreview(view2, direction) {
+    const { state } = view2;
+    const range = state.selection.main;
+    if (state.readOnly || state.selection.ranges.length > 1 || !range.empty) {
+      return false;
+    }
+    const line = state.doc.lineAt(range.head);
+    const forward = direction === "down" || direction === "right";
+    const vertical = direction === "down" || direction === "up";
+    if (direction === "right" && range.head !== line.to) {
+      return false;
+    }
+    if (direction === "left" && range.head !== line.from) {
+      return false;
+    }
+    const neighborNumber = line.number + (forward ? 1 : -1);
+    if (neighborNumber < 1 || neighborNumber > state.doc.lines) {
+      return false;
+    }
+    const neighbor = state.doc.line(neighborNumber);
+    const table = findTableBlocks(state.doc).find(
+      (block2) => forward ? block2.from === neighbor.from : block2.sourceTo === neighbor.to
+    );
+    if (!table) {
+      return false;
+    }
+    const wrapper = view2.contentDOM.querySelector(
+      `.cm-rich-table-preview[data-source-from="${table.from}"]`
+    );
+    if (!wrapper) {
+      return false;
+    }
+    if (vertical && !isOnEdgeVisualLine(view2, range, line, forward)) {
+      return false;
+    }
+    if (vertical) {
+      return focusRichTableCell(wrapper, {
+        row: forward ? "first" : "last",
+        x: getCaretX2(view2, range.head),
+        caret: "end"
+      });
+    }
+    return focusRichTableCell(
+      wrapper,
+      forward ? { row: "first", column: "first", caret: "start" } : { row: "last", column: "last", caret: "end" }
+    );
+  }
+  function isOnEdgeVisualLine(view2, range, line, forward) {
+    try {
+      const moved = view2.moveVertically(range, forward);
+      return forward ? moved.head > line.to : moved.head < line.from;
+    } catch {
+      return true;
+    }
+  }
+  function getCaretX2(view2, pos) {
+    try {
+      return view2.coordsAtPos(pos)?.left;
+    } catch {
+      return void 0;
+    }
+  }
+  function nextTableCell({ state, dispatch }) {
+    return moveTableCell(state, dispatch, 1);
+  }
+  function previousTableCell({ state, dispatch }) {
+    return moveTableCell(state, dispatch, -1);
+  }
+  function insertTableRow({ state, dispatch }) {
+    if (state.readOnly || state.selection.ranges.length > 1) {
+      return false;
+    }
+    const range = state.selection.main;
+    if (!range.empty) {
+      return false;
+    }
+    const line = state.doc.lineAt(range.head);
+    const table = findTableAt(state, range.head);
+    if (table) {
+      const row = table.sourceRows.find((entry) => entry.line.number === line.number);
+      if (!row) {
+        return false;
+      }
+      if (row.role === "body" && row === table.sourceRows.at(-1) && isBlankTableRow(line.text)) {
+        dispatch(
+          state.update({
+            changes: { from: line.from, to: line.to, insert: "" },
+            selection: { anchor: line.from },
+            scrollIntoView: true,
+            userEvent: "delete"
+          })
+        );
+        return true;
+      }
+      const afterLine = row.role === "body" ? line : table.sourceRows[1].line;
+      dispatch(insertRowAfter(state, afterLine, table, table.columnCount));
+      return true;
+    }
+    if (!isTableHeaderCandidate(state, line, range.head)) {
+      return false;
+    }
+    const header2 = { ...scanMarkdownTableRow(line.text), usesTrailingPipe: true };
+    const headerText = line.text.trimEnd();
+    const closedHeader = headerText.endsWith("|") ? headerText : `${headerText} |`;
+    const columnCount = header2.cells.length;
+    const delimiter2 = formatTableRow(
+      header2,
+      Array.from({ length: columnCount }, () => "---")
+    );
+    const body2 = formatTableRow(
+      header2,
+      Array.from({ length: columnCount }, () => "")
+    );
+    const bodyFrom = line.from + closedHeader.length + 1 + delimiter2.length + 1;
+    dispatch(
+      state.update({
+        changes: {
+          from: line.from,
+          to: line.to,
+          insert: `${closedHeader}
+${delimiter2}
+${body2}`
+        },
+        selection: { anchor: bodyFrom + firstCellCaretOffset(header2) },
+        scrollIntoView: true,
+        userEvent: "input"
+      })
+    );
+    return true;
+  }
+  function moveTableCell(state, dispatch, direction) {
+    if (state.readOnly || state.selection.ranges.length > 1) {
+      return false;
+    }
+    const range = state.selection.main;
+    const table = findTableAt(state, range.from);
+    if (!table || range.to > table.sourceTo || state.doc.lineAt(range.from).number !== state.doc.lineAt(range.to).number) {
+      return false;
+    }
+    const rows = table.sourceRows.filter((row) => row.role !== "delimiter");
+    const lineNumber = state.doc.lineAt(range.head).number;
+    let rowIndex = rows.findIndex((row) => row.line.number === lineNumber);
+    let cellIndex;
+    if (rowIndex === -1) {
+      rowIndex = 0;
+      const headerCells = getRowCells(rows[0].line);
+      cellIndex = direction > 0 ? headerCells.length - 1 : headerCells.length;
+    } else {
+      cellIndex = findCellIndex(getRowCells(rows[rowIndex].line), range.head);
+    }
+    let targetRow = rowIndex;
+    let targetCell = cellIndex + direction;
+    const cellCount = getRowCells(rows[rowIndex].line).length;
+    if (targetCell >= cellCount) {
+      targetRow += 1;
+      targetCell = 0;
+    } else if (targetCell < 0) {
+      targetRow -= 1;
+      targetCell = Number.POSITIVE_INFINITY;
+    }
+    if (targetRow < 0) {
+      return true;
+    }
+    if (targetRow >= rows.length) {
+      dispatch(insertRowAfter(state, rows.at(-1).line, table, table.columnCount));
+      return true;
+    }
+    const targetCells = getRowCells(rows[targetRow].line);
+    const target = targetCells[Math.min(targetCell, targetCells.length - 1)];
+    dispatch(
+      state.update({
+        selection: EditorSelection.create([cellContentSelection(state, target)]),
+        scrollIntoView: true,
+        userEvent: "select"
+      })
+    );
+    return true;
+  }
+  function findTableAt(state, pos) {
+    return findTableBlocks(state.doc).find(
+      (table) => pos >= table.from && pos <= table.sourceTo
+    ) || null;
+  }
+  function getRowCells(line) {
+    return scanMarkdownTableRow(line.text).cells.map((cell) => ({
+      from: line.from + cell.from,
+      to: line.from + cell.to
+    }));
+  }
+  function findCellIndex(cells, pos) {
+    const index = cells.findIndex((cell) => pos <= cell.to);
+    return index === -1 ? cells.length - 1 : index;
+  }
+  function cellContentSelection(state, cell) {
+    const raw = state.doc.sliceString(cell.from, cell.to);
+    const leading = raw.length - raw.trimStart().length;
+    if (leading === raw.length) {
+      return EditorSelection.cursor(cell.from + Math.min(1, raw.length));
+    }
+    const trailing = raw.length - raw.trimEnd().length;
+    return EditorSelection.range(cell.from + leading, cell.to - trailing);
+  }
+  function insertRowAfter(state, afterLine, style2, columnCount) {
+    const rowText = formatTableRow(
+      style2,
+      Array.from({ length: columnCount }, () => "")
+    );
+    return state.update({
+      changes: { from: afterLine.to, insert: `
+${rowText}` },
+      selection: { anchor: afterLine.to + 1 + firstCellCaretOffset(style2) },
+      scrollIntoView: true,
+      userEvent: "input"
+    });
+  }
+  function formatTableRow(style2, cells) {
+    const usesTrailingPipe = style2.usesTrailingPipe || !style2.usesLeadingPipe && cells.length === 1;
+    return `${style2.indent || ""}${style2.usesLeadingPipe ? "|" : ""}` + cells.map((cell) => ` ${cell} `).join("|") + `${usesTrailingPipe ? "|" : ""}`;
+  }
+  function firstCellCaretOffset(style2) {
+    return (style2.indent || "").length + (style2.usesLeadingPipe ? 1 : 0) + 1;
+  }
+  function isBlankTableRow(text2) {
+    return scanMarkdownTableRow(text2).cells.every((cell) => !cell.text);
+  }
+  function isTableHeaderCandidate(state, line, head) {
+    const text2 = line.text;
+    if (head < line.from + text2.trimEnd().length) {
+      return false;
+    }
+    if (!text2.trimStart().startsWith("|")) {
+      return false;
+    }
+    if (!isTableContentLine(text2) || isTableDelimiterLine(text2)) {
+      return false;
+    }
+    const row = scanMarkdownTableRow(text2);
+    if (row.cells.length < 2 && !row.usesTrailingPipe) {
+      return false;
+    }
+    if (line.number > 1 && isTableRowLine(state.doc.line(line.number - 1).text)) {
+      return false;
+    }
+    if (line.number < state.doc.lines && isTableDelimiterLine(state.doc.line(line.number + 1).text)) {
+      return false;
+    }
+    const frontmatter = findFrontmatterBlock(state.doc);
+    if (frontmatter && line.from >= frontmatter.from && line.from <= frontmatter.to) {
+      return false;
+    }
+    for (let node = syntaxTree(state).resolveInner(line.from, 1); node; node = node.parent) {
+      if (NON_TABLE_CONTAINERS.has(node.name)) {
+        return false;
+      }
+    }
+    return true;
+  }
 
   // src/rich-editor/presentation/details/detailsPreview.js
   function createDetailsPreviewWidgetClass({
@@ -48556,14 +49860,14 @@
     button.textContent = label;
     button.title = title;
     button.setAttribute("aria-label", title);
-    button.addEventListener("mousedown", stopInteractiveEvent);
+    button.addEventListener("mousedown", stopInteractiveEvent2);
     button.addEventListener("click", (event) => {
-      stopInteractiveEvent(event);
+      stopInteractiveEvent2(event);
       action();
     });
     return button;
   }
-  function stopInteractiveEvent(event) {
+  function stopInteractiveEvent2(event) {
     event.preventDefault();
     event.stopPropagation();
   }
@@ -50505,844 +51809,6 @@
       inlineDecorations,
       taskCheckboxes
     };
-  }
-
-  // src/rich-editor/presentation/table/tablePreview.js
-  var tableContextMenu = null;
-  var tableContextMenuAnchor = null;
-  function stopInteractiveEvent2(event) {
-    event.preventDefault();
-    event.stopPropagation();
-  }
-  function showTableContextMenu({
-    x,
-    y,
-    rowIndex,
-    columnIndex,
-    columnCount,
-    onAction,
-    anchor = null
-  }) {
-    closeTableContextMenu();
-    const menu = document.createElement("div");
-    menu.className = "cm-table-context-menu";
-    menu.setAttribute("role", "menu");
-    const addItem = (label, action, disabled = false) => {
-      const item = document.createElement("button");
-      item.type = "button";
-      item.className = "cm-table-context-menu-item";
-      item.textContent = label;
-      item.disabled = disabled;
-      item.setAttribute("role", "menuitem");
-      item.addEventListener("mousedown", stopInteractiveEvent2);
-      item.addEventListener("click", (event) => {
-        stopInteractiveEvent2(event);
-        if (item.disabled) {
-          return;
-        }
-        closeTableContextMenu();
-        onAction(action);
-      });
-      menu.appendChild(item);
-    };
-    addItem("Add column left", "add-column-left");
-    addItem("Add column right", "add-column-right");
-    addItem("Delete column", "delete-column", columnCount <= 1);
-    if (rowIndex > 0) {
-      const divider = document.createElement("div");
-      divider.className = "cm-table-context-menu-divider";
-      menu.appendChild(divider);
-      addItem("Add row above", "add-row-above");
-      addItem("Add row below", "add-row-below");
-      addItem("Delete row", "delete-row");
-    }
-    document.body.appendChild(menu);
-    tableContextMenu = menu;
-    tableContextMenuAnchor = anchor ? {
-      element: anchor,
-      sourceFrom: anchor.closest(".cm-rich-table-preview")?.dataset.sourceFrom,
-      rowIndex,
-      columnIndex
-    } : null;
-    positionFixedMenu(menu, x, y);
-    menu.addEventListener("keydown", (event) => {
-      const items = [...menu.querySelectorAll(".cm-table-context-menu-item:not(:disabled)")];
-      const currentIndex = items.indexOf(document.activeElement);
-      if (event.key === "Escape") {
-        event.preventDefault();
-        event.stopPropagation();
-        event.stopImmediatePropagation();
-        closeTableContextMenu({ restoreFocus: true });
-        return;
-      }
-      if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) {
-        return;
-      }
-      event.preventDefault();
-      event.stopPropagation();
-      let nextIndex = currentIndex;
-      if (event.key === "Home") nextIndex = 0;
-      if (event.key === "End") nextIndex = items.length - 1;
-      if (event.key === "ArrowDown") nextIndex = (currentIndex + 1 + items.length) % items.length;
-      if (event.key === "ArrowUp") nextIndex = (currentIndex - 1 + items.length) % items.length;
-      items[nextIndex]?.focus();
-    });
-    queueMicrotask(() => {
-      menu.querySelector(".cm-table-context-menu-item:not(:disabled)")?.focus();
-    });
-  }
-  function positionFixedMenu(menu, x, y) {
-    const margin = 8;
-    const menuWidth = menu.offsetWidth || 184;
-    const menuHeight = menu.offsetHeight || 120;
-    const left = Math.max(
-      margin,
-      Math.min(x, window.innerWidth - menuWidth - margin)
-    );
-    const top2 = Math.max(
-      margin,
-      Math.min(y, window.innerHeight - menuHeight - margin)
-    );
-    menu.style.left = `${left}px`;
-    menu.style.top = `${top2}px`;
-  }
-  function setRovingTableCell(wrapper, target) {
-    if (!wrapper || !target) {
-      return;
-    }
-    for (const preview of wrapper.querySelectorAll(
-      ".cm-rich-table-cell-preview[tabindex]"
-    )) {
-      preview.tabIndex = preview === target ? 0 : -1;
-    }
-  }
-  function scheduleTableCellFocus(focusTarget) {
-    const restore = () => {
-      const selector = `.cm-rich-table-preview[data-source-from="${focusTarget.sourceFrom}"] .cm-rich-table-cell-preview[data-row-index="${focusTarget.rowIndex}"][data-column-index="${focusTarget.columnIndex}"]`;
-      const currentTarget = document.querySelector(selector) || (focusTarget.element?.isConnected ? focusTarget.element : null);
-      if (!currentTarget) {
-        return;
-      }
-      setRovingTableCell(
-        currentTarget.closest(".cm-rich-table-preview"),
-        currentTarget
-      );
-      currentTarget.focus({ preventScroll: true });
-    };
-    window.requestAnimationFrame(() => {
-      window.requestAnimationFrame(() => {
-        restore();
-      });
-    });
-    window.setTimeout(restore, 100);
-  }
-  function focusOutsideTable(wrapper, reverse = false) {
-    const candidates = [
-      ...document.querySelectorAll(
-        'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [contenteditable="true"], [contenteditable="plaintext-only"], [tabindex]:not([tabindex="-1"])'
-      )
-    ].filter(
-      (element) => !wrapper.contains(element) && !element.hidden && element.getAttribute("aria-hidden") !== "true" && element.getClientRects().length > 0
-    );
-    const ordered = reverse ? candidates.reverse() : candidates;
-    const position = reverse ? Node.DOCUMENT_POSITION_PRECEDING : Node.DOCUMENT_POSITION_FOLLOWING;
-    const target = ordered.find(
-      (element) => wrapper.compareDocumentPosition(element) & position
-    );
-    target?.focus({ preventScroll: true });
-    return Boolean(target);
-  }
-  function closeTableContextMenu({ restoreFocus = false } = {}) {
-    if (!tableContextMenu) {
-      return false;
-    }
-    const focusTarget = restoreFocus ? tableContextMenuAnchor : null;
-    tableContextMenu.remove();
-    tableContextMenu = null;
-    tableContextMenuAnchor = null;
-    if (focusTarget) {
-      scheduleTableCellFocus(focusTarget);
-    }
-    return true;
-  }
-  function createTablePreviewWidgetClass({
-    setActiveTableEdit,
-    requestEditorMeasure: requestEditorMeasure2,
-    appendInlineMarkdown: appendInlineMarkdown2
-  }) {
-    class TablePreviewWidget extends WidgetType {
-      constructor(tableBlock) {
-        super();
-        this.tableBlock = tableBlock;
-      }
-      eq(other) {
-        return other.tableBlock.from === this.tableBlock.from && other.tableBlock.to === this.tableBlock.to && other.tableBlock.signature === this.tableBlock.signature;
-      }
-      // Advisory height (header + body rows) so CodeMirror reserves space before
-      // first measure, avoiding scroll-momentum loss when a table is measured
-      // mid-scroll. CodeMirror corrects this on the real measure.
-      get estimatedHeight() {
-        const rows = this.tableBlock.rows?.length || 1;
-        return rows * 40 + 24;
-      }
-      toDOM(view2) {
-        const wrapper = document.createElement("div");
-        wrapper.className = "cm-rich-table-preview";
-        wrapper.setAttribute("role", "region");
-        wrapper.dataset.sourceFrom = String(this.tableBlock.from);
-        wrapper.dataset.dirty = "false";
-        const readOnly2 = view2.state.readOnly;
-        wrapper.classList.toggle("is-read-only", readOnly2);
-        wrapper.setAttribute(
-          "aria-label",
-          readOnly2 ? "Markdown table" : "Editable Markdown table"
-        );
-        if (!readOnly2) {
-          wrapper.title = "Edit table cells";
-        }
-        const scroll = document.createElement("div");
-        scroll.className = "cm-rich-table-scroll";
-        const table = document.createElement("table");
-        table.className = "cm-rich-table";
-        const headerRow = this.tableBlock.rows[0];
-        const thead = document.createElement("thead");
-        thead.appendChild(this.renderRow(headerRow, "th", 0, view2, wrapper));
-        table.appendChild(thead);
-        const tbody = document.createElement("tbody");
-        for (let rowIndex = 1; rowIndex < this.tableBlock.rows.length; rowIndex += 1) {
-          tbody.appendChild(
-            this.renderRow(
-              this.tableBlock.rows[rowIndex],
-              "td",
-              rowIndex,
-              view2,
-              wrapper
-            )
-          );
-        }
-        table.appendChild(tbody);
-        if (!readOnly2) {
-          const toolbar = document.createElement("div");
-          toolbar.className = "cm-rich-table-toolbar";
-          const toolbarHint = document.createElement("span");
-          toolbarHint.className = "cm-rich-table-toolbar-hint";
-          toolbarHint.textContent = "Enter: edit \xB7 Arrow keys: move \xB7 Shift+F10: actions";
-          toolbar.appendChild(toolbarHint);
-          const addRowButton = document.createElement("button");
-          addRowButton.type = "button";
-          addRowButton.className = "cm-rich-table-action";
-          addRowButton.title = "Add row";
-          addRowButton.innerHTML = '<span class="cm-rich-table-action-icon">+</span><span>Row</span>';
-          addRowButton.addEventListener("mousedown", (event) => {
-            event.preventDefault();
-            event.stopPropagation();
-          });
-          addRowButton.addEventListener("click", (event) => {
-            event.preventDefault();
-            event.stopPropagation();
-            this.addRowFromPreview(view2, wrapper);
-          });
-          toolbar.appendChild(addRowButton);
-          const addColumnButton = document.createElement("button");
-          addColumnButton.type = "button";
-          addColumnButton.className = "cm-rich-table-action";
-          addColumnButton.title = "Add column";
-          addColumnButton.innerHTML = '<span class="cm-rich-table-action-icon">+</span><span>Column</span>';
-          addColumnButton.addEventListener("mousedown", stopInteractiveEvent2);
-          addColumnButton.addEventListener("click", (event) => {
-            stopInteractiveEvent2(event);
-            this.addColumnFromPreview(view2, wrapper);
-          });
-          toolbar.appendChild(addColumnButton);
-          wrapper.appendChild(toolbar);
-        }
-        scroll.appendChild(table);
-        wrapper.appendChild(scroll);
-        wrapper.addEventListener("input", (event) => {
-          if (readOnly2) {
-            return;
-          }
-          if (event.target.closest(".cm-rich-table-cell-editor")) {
-            wrapper.dataset.dirty = "true";
-          }
-        });
-        wrapper.addEventListener("contextmenu", (event) => {
-          if (readOnly2) {
-            return;
-          }
-          const cell = event.target.closest(".cm-rich-table-cell");
-          if (!cell || !wrapper.contains(cell)) {
-            return;
-          }
-          event.preventDefault();
-          event.stopPropagation();
-          const rowIndex = Number.parseInt(cell.dataset.rowIndex || "0", 10);
-          const columnIndex = Number.parseInt(cell.dataset.columnIndex || "0", 10);
-          showTableContextMenu({
-            x: event.clientX,
-            y: event.clientY,
-            rowIndex,
-            columnIndex,
-            columnCount: this.tableBlock.columnCount,
-            anchor: cell.querySelector(".cm-rich-table-cell-preview"),
-            onAction: (action) => {
-              this.applyTableContextAction(
-                view2,
-                wrapper,
-                rowIndex,
-                columnIndex,
-                action
-              );
-            }
-          });
-        });
-        wrapper.addEventListener("focusout", () => {
-          if (readOnly2) {
-            return;
-          }
-          window.setTimeout(() => {
-            if (!wrapper.contains(document.activeElement)) {
-              this.commitTableEdits(view2, wrapper);
-            }
-          }, 0);
-        });
-        queueMicrotask(() => requestEditorMeasure2(view2));
-        return wrapper;
-      }
-      renderRow(row, cellTag, rowIndex, view2, wrapper) {
-        const tr = document.createElement("tr");
-        tr.dataset.rowIndex = String(rowIndex);
-        for (let columnIndex = 0; columnIndex < this.tableBlock.columnCount; columnIndex += 1) {
-          const sourceCell = row.cells[columnIndex];
-          const cell = document.createElement(cellTag);
-          cell.classList.add("cm-rich-table-cell");
-          cell.dataset.rowIndex = String(rowIndex);
-          cell.dataset.columnIndex = String(columnIndex);
-          const alignment = this.tableBlock.alignments[columnIndex];
-          if (alignment === "center") cell.classList.add("align-center");
-          if (alignment === "right") cell.classList.add("align-right");
-          if (sourceCell.from !== null) {
-            cell.dataset.sourceFrom = String(sourceCell.from);
-          }
-          const preview = document.createElement("div");
-          preview.className = "cm-rich-table-cell-preview";
-          if (!view2.state.readOnly) {
-            preview.tabIndex = rowIndex === 0 && columnIndex === 0 ? 0 : -1;
-            preview.setAttribute("role", "button");
-          }
-          preview.dataset.rowIndex = String(rowIndex);
-          preview.dataset.columnIndex = String(columnIndex);
-          const headerText = this.tableBlock.rows[0]?.cells[columnIndex]?.text || `Column ${columnIndex + 1}`;
-          const cellLabel = `${rowIndex === 0 ? "Header" : `Row ${rowIndex}`}, ${headerText}: ${sourceCell.text || "Empty cell"}`;
-          preview.setAttribute(
-            "aria-label",
-            view2.state.readOnly ? cellLabel : `Edit ${cellLabel}`
-          );
-          renderRichTableCellPreview(preview, sourceCell.text, view2);
-          const editor = document.createElement("div");
-          editor.className = "cm-rich-table-cell-editor";
-          editor.contentEditable = view2.state.readOnly ? "false" : "plaintext-only";
-          editor.spellcheck = true;
-          editor.dataset.rowIndex = String(rowIndex);
-          editor.dataset.columnIndex = String(columnIndex);
-          editor.textContent = sourceCell.text;
-          editor.setAttribute("aria-label", cellLabel);
-          preview.addEventListener("mousedown", (event) => {
-            if (isRichTablePreviewInteractiveTarget(event.target)) {
-              return;
-            }
-            event.preventDefault();
-            event.stopPropagation();
-            activateRichTableCellEditor(editor);
-          });
-          preview.addEventListener("keydown", (event) => {
-            this.handleCellPreviewKeydown(event, editor, view2, wrapper);
-          });
-          editor.addEventListener("focus", () => {
-            setRovingTableCell(wrapper, preview);
-            editor.dataset.editStartValue = editor.textContent || "";
-            editor.dataset.editStartDirty = wrapper.dataset.dirty || "false";
-            activateRichTableCellEditor(editor, { focus: false });
-          });
-          editor.addEventListener("blur", () => {
-            window.setTimeout(() => {
-              deactivateRichTableCellEditor(editor);
-            }, 0);
-          });
-          editor.addEventListener("input", () => {
-            const cellPreview = editor.closest(".cm-rich-table-cell")?.querySelector(".cm-rich-table-cell-preview");
-            renderRichTableCellPreview(
-              cellPreview,
-              editor.textContent,
-              view2
-            );
-          });
-          editor.addEventListener("keydown", (event) => {
-            this.handleCellKeydown(event, view2, wrapper);
-          });
-          editor.addEventListener("paste", (event) => {
-            this.handleCellPaste(event, view2, wrapper);
-          });
-          cell.appendChild(preview);
-          if (!view2.state.readOnly) {
-            const actionsButton = document.createElement("button");
-            actionsButton.type = "button";
-            actionsButton.className = "cm-rich-table-cell-actions";
-            actionsButton.textContent = "Actions";
-            actionsButton.tabIndex = -1;
-            actionsButton.setAttribute("aria-label", `Row and column actions for ${cellLabel}`);
-            actionsButton.addEventListener("mousedown", stopInteractiveEvent2);
-            actionsButton.addEventListener("click", (event) => {
-              stopInteractiveEvent2(event);
-              this.openCellActions(view2, wrapper, cell, preview);
-            });
-            cell.appendChild(actionsButton);
-          }
-          cell.appendChild(editor);
-          tr.appendChild(cell);
-        }
-        return tr;
-      }
-      handleCellPreviewKeydown(event, editor, view2, wrapper) {
-        if (event.key === "Enter" || event.key === "F2") {
-          event.preventDefault();
-          event.stopPropagation();
-          activateRichTableCellEditor(editor, { select: event.key === "Enter" });
-          return;
-        }
-        if (event.shiftKey && event.key === "F10" || event.key === "ContextMenu") {
-          event.preventDefault();
-          event.stopPropagation();
-          const cell = event.currentTarget.closest(".cm-rich-table-cell");
-          this.openCellActions(view2, wrapper, cell, event.currentTarget);
-          return;
-        }
-        const directions = {
-          ArrowLeft: [0, -1],
-          ArrowRight: [0, 1],
-          ArrowUp: [-1, 0],
-          ArrowDown: [1, 0]
-        };
-        const direction = directions[event.key];
-        if (!direction) {
-          return;
-        }
-        event.preventDefault();
-        event.stopPropagation();
-        this.focusRelativeCell(wrapper, event.currentTarget, ...direction);
-      }
-      handleCellKeydown(event, view2, wrapper) {
-        if (event.key === "Escape") {
-          event.preventDefault();
-          const editor = event.currentTarget;
-          editor.textContent = editor.dataset.editStartValue || "";
-          const preview = editor.closest(".cm-rich-table-cell")?.querySelector(".cm-rich-table-cell-preview");
-          renderRichTableCellPreview(preview, editor.textContent, view2);
-          wrapper.dataset.dirty = editor.dataset.editStartDirty || "false";
-          const focusTarget = {
-            element: preview,
-            sourceFrom: wrapper.dataset.sourceFrom,
-            rowIndex: editor.dataset.rowIndex,
-            columnIndex: editor.dataset.columnIndex
-          };
-          editor.blur();
-          scheduleTableCellFocus(focusTarget);
-          return;
-        }
-        if (event.key === "Enter" && !event.shiftKey) {
-          event.preventDefault();
-          const moved = this.focusRelativeCell(wrapper, event.currentTarget, 1, 0, {
-            activate: true
-          });
-          if (!moved) {
-            event.currentTarget.blur();
-          }
-          return;
-        }
-        if ((event.key === "ArrowRight" || event.key === "ArrowLeft") && !event.shiftKey && !event.altKey && !event.metaKey && !event.ctrlKey) {
-          const forward = event.key === "ArrowRight";
-          if (!isCaretAtEditableEdge(event.currentTarget, forward ? "end" : "start")) {
-            return;
-          }
-          const editors2 = [
-            ...wrapper.querySelectorAll(".cm-rich-table-cell-editor")
-          ];
-          const currentIndex2 = editors2.indexOf(event.currentTarget);
-          const nextIndex2 = currentIndex2 + (forward ? 1 : -1);
-          if (currentIndex2 === -1 || nextIndex2 < 0 || nextIndex2 >= editors2.length) {
-            return;
-          }
-          event.preventDefault();
-          activateRichTableCellEditor(editors2[nextIndex2], {
-            caret: forward ? "start" : "end"
-          });
-          return;
-        }
-        if (event.key !== "Tab") {
-          return;
-        }
-        if (!wrapper) {
-          return;
-        }
-        const editors = [
-          ...wrapper.querySelectorAll(".cm-rich-table-cell-editor")
-        ];
-        const currentIndex = editors.indexOf(event.currentTarget);
-        if (currentIndex === -1) {
-          return;
-        }
-        const delta = event.shiftKey ? -1 : 1;
-        const nextIndex = currentIndex + delta;
-        if (nextIndex < 0 || nextIndex >= editors.length) {
-          event.preventDefault();
-          focusOutsideTable(wrapper, event.shiftKey);
-          return;
-        }
-        event.preventDefault();
-        const nextEditor = editors[nextIndex];
-        activateRichTableCellEditor(nextEditor, { select: true });
-      }
-      focusRelativeCell(wrapper, current, rowDelta, columnDelta, options = {}) {
-        const rowIndex = Number.parseInt(current.dataset.rowIndex || "0", 10);
-        const columnIndex = Number.parseInt(current.dataset.columnIndex || "0", 10);
-        const nextRow = rowIndex + rowDelta;
-        const nextColumn = columnIndex + columnDelta;
-        const selector = options.activate ? ".cm-rich-table-cell-editor" : ".cm-rich-table-cell-preview";
-        const next2 = wrapper.querySelector(
-          `${selector}[data-row-index="${nextRow}"][data-column-index="${nextColumn}"]`
-        );
-        if (!next2) {
-          return false;
-        }
-        if (options.activate) {
-          activateRichTableCellEditor(next2, { select: true });
-        } else {
-          setRovingTableCell(wrapper, next2);
-          next2.focus({ preventScroll: true });
-        }
-        return true;
-      }
-      openCellActions(view2, wrapper, cell, anchor) {
-        if (!cell) {
-          return;
-        }
-        const rowIndex = Number.parseInt(cell.dataset.rowIndex || "0", 10);
-        const columnIndex = Number.parseInt(cell.dataset.columnIndex || "0", 10);
-        const rect = anchor.getBoundingClientRect();
-        showTableContextMenu({
-          x: rect.left + Math.min(rect.width, 28),
-          y: rect.bottom,
-          rowIndex,
-          columnIndex,
-          columnCount: this.tableBlock.columnCount,
-          anchor,
-          onAction: (action) => {
-            this.applyTableContextAction(view2, wrapper, rowIndex, columnIndex, action);
-          }
-        });
-      }
-      handleCellPaste(event, view2, wrapper) {
-        const pastedText = event.clipboardData?.getData("text/plain") || "";
-        if (!pastedText.includes("	") && !/\r?\n/.test(pastedText.trimEnd())) {
-          return;
-        }
-        event.preventDefault();
-        event.stopPropagation();
-        const startRow = Number.parseInt(event.currentTarget.dataset.rowIndex || "0", 10);
-        const startColumn = Number.parseInt(event.currentTarget.dataset.columnIndex || "0", 10);
-        const pastedRows = pastedText.replace(/\r/g, "").replace(/\n$/, "").split("\n").map((row) => row.split("	"));
-        const rows = collectEditableTableRows(wrapper, this.tableBlock);
-        const requiredColumns = Math.max(
-          this.tableBlock.columnCount,
-          ...pastedRows.map((row) => startColumn + row.length)
-        );
-        while (rows.length < startRow + pastedRows.length) {
-          rows.push(Array.from({ length: requiredColumns }, () => ""));
-        }
-        rows.forEach((row) => {
-          while (row.length < requiredColumns) row.push("");
-        });
-        pastedRows.forEach((pastedRow, rowOffset) => {
-          pastedRow.forEach((value, columnOffset) => {
-            rows[startRow + rowOffset][startColumn + columnOffset] = value;
-          });
-        });
-        const alignments = [...this.tableBlock.alignments];
-        while (alignments.length < requiredColumns) alignments.push("left");
-        this.replaceTable(view2, rows, alignments);
-      }
-      focusSource(view2, sourceFrom) {
-        if (view2.state.readOnly) {
-          return;
-        }
-        const fallbackCell = this.tableBlock.rows.flatMap((row) => row.cells).find((cell) => cell.from !== null);
-        const target = sourceFrom === this.tableBlock.from && fallbackCell ? fallbackCell.from : sourceFrom;
-        const anchor = Math.max(0, Math.min(target, view2.state.doc.length));
-        view2.dispatch({
-          effects: setActiveTableEdit.of({
-            from: this.tableBlock.from,
-            to: this.tableBlock.sourceTo
-          }),
-          selection: { anchor },
-          scrollIntoView: true
-        });
-        view2.focus();
-      }
-      addRow(view2) {
-        if (view2.state.readOnly) {
-          return;
-        }
-        const rowText = buildEmptyTableRow(this.tableBlock);
-        const insertText = `
-${rowText}`;
-        const anchor = this.tableBlock.to + insertText.length;
-        view2.dispatch({
-          changes: {
-            from: this.tableBlock.sourceTo,
-            insert: insertText
-          },
-          effects: setActiveTableEdit.of(null),
-          selection: { anchor },
-          scrollIntoView: true
-        });
-        view2.focus();
-      }
-      addRowFromPreview(view2, wrapper) {
-        if (view2.state.readOnly) {
-          return;
-        }
-        const rows = collectEditableTableRows(wrapper, this.tableBlock);
-        rows.push(Array.from({ length: this.tableBlock.columnCount }, () => ""));
-        this.replaceTable(view2, rows);
-      }
-      addColumnFromPreview(view2, wrapper) {
-        if (view2.state.readOnly) {
-          return;
-        }
-        const rows = collectEditableTableRows(wrapper, this.tableBlock);
-        rows.forEach((row) => row.push(""));
-        this.replaceTable(view2, rows, [...this.tableBlock.alignments, "left"]);
-      }
-      applyTableContextAction(view2, wrapper, rowIndex, columnIndex, action) {
-        if (view2.state.readOnly) {
-          return;
-        }
-        const rows = collectEditableTableRows(wrapper, this.tableBlock);
-        const alignments = [...this.tableBlock.alignments];
-        const columnCount = Math.max(1, this.tableBlock.columnCount);
-        if (action === "add-column-left" || action === "add-column-right") {
-          const insertAt = action === "add-column-left" ? Math.max(0, Math.min(columnIndex, columnCount)) : Math.min(columnIndex + 1, columnCount);
-          rows.forEach((row) => row.splice(insertAt, 0, ""));
-          alignments.splice(insertAt, 0, "left");
-        } else if (action === "delete-column") {
-          if (columnCount <= 1) {
-            return;
-          }
-          const deleteAt = Math.max(0, Math.min(columnIndex, columnCount - 1));
-          rows.forEach((row) => row.splice(deleteAt, 1));
-          alignments.splice(deleteAt, 1);
-        } else if (action === "add-row-above" || action === "add-row-below") {
-          if (rowIndex <= 0) {
-            return;
-          }
-          const insertAt = action === "add-row-above" ? Math.max(1, Math.min(rowIndex, rows.length)) : Math.min(rowIndex + 1, rows.length);
-          rows.splice(
-            insertAt,
-            0,
-            Array.from({ length: alignments.length }, () => "")
-          );
-        } else if (action === "delete-row") {
-          if (rowIndex <= 0 || rowIndex >= rows.length) {
-            return;
-          }
-          rows.splice(rowIndex, 1);
-        } else {
-          return;
-        }
-        this.replaceTable(view2, rows, alignments);
-      }
-      commitTableEdits(view2, wrapper) {
-        if (view2.state.readOnly) {
-          return;
-        }
-        if (wrapper.dataset.dirty !== "true") {
-          return;
-        }
-        const rows = collectEditableTableRows(wrapper, this.tableBlock);
-        this.replaceTable(view2, rows);
-      }
-      replaceTable(view2, rows, alignments = this.tableBlock.alignments) {
-        if (view2.state.readOnly) {
-          return;
-        }
-        const nextText = serializeMarkdownTable(this.tableBlock, rows, alignments);
-        const currentText = view2.state.doc.sliceString(
-          this.tableBlock.from,
-          this.tableBlock.sourceTo
-        );
-        if (nextText === currentText) {
-          return;
-        }
-        view2.dispatch({
-          changes: {
-            from: this.tableBlock.from,
-            to: this.tableBlock.sourceTo,
-            insert: nextText
-          },
-          effects: setActiveTableEdit.of(null)
-        });
-        requestEditorMeasure2(view2);
-      }
-      ignoreEvent() {
-        return true;
-      }
-    }
-    function renderRichTableCellPreview(preview, text2, view2) {
-      if (!preview) {
-        return;
-      }
-      preview.replaceChildren();
-      appendInlineMarkdown2(preview, unescapeMarkdownTableCellPipes(text2), {
-        renderImages: true,
-        onImageReady: () => requestEditorMeasure2(view2)
-      });
-    }
-    function isRichTablePreviewInteractiveTarget(target) {
-      return Boolean(target.closest("a, img"));
-    }
-    function activateRichTableCellEditor(editor, options = {}) {
-      const cell = editor.closest(".cm-rich-table-cell");
-      if (!cell) {
-        return;
-      }
-      const table = cell.closest(".cm-rich-table-preview");
-      if (table) {
-        for (const activeCell of table.querySelectorAll(
-          ".cm-rich-table-cell.is-editing"
-        )) {
-          if (activeCell !== cell) {
-            activeCell.classList.remove("is-editing");
-          }
-        }
-      }
-      cell.classList.add("is-editing");
-      if (options.focus !== false && document.activeElement !== editor) {
-        editor.focus({ preventScroll: true });
-      }
-      if (options.select) {
-        selectEditableText(editor);
-      } else if (options.caret === "start") {
-        placeCaretAtEdge(editor, "start");
-      } else if (options.focus !== false) {
-        placeCaretAtEnd(editor);
-      }
-    }
-    function isCaretAtEditableEdge(editor, edge) {
-      const selection = window.getSelection();
-      if (!selection || selection.rangeCount === 0 || !selection.isCollapsed) {
-        return false;
-      }
-      const range = selection.getRangeAt(0);
-      if (!editor.contains(range.startContainer)) {
-        return false;
-      }
-      const measure = range.cloneRange();
-      measure.selectNodeContents(editor);
-      measure.setEnd(range.startContainer, range.startOffset);
-      const caretOffset = measure.toString().length;
-      return edge === "start" ? caretOffset === 0 : caretOffset === (editor.textContent || "").length;
-    }
-    function placeCaretAtEdge(element, edge) {
-      const selection = window.getSelection();
-      if (!selection) {
-        return;
-      }
-      const range = document.createRange();
-      range.selectNodeContents(element);
-      range.collapse(edge === "start");
-      selection.removeAllRanges();
-      selection.addRange(range);
-    }
-    function deactivateRichTableCellEditor(editor) {
-      if (document.activeElement === editor) {
-        return;
-      }
-      const cell = editor.closest(".cm-rich-table-cell");
-      if (cell) {
-        cell.classList.remove("is-editing");
-      }
-    }
-    function buildEmptyTableRow(tableBlock) {
-      const cells = Array.from({ length: tableBlock.columnCount }, () => "");
-      return formatMarkdownTableRow(tableBlock, cells);
-    }
-    function collectEditableTableRows(wrapper, tableBlock) {
-      return tableBlock.rows.map(
-        (row, rowIndex) => Array.from({ length: tableBlock.columnCount }, (_, columnIndex) => {
-          const editor = wrapper.querySelector(
-            `.cm-rich-table-cell-editor[data-row-index="${rowIndex}"][data-column-index="${columnIndex}"]`
-          );
-          return sanitizeEditedTableCellText(editor?.textContent || "");
-        })
-      );
-    }
-    function serializeMarkdownTable(tableBlock, rows, alignments = tableBlock.alignments) {
-      const columnCount = Math.max(
-        1,
-        alignments.length,
-        ...rows.map((row) => row.length)
-      );
-      const normalizedAlignments = Array.from(
-        { length: columnCount },
-        (_, index) => alignments[index] || "left"
-      );
-      const normalizedRows = rows.map(
-        (row) => Array.from({ length: columnCount }, (_, index) => row[index] || "")
-      );
-      const header2 = normalizedRows[0] || Array.from({ length: columnCount }, () => "");
-      const bodyRows = normalizedRows.slice(1);
-      return [
-        formatMarkdownTableRow(tableBlock, header2),
-        formatMarkdownTableRow(
-          tableBlock,
-          buildTableDelimiterCells(normalizedAlignments)
-        ),
-        ...bodyRows.map((row) => formatMarkdownTableRow(tableBlock, row))
-      ].join("\n");
-    }
-    function buildTableDelimiterCells(alignments) {
-      return alignments.map((alignment) => {
-        if (alignment === "center") return ":---:";
-        if (alignment === "right") return "---:";
-        return "---";
-      });
-    }
-    function formatMarkdownTableRow(tableBlock, cells) {
-      const segments = cells.map(
-        (cell) => ` ${escapeMarkdownTableCellPipes(sanitizeEditedTableCellText(cell))} `
-      );
-      const row = segments.join("|");
-      const prefix2 = `${tableBlock.indent || ""}${tableBlock.usesLeadingPipe ? "|" : ""}`;
-      const suffix2 = tableBlock.usesTrailingPipe ? "|" : "";
-      return `${prefix2}${row}${suffix2}`;
-    }
-    function sanitizeEditedTableCellText(text2) {
-      return text2.replace(/\r?\n/g, " ").trim();
-    }
-    function selectEditableText(element) {
-      const selection = window.getSelection();
-      if (!selection) {
-        return;
-      }
-      const range = document.createRange();
-      range.selectNodeContents(element);
-      selection.removeAllRanges();
-      selection.addRange(range);
-    }
-    function placeCaretAtEnd(element) {
-      placeCaretAtEdge(element, "end");
-    }
-    return TablePreviewWidget;
   }
 
   // src/rich-editor/presentation/codemirror/previewExtensions.js
@@ -56618,8 +57084,12 @@ ${rowText}`;
                     return true;
                   }
                 },
+                // Ahead of indentWithTab so Tab moves between table cells.
+                ...tableKeymap,
                 indentWithTab,
                 ...slashCommands2.keymap,
+                // After the slash menu, which owns Up/Down while it is open.
+                ...tablePreviewEntryKeymap,
                 ...getSearchKeymap(),
                 ...defaultKeymap,
                 ...historyKeymap

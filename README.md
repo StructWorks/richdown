@@ -34,6 +34,8 @@ Richdown Diff gives Markdown changes a rendered side-by-side review view while k
 - Show a color swatch after inline code color values such as `#ff0066`, and mark added, changed, and deleted Git lines beside the line numbers.
 - Highlight matches for the active Richdown search query using VS Code find-match colors.
 - Edit Markdown tables as rich tables, including cell editing, row/column insertion, and row/column deletion. `<br>` inside a cell renders as a line break.
+- Write a new table from the keyboard: type a header such as `| Name | Age |` and press `Enter` to add the delimiter row and a first row. In table source, `Tab` / `Shift+Tab` move between cells (`Tab` on the last cell adds a row), `Enter` adds a row below, and `Enter` on an empty last row leaves the table.
+- Move through rich tables with the arrow keys: Up and Down from the lines around a table step into its cells, move between rows, and leave it again from the top or bottom row. Left and Right continue into the neighboring cell at a cell's edge. `Shift+F10` → **Edit as Markdown** shows the table's source.
 - Render Mermaid diagrams lazily with optional Richdown colorization, fit, zoom, pan, and modal viewing controls. Richdown supports both Markdown fences and Azure DevOps-style `::: mermaid` blocks.
 - Render `gherkin`, `feature`, and `cucumber` fenced code blocks as switchable BDD boards with highlighted source view.
 - Format Markdown with configurable rules — heading style, list markers and numbering, aligned tables (East Asian wide characters count as two columns), blank lines around blocks, and whitespace — from the command palette, `Shift+Alt+F`, or on save.

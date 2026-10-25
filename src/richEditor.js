@@ -40,6 +40,10 @@ import { createHeadingCursorFilter } from "./rich-editor/presentation/codemirror
 import { createLintDecorations } from "./rich-editor/presentation/codemirror/lintDecorations.js";
 import { findLinkAtClick } from "./rich-editor/presentation/codemirror/links.js";
 import { createSlashCommandController } from "./rich-editor/presentation/codemirror/slashCommands.js";
+import {
+  tableKeymap,
+  tablePreviewEntryKeymap,
+} from "./rich-editor/presentation/codemirror/tableKeymap.js";
 import { createPreviewExtensions } from "./rich-editor/presentation/codemirror/previewExtensions.js";
 import { createChatEditsBanner } from "./rich-editor/presentation/chatEdits/chatEditsBanner.js";
 import { createFallbackEditor } from "./rich-editor/presentation/fallback/fallbackEditor.js";
@@ -298,8 +302,12 @@ queueMicrotask(() => {
                       return true;
                     },
                   },
+                  // Ahead of indentWithTab so Tab moves between table cells.
+                  ...tableKeymap,
                   indentWithTab,
                   ...slashCommands.keymap,
+                  // After the slash menu, which owns Up/Down while it is open.
+                  ...tablePreviewEntryKeymap,
                   ...getSearchKeymap(),
                   ...defaultKeymap,
                   ...historyKeymap,

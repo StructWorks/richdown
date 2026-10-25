@@ -166,6 +166,8 @@ describe("slash command menu", () => {
     choose("Table");
 
     expect(view.state.doc.toString()).toContain("| --- | --- | --- |");
+    const { from, to } = view.state.selection.main;
+    expect(view.state.sliceDoc(from, to)).toBe("Column");
   });
 
   it("offers both mermaid fence styles", () => {
