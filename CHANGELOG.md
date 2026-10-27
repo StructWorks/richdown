@@ -2,6 +2,14 @@
 
 All notable changes to Richdown will be documented in this file.
 
+## 0.10.1 - 2026-10-27
+
+- Flowcharts can now be grouped into subgraphs from the Mermaid editor. **+ Subgraph** wraps the selected node in a new subgraph (inside the node's current one), nests a new subgraph in the selected subgraph, or adds one with a first node. The **Subgraph** dropdown moves the selected node into another subgraph or out to the top level, rewriting the source so the node really is drawn there. Click a subgraph to jump to its `subgraph` line and select it, double-click to rename its title, and color it, connect it, add nodes inside it with **+ Node**, or remove it with **Delete** (its contents stay). **+ Node** from a node inside a subgraph adds the new node to the same subgraph.
+- In rich tables, `Enter` in the last row adds a row and continues in the same column; `Enter` in an empty last row removes it and leaves the table. `Escape` now leaves the table for the line below and keeps what was typed (it used to revert the cell).
+- Fixed the template buttons of an empty Mermaid diagram doing nothing when clicked.
+- Fixed Mermaid editor dropdowns showing light text on a white list in dark themes.
+- Fixed `Enter` and `Escape` used to confirm or cancel an IME conversion (for example Japanese input) in a rich table cell or the Mermaid table editor moving to another row or leaving the table.
+
 ## 0.10.0 - 2026-10-25
 
 - Added a rich Mermaid editor. Click a diagram to edit its source with a live, interactive drawing right under it. Parse errors underline the failing source line, and the last good drawing stays visible. **Edit diagram** (✎ on the diagram toolbar, or ⤢ while editing) opens a larger split view with the source on the left and the diagram on the right. Every visual edit is a small rewrite of the source, so undo works as usual. Empty diagrams offer templates, and Mermaid source is now syntax highlighted.
