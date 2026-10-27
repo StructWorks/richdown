@@ -10,6 +10,7 @@
 //
 // Key formats by diagram type (see the builders below):
 //   flowchart  node:ID  edge:FROM>TO#N (Nth parallel edge)  edge:FROM>TO
+//              subgraph:ID
 //   sequence   participant:ID  participantLabel:TEXT  stmt:N (Mermaid's
 //              message index, also used by notes and control blocks)
 //   class      node:ID  member:ID:TEXT  rel:N (1-based)  edge:FROM>TO
@@ -34,6 +35,7 @@ import {
   isIdentifierLike,
   parseFlowchart,
   parseFlowchartNodeRef,
+  readFlowchartSubgraphs,
   renameFlowchartEdgeLabel,
   renameFlowchartNodeLabel,
   renameSequenceParticipant,
@@ -284,6 +286,8 @@ function formatSpan(text, entry) {
       return /\s/.test(text) || entry.quoted ? `"${text.replace(/"/g, "'")}"` : text;
     case "flowLabel":
       return formatFlowchartLabel(text) || text;
+    case "bracketTitle":
+      return ` [${formatFlowchartLabel(text) || text}]`;
     default:
       return text;
   }
@@ -470,20 +474,28 @@ function buildFlowchart(context) {
       },
     );
   }
-  for (const statement of model.statements) {
-    if (statement.kind !== "subgraph") continue;
-    const line = context.lines[statement.lineIndex];
+  for (const subgraph of readFlowchartSubgraphs(model)) {
+    const line = context.lines[subgraph.lineIndex];
+    const keys = [`subgraph:${subgraph.id}`];
     const match = line.match(/^(\s*subgraph\s+)([^\s[]+)(\s*\[)?/);
-    if (!match) continue;
-    if (match[3]) {
+    if (subgraph.form === "bracket" && match?.[3]) {
       const open = match[0].length;
-      const close = line.indexOf("]", open);
-      addEntry(context, [`node:${match[2]}`], statement.lineIndex, open, close < 0 ? line.length : close, {
-        ...quotedOrTrimmed(line, open, close < 0 ? line.length : close),
-        format: "quoted",
+      const close = line.lastIndexOf("]");
+      const span = quotedOrTrimmed(line, open, close < open ? line.length : close);
+      addEntry(context, keys, subgraph.lineIndex, open, close < open ? line.length : close, {
+        ...span,
+        format: span.quoted ? "quoted" : "flowLabel",
       });
-    } else {
-      addEntry(context, [`node:${match[2]}`], statement.lineIndex, match[1].length, line.length, {
+    } else if (subgraph.form === "id" && match) {
+      // `subgraph S` is both id and title; renaming adds a title so edges and
+      // styles naming S keep working.
+      const idEnd = match[1].length + match[2].length;
+      addEntry(context, keys, subgraph.lineIndex, idEnd, idEnd, {
+        label: subgraph.title,
+        format: "bracketTitle",
+      });
+    } else if (match) {
+      addEntry(context, keys, subgraph.lineIndex, match[1].length, line.length, {
         format: "text",
       });
     }

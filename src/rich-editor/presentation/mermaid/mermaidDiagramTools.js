@@ -57,14 +57,19 @@ import {
 import {
   addFlowchartEdge,
   addFlowchartNode,
+  addFlowchartSubgraph,
   FLOWCHART_COLORS,
   FLOWCHART_DIRECTIONS,
   FLOWCHART_SHAPES,
   getFlowchartDirection,
   getFlowchartNode,
   getFlowchartNodeColor,
+  getFlowchartNodeSubgraph,
+  getFlowchartSubgraphs,
+  moveFlowchartNodeToSubgraph,
   removeFlowchartEdge,
   removeFlowchartNode,
+  removeFlowchartSubgraph,
   setFlowchartDirection,
   setFlowchartNodeColor,
   setFlowchartNodeShape,
@@ -125,27 +130,57 @@ function flowchartToolkit(api) {
     const target = api.getSelection();
     return target?.kind === "node" && target.id ? getFlowchartNode(api.getCode(), target.id) : null;
   };
-  const editNode = (edit) => {
-    const node = selectedNode();
-    if (node) api.apply(edit(api.getCode(), node.id));
+  const selectedSubgraph = () => {
+    const target = api.getSelection();
+    return target?.kind === "subgraph" && target.id ? target.id : null;
+  };
+  // Colors apply to a node or a subgraph alike.
+  const editColor = (colorKey) => {
+    const id = selectedNode()?.id ?? selectedSubgraph();
+    if (id) api.apply(setFlowchartNodeColor(api.getCode(), id, colorKey));
   };
 
   const addButton = api.createButton("+ Node", "Add a node (connected to the selected node)", () => {
+    const code = api.getCode();
     const from = selectedNode()?.id ?? null;
-    const result = addFlowchartNode(api.getCode(), { label: "New node", from });
+    // A new node joins the selected subgraph, or the one its source node is in.
+    const subgraph = selectedSubgraph() ?? (from ? getFlowchartNodeSubgraph(code, from) : null);
+    const result = addFlowchartNode(code, { label: "New node", from, subgraph });
     if (result.id) api.apply(result.code, { select: { keys: [`node:${result.id}`] }, rename: true });
   });
+  const addGroup = api.createButton(
+    "+ Subgraph",
+    "Add a subgraph (around the selected node, or inside the selected subgraph)",
+    () => {
+      const result = addFlowchartSubgraph(api.getCode(), {
+        nodeId: selectedNode()?.id ?? null,
+        parent: selectedSubgraph(),
+      });
+      if (result.id) {
+        api.apply(result.code, { select: { keys: [`subgraph:${result.id}`] }, rename: true });
+      }
+    },
+  );
   const shape = api.createSelect(
     "Node shape",
     FLOWCHART_SHAPES.map((entry) => [entry.key, entry.label]),
-    (value) => editNode((code, id) => setFlowchartNodeShape(code, id, value)),
+    (value) => {
+      const node = selectedNode();
+      if (node) api.apply(setFlowchartNodeShape(api.getCode(), node.id, value));
+    },
   );
+  const membership = api.createSelect("Subgraph of the selected node", [], (value) => {
+    const node = selectedNode();
+    if (!node) return;
+    api.apply(moveFlowchartNodeToSubgraph(api.getCode(), node.id, value || null), {
+      select: { keys: [`node:${node.id}`] },
+    });
+  });
+  let membershipOptions = "";
   const colors = document.createElement("div");
   colors.className = "cm-mermaid-surface-colors";
   const swatches = FLOWCHART_COLORS.map((color) => {
-    const button = api.createButton("", `Color: ${color.label}`, () =>
-      editNode((code, id) => setFlowchartNodeColor(code, id, color.key)),
-    );
+    const button = api.createButton("", `Color: ${color.label}`, () => editColor(color.key));
     button.classList.add("cm-mermaid-surface-swatch");
     button.dataset.color = color.key;
     button.style.setProperty("--swatch-fill", color.fill);
@@ -153,9 +188,7 @@ function flowchartToolkit(api) {
     colors.appendChild(button);
     return button;
   });
-  const clearColor = api.createButton("×", "Remove color", () =>
-    editNode((code, id) => setFlowchartNodeColor(code, id, null)),
-  );
+  const clearColor = api.createButton("×", "Remove color", () => editColor(null));
   clearColor.classList.add("cm-mermaid-surface-swatch", "is-clear");
   colors.appendChild(clearColor);
   const direction = api.createSelect(
@@ -164,30 +197,55 @@ function flowchartToolkit(api) {
     (value) => api.apply(setFlowchartDirection(api.getCode(), value)),
   );
 
+  function syncMembership(code, node) {
+    const subgraphs = getFlowchartSubgraphs(code).filter((subgraph) => subgraph.endLine >= 0);
+    const options = subgraphs.map((subgraph) => [
+      subgraph.id,
+      `${"› ".repeat(subgraph.depth)}${subgraph.title || subgraph.id}`,
+    ]);
+    // Rebuilding the options closes an open dropdown; only do it on change.
+    const signature = JSON.stringify(options);
+    if (signature !== membershipOptions) {
+      membershipOptions = signature;
+      setOptions(membership, options, "No subgraph");
+    }
+    membership.hidden = !subgraphs.length;
+    membership.disabled = !node;
+    membership.value = node ? getFlowchartNodeSubgraph(code, node.id) ?? "" : "";
+  }
+
   return {
-    element: group(addButton, shape, colors, direction),
+    element: group(addButton, addGroup, shape, membership, colors, direction),
     connectHint: "Drag from one node to another, or click two nodes, to connect them.",
     sync() {
+      const code = api.getCode();
       const node = selectedNode();
+      const subgraph = selectedSubgraph();
       shape.disabled = !node || node.shape === "attrs";
       shape.value = node?.shape && node.shape !== "attrs" ? node.shape : "rect";
-      const color = node ? getFlowchartNodeColor(api.getCode(), node.id) : null;
+      syncMembership(code, node);
+      const colorTarget = node?.id ?? subgraph;
+      const color = colorTarget ? getFlowchartNodeColor(code, colorTarget) : null;
       for (const swatch of swatches) {
-        swatch.disabled = !node;
+        swatch.disabled = !colorTarget;
         swatch.setAttribute("aria-pressed", String(swatch.dataset.color === color));
       }
-      clearColor.disabled = !node || !color;
-      const current = getFlowchartDirection(api.getCode());
+      clearColor.disabled = !colorTarget || !color;
+      const current = getFlowchartDirection(code);
       direction.value = current === "TB" ? "TD" : current || "TD";
     },
-    canConnect: (target) => target?.kind === "node" && Boolean(target.id),
+    canConnect: (target) =>
+      (target?.kind === "node" || target?.kind === "subgraph") && Boolean(target.id),
     connect(from, to) {
       api.apply(addFlowchartEdge(api.getCode(), from.id, to.id));
     },
     canRemove: (target) =>
-      (target?.kind === "node" && Boolean(target.id)) || (target?.kind === "edge" && Boolean(target.from)),
+      ((target?.kind === "node" || target?.kind === "subgraph") && Boolean(target.id)) ||
+      (target?.kind === "edge" && Boolean(target.from)),
     remove(target) {
       if (target.kind === "node") return removeFlowchartNode(api.getCode(), target.id);
+      // Removing a subgraph keeps its contents (they move up one level).
+      if (target.kind === "subgraph") return removeFlowchartSubgraph(api.getCode(), target.id);
       return removeFlowchartEdge(api.getCode(), target.from, target.to, target.occurrence);
     },
   };

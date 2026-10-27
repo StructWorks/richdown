@@ -189,6 +189,18 @@ const DESCRIBERS = {
         extraElements: [findByDataId(context.stage, "g.label", dataId)].filter(Boolean),
       };
     }
+    // Subgraph clusters carry "<renderId>-<subgraph id>".
+    const cluster = closestIn(element, "g.cluster", context.stage);
+    const clusterId = cluster && stripRenderId(cluster.id, context.renderId);
+    if (clusterId) {
+      return {
+        kind: "subgraph",
+        id: clusterId,
+        keys: [`subgraph:${clusterId}`],
+        text: readText(cluster.querySelector(".cluster-label")) || readText(cluster) || clusterId,
+        element: cluster,
+      };
+    }
     return null;
   },
 
