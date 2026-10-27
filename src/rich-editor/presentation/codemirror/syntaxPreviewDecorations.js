@@ -17,6 +17,7 @@ import {
   CheckboxWidget,
   CodeCopyButtonWidget,
   ColorPreviewWidget,
+  getListHangingIndentStyle,
   ListMarkerWidget,
 } from "./widgets.js";
 
@@ -155,6 +156,13 @@ export function createSyntaxPreviewDecorations({
               `cm-list-line cm-list-depth-${Math.min(listMarker.level, 3)} ${
                 listMarker.ordered ? "cm-list-ordered" : "cm-list-unordered"
               }`,
+            );
+            // The caret's line shows raw Markdown; others draw the marker.
+            stylesByLine.set(
+              line.from,
+              getListHangingIndentStyle(line.text, {
+                rendered: !isLineFocused(view.state, line),
+              }),
             );
           }
         }

@@ -265,11 +265,21 @@ export function createEditorThemeExtension() {
       "0 0 0 1px color-mix(in srgb, var(--rip-bg) 78%, transparent)",
     verticalAlign: "-0.08em",
   },
-  ".cm-list-line": {
+  // Wrapped list items continue under their text, not at the line start:
+  // --cm-list-hang (set per line) is the width of the indent and marker.
+  ".cm-line.cm-list-line": {
     position: "relative",
+    paddingLeft: "calc(6px + var(--cm-list-hang, 0px))",
+    textIndent: "calc(-1 * var(--cm-list-hang, 0px))",
+  },
+  // text-indent is inherited; inline blocks (markers, checkboxes, images)
+  // would otherwise shift their own content.
+  ".cm-line.cm-list-line *": {
+    textIndent: "0",
   },
   ".cm-list-marker": {
-    minWidth: "1.7em",
+    // Width is set by ListMarkerWidget so it matches the hanging indent.
+    boxSizing: "border-box",
     display: "inline-flex",
     alignItems: "center",
     justifyContent: "center",
@@ -283,10 +293,11 @@ export function createEditorThemeExtension() {
     color: "var(--rip-heading)",
   },
   ".cm-list-marker.is-ordered": {
-    minWidth: "2.2em",
     justifyContent: "flex-end",
-    paddingRight: "0.25em",
+    paddingRight: "0.23em",
     color: "var(--rip-muted)",
+  },
+  ".cm-list-marker.is-ordered .cm-list-marker-symbol": {
     fontSize: "0.92em",
   },
   ".cm-list-depth-1 .cm-list-marker.is-unordered": {
@@ -1566,6 +1577,9 @@ export function createEditorThemeExtension() {
       "12px var(--vscode-editor-font-family, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace)",
   },
   ".cm-task-checkbox": {
+    // A button would use the browser's control font size; its em has to be
+    // the line's for the list hanging indent (widgets.js) to line up.
+    fontSize: "inherit",
     width: "1.05em",
     height: "1.05em",
     display: "inline-grid",

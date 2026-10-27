@@ -56985,6 +56985,34 @@ ${rowText}` },
   }
 
   // src/rich-editor/presentation/codemirror/widgets.js
+  var UNORDERED_MARKER_WIDTH_EM = 1.7;
+  var LIST_MARKER_GAP_EM = 0.15;
+  var TASK_CHECKBOX_WIDTH_EM = 1.49;
+  var TASK_PATTERN = /^\[( |x)\]([ \t]*)/i;
+  function getListMarkerWidthEm(listMarker) {
+    if (!listMarker.ordered) {
+      return UNORDERED_MARKER_WIDTH_EM;
+    }
+    return Math.max(2.25, 0.58 * listMarker.marker.length + 0.5);
+  }
+  function getListHangingIndentStyle(text2, { rendered }) {
+    const listMarker = parseListMarker(text2);
+    if (!listMarker) {
+      return null;
+    }
+    const rest = text2.slice(listMarker.markerTo);
+    const task = listMarker.ordered ? null : rest.match(TASK_PATTERN);
+    const indentColumns = countIndentColumns(listMarker.indent);
+    let columns;
+    let em = 0;
+    if (rendered) {
+      columns = indentColumns + (task ? task[2].length : 0);
+      em = getListMarkerWidthEm(listMarker) + LIST_MARKER_GAP_EM + (task ? TASK_CHECKBOX_WIDTH_EM : 0);
+    } else {
+      columns = indentColumns + listMarker.marker.length + listMarker.spacing.length + (task ? task[0].length : 0);
+    }
+    return `--cm-list-hang: calc(${columns}ch + ${Number(em.toFixed(3))}em)`;
+  }
   var ListMarkerWidget = class extends WidgetType {
     constructor(listMarker) {
       super();
@@ -56998,7 +57026,11 @@ ${rowText}` },
     toDOM() {
       const marker = document.createElement("span");
       marker.className = `cm-list-marker ${this.ordered ? "is-ordered" : "is-unordered"}`;
-      marker.textContent = this.ordered ? this.marker : getUnorderedListSymbol(this.level);
+      marker.style.width = `${getListMarkerWidthEm(this)}em`;
+      const symbol3 = document.createElement("span");
+      symbol3.className = "cm-list-marker-symbol";
+      symbol3.textContent = this.ordered ? this.marker : getUnorderedListSymbol(this.level);
+      marker.appendChild(symbol3);
       return marker;
     }
     ignoreEvent() {
@@ -57234,6 +57266,12 @@ ${rowText}` },
                 classesByLine,
                 line.from,
                 `cm-list-line cm-list-depth-${Math.min(listMarker.level, 3)} ${listMarker.ordered ? "cm-list-ordered" : "cm-list-unordered"}`
+              );
+              stylesByLine.set(
+                line.from,
+                getListHangingIndentStyle(line.text, {
+                  rendered: !isLineFocused2(view2.state, line)
+                })
               );
             }
           }
@@ -61012,11 +61050,21 @@ ${rowText}` },
         boxShadow: "0 0 0 1px color-mix(in srgb, var(--rip-bg) 78%, transparent)",
         verticalAlign: "-0.08em"
       },
-      ".cm-list-line": {
-        position: "relative"
+      // Wrapped list items continue under their text, not at the line start:
+      // --cm-list-hang (set per line) is the width of the indent and marker.
+      ".cm-line.cm-list-line": {
+        position: "relative",
+        paddingLeft: "calc(6px + var(--cm-list-hang, 0px))",
+        textIndent: "calc(-1 * var(--cm-list-hang, 0px))"
+      },
+      // text-indent is inherited; inline blocks (markers, checkboxes, images)
+      // would otherwise shift their own content.
+      ".cm-line.cm-list-line *": {
+        textIndent: "0"
       },
       ".cm-list-marker": {
-        minWidth: "1.7em",
+        // Width is set by ListMarkerWidget so it matches the hanging indent.
+        boxSizing: "border-box",
         display: "inline-flex",
         alignItems: "center",
         justifyContent: "center",
@@ -61030,10 +61078,11 @@ ${rowText}` },
         color: "var(--rip-heading)"
       },
       ".cm-list-marker.is-ordered": {
-        minWidth: "2.2em",
         justifyContent: "flex-end",
-        paddingRight: "0.25em",
-        color: "var(--rip-muted)",
+        paddingRight: "0.23em",
+        color: "var(--rip-muted)"
+      },
+      ".cm-list-marker.is-ordered .cm-list-marker-symbol": {
         fontSize: "0.92em"
       },
       ".cm-list-depth-1 .cm-list-marker.is-unordered": {
@@ -62260,6 +62309,9 @@ ${rowText}` },
         font: "12px var(--vscode-editor-font-family, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace)"
       },
       ".cm-task-checkbox": {
+        // A button would use the browser's control font size; its em has to be
+        // the line's for the list hanging indent (widgets.js) to line up.
+        fontSize: "inherit",
         width: "1.05em",
         height: "1.05em",
         display: "inline-grid",
