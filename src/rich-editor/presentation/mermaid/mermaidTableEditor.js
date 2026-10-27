@@ -148,6 +148,10 @@ export function createMermaidTableEditor({ spec, getCode, apply, revealLine }) {
 
   function handleKey(event, input, row, columnIndex) {
     event.stopPropagation();
+    // Enter and Escape confirm or cancel an IME conversion while composing.
+    if (event.isComposing || event.keyCode === 229) {
+      return;
+    }
     if (event.key === "Escape") {
       event.preventDefault();
       input.blur();

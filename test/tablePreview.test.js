@@ -282,16 +282,36 @@ describe("editing cells", () => {
     expect(view.state.doc.toString()).toBe(before);
   });
 
-  it("restores the original text on Escape", () => {
+  it("leaves the table on Escape, keeping what was typed", () => {
     const { dom, view } = mount();
     const editor = cellEditor(dom, 1, 0);
 
-    type(editor, "half typed");
+    type(editor, "typed");
     keydown(editor, "Escape");
 
-    expect(editor.textContent).toBe("a");
-    expect(dom.dataset.dirty).toBe("false");
-    expect(view.state.doc.toString()).toContain("| a | 1 |");
+    expect(view.state.doc.toString()).toContain("| typed | 1 |");
+    const head = view.state.selection.main.head;
+    expect(view.state.doc.lineAt(head).number).toBe(7);
+    expect(head).toBe(view.state.doc.line(7).from);
+  });
+
+  it("leaves the table on Escape from a focused cell", () => {
+    const { dom, view } = mount();
+    keydown(cellPreview(dom, 1, 1), "Escape");
+    expect(view.state.doc.lineAt(view.state.selection.main.head).number).toBe(7);
+  });
+
+  it("leaves Enter and Escape to the IME while it composes", () => {
+    const { dom, view } = mount();
+    const editor = cellEditor(dom, 2, 0);
+    type(editor, "にほん");
+    const before = view.state.doc.toString();
+
+    keydown(editor, "Enter", { isComposing: true });
+    keydown(editor, "Escape", { keyCode: 229 });
+
+    expect(view.state.doc.toString()).toBe(before);
+    expect(view.state.selection.main.head).toBe(0);
   });
 
   it("preserves the preview while typing", () => {
@@ -332,6 +352,37 @@ describe("editing cells", () => {
     const { dom } = mount();
     keydown(cellEditor(dom, 0, 0), "Enter");
     expect(editingCell(dom)).toEqual(["1", "0"]);
+  });
+
+  it("adds a row on Enter in the last row and continues in its column", () => {
+    harness = createPreviewHarness({ doc: TABLE_DOC, attach: true });
+    const { view } = harness;
+    const dom = view.dom.querySelector(".cm-rich-table-preview");
+    type(cellEditor(dom, 2, 1), "3");
+
+    keydown(cellEditor(dom, 2, 1), "Enter");
+
+    expect(view.state.doc.toString()).toContain(
+      ["| a | 1 |", "| b | 3 |", "|  |  |"].join("\n"),
+    );
+    const rebuilt = view.dom.querySelector(".cm-rich-table-preview");
+    expect(editingCell(rebuilt)).toEqual(["3", "1"]);
+  });
+
+  it("ends the table on Enter in an empty last row", () => {
+    harness = createPreviewHarness({
+      doc: ["intro", "", "| A | B |", "| --- | --- |", "| 1 | 2 |", "|  |  |", "", "after"].join("\n"),
+    });
+    const { view } = harness;
+    const dom = harness.widget("TablePreviewWidget").toDOM(view);
+    document.body.appendChild(dom);
+
+    keydown(cellEditor(dom, 2, 0), "Enter");
+
+    expect(view.state.doc.toString()).toBe(
+      ["intro", "", "| A | B |", "| --- | --- |", "| 1 | 2 |", "", "after"].join("\n"),
+    );
+    expect(view.state.selection.main.head).toBe(view.state.doc.line(6).from);
   });
 
   it("navigates cells with the arrow keys from the preview", () => {

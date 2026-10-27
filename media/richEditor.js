@@ -48241,6 +48241,22 @@
     });
     window.setTimeout(restore, 100);
   }
+  function scheduleTableCellEdit(view2, { sourceFrom, rowIndex, columnIndex }) {
+    let done = false;
+    const open = () => {
+      if (done) {
+        return;
+      }
+      const wrapper = view2.dom.querySelector(
+        `.cm-rich-table-preview[data-source-from="${sourceFrom}"]`
+      );
+      if (wrapper && focusRichTableCell(wrapper, { row: rowIndex, column: columnIndex })) {
+        done = true;
+      }
+    };
+    open();
+    window.requestAnimationFrame(() => window.requestAnimationFrame(open));
+  }
   function focusOutsideTable(wrapper, reverse = false) {
     const candidates = [
       ...document.querySelectorAll(
@@ -48594,8 +48610,6 @@
           });
           editor.addEventListener("focus", () => {
             setRovingTableCell(wrapper, preview);
-            editor.dataset.editStartValue = editor.textContent || "";
-            editor.dataset.editStartDirty = wrapper.dataset.dirty || "false";
             activateRichTableCellEditor(editor, { focus: false });
           });
           editor.addEventListener("blur", () => {
@@ -48638,6 +48652,12 @@
         return tr;
       }
       handleCellPreviewKeydown(event, editor, view2, wrapper) {
+        if (event.key === "Escape") {
+          event.preventDefault();
+          event.stopPropagation();
+          this.leaveTable(view2, wrapper);
+          return;
+        }
         if (event.key === "Enter" || event.key === "F2") {
           event.preventDefault();
           event.stopPropagation();
@@ -48666,21 +48686,13 @@
         this.focusRelativeCell(wrapper, event.currentTarget, ...direction);
       }
       handleCellKeydown(event, view2, wrapper) {
+        if (event.isComposing || event.keyCode === 229) {
+          return;
+        }
         if (event.key === "Escape") {
           event.preventDefault();
-          const editor = event.currentTarget;
-          editor.textContent = editor.dataset.editStartValue || "";
-          const preview = editor.closest(".cm-rich-table-cell")?.querySelector(".cm-rich-table-cell-preview");
-          renderRichTableCellPreview(preview, editor.textContent, view2);
-          wrapper.dataset.dirty = editor.dataset.editStartDirty || "false";
-          const focusTarget = {
-            element: preview,
-            sourceFrom: wrapper.dataset.sourceFrom,
-            rowIndex: editor.dataset.rowIndex,
-            columnIndex: editor.dataset.columnIndex
-          };
-          editor.blur();
-          scheduleTableCellFocus(focusTarget);
+          event.stopPropagation();
+          this.leaveTable(view2, wrapper);
           return;
         }
         if (event.key === "Enter" && !event.shiftKey) {
@@ -48689,7 +48701,7 @@
             activate: true
           });
           if (!moved) {
-            event.currentTarget.blur();
+            this.continueBelowLastRow(view2, wrapper, event.currentTarget);
           }
           return;
         }
@@ -48823,6 +48835,41 @@
         view2.dispatch({ ...spec, scrollIntoView: true });
         view2.focus();
         return true;
+      }
+      // Escape leaves the table for the start of the line below, keeping what
+      // was typed in the cells.
+      leaveTable(view2, wrapper) {
+        this.exitToEditor(view2, "right");
+        this.commitTableEdits(view2, wrapper);
+      }
+      // Enter on the last row adds a row and continues in the same column of
+      // it. On a row that is still empty it ends the table instead: the row is
+      // dropped and the caret goes to the line below, like Enter on an empty
+      // last row of Markdown table source.
+      continueBelowLastRow(view2, wrapper, editor) {
+        if (view2.state.readOnly || this.isStale(view2)) {
+          return;
+        }
+        const rowIndex = Number.parseInt(editor.dataset.rowIndex || "0", 10);
+        const columnIndex = Number.parseInt(editor.dataset.columnIndex || "0", 10);
+        const rows = collectEditableTableRows(wrapper, this.tableBlock);
+        wrapper.dataset.dirty = "false";
+        if (rowIndex > 0 && rows[rowIndex]?.every((cell) => !cell)) {
+          if (rows.length > 2) {
+            rows.splice(rowIndex, 1);
+          }
+          this.exitToEditor(view2, "right");
+          this.replaceTable(view2, rows);
+          return;
+        }
+        rows.push(Array.from({ length: this.tableBlock.columnCount }, () => ""));
+        const sourceFrom = this.tableBlock.from;
+        this.replaceTable(view2, rows);
+        scheduleTableCellEdit(view2, {
+          sourceFrom,
+          rowIndex: rows.length - 1,
+          columnIndex
+        });
       }
       // Shows the table as Markdown source with the caret in its first cell,
       // keeping cell edits that were not committed yet.
@@ -51149,11 +51196,200 @@ ${rowText}` },
     }
     return index + 1;
   }
-  function insertLines(model, newLines) {
-    const at = getInsertionLine(model);
+  function insertLines(model, newLines, at = getInsertionLine(model)) {
     const lines = [...model.lines];
     lines.splice(at, 0, ...newLines);
     return lines.join("\n");
+  }
+  function readFlowchartSubgraphs(model) {
+    const subgraphs = [];
+    const stack = [];
+    let closed = 0;
+    for (const statement of model.statements) {
+      if (statement.kind === "subgraph") {
+        const header2 = parseSubgraphHeader(
+          model.lines[statement.lineIndex].slice(statement.start)
+        );
+        const subgraph = {
+          ...header2,
+          lineIndex: statement.lineIndex,
+          endLine: -1,
+          depth: stack.length,
+          parentBlock: stack.at(-1) ?? null,
+          order: -1
+        };
+        subgraphs.push(subgraph);
+        stack.push(subgraph);
+      } else if (statement.kind === "end" && stack.length) {
+        const subgraph = stack.pop();
+        subgraph.endLine = statement.lineIndex;
+        subgraph.order = closed;
+        subgraph.id = subgraph.id ?? `subGraph${closed}`;
+        closed += 1;
+      }
+    }
+    return subgraphs.map(({ parentBlock, ...subgraph }) => ({
+      ...subgraph,
+      parent: parentBlock?.id ?? null
+    }));
+  }
+  function getFlowchartSubgraphs(code3) {
+    return readFlowchartSubgraphs(parseFlowchart(code3));
+  }
+  function parseSubgraphHeader(text2) {
+    const rest = text2.replace(/^subgraph\b\s*/, "").trim();
+    const bracket2 = rest.match(/^([^\s[]+)\s*\[(.*)\]$/);
+    if (bracket2) {
+      return { id: bracket2[1], title: unquoteFlowchartLabel(bracket2[2].trim()), form: "bracket" };
+    }
+    const title = unquoteFlowchartLabel(rest);
+    if (!rest || /\s/.test(title)) {
+      return { id: null, title, form: "title" };
+    }
+    return { id: title, title, form: "id" };
+  }
+  function subgraphAt(subgraphs, lineIndex) {
+    let owner = null;
+    for (const subgraph of subgraphs) {
+      if (subgraph.endLine >= 0 && subgraph.lineIndex < lineIndex && lineIndex < subgraph.endLine && (!owner || subgraph.depth > owner.depth)) {
+        owner = subgraph;
+      }
+    }
+    return owner;
+  }
+  function subgraphBodyIndent(model, subgraph) {
+    for (let lineIndex = subgraph.lineIndex + 1; lineIndex < subgraph.endLine; lineIndex += 1) {
+      if (model.lines[lineIndex].trim()) {
+        return getIndent(model.lines[lineIndex]);
+      }
+    }
+    return `${getIndent(model.lines[subgraph.lineIndex])}    `;
+  }
+  function ancestorsOf(subgraphs, subgraph) {
+    const chain3 = /* @__PURE__ */ new Set();
+    for (let current = subgraph; current; ) {
+      chain3.add(current);
+      current = current.parent ? subgraphs.find((entry) => entry.id === current.parent) : null;
+    }
+    return chain3;
+  }
+  function getFlowchartNodeSubgraph(code3, id3) {
+    const model = parseFlowchart(code3);
+    const subgraphs = readFlowchartSubgraphs(model).filter((subgraph) => subgraph.endLine >= 0);
+    const owners = /* @__PURE__ */ new Set();
+    for (const statement of model.statements) {
+      if (statement.kind !== "chain" || !statement.groups.flat().some((ref) => ref.id === id3)) {
+        continue;
+      }
+      const owner = subgraphAt(subgraphs, statement.lineIndex);
+      if (owner) owners.add(owner);
+    }
+    const [first] = [...owners].sort((left, right) => left.order - right.order);
+    return first?.id ?? null;
+  }
+  function moveFlowchartNodeToSubgraph(code3, id3, subgraphId = null) {
+    const model = parseFlowchart(code3);
+    const subgraphs = readFlowchartSubgraphs(model);
+    const target = subgraphId ? subgraphs.find((subgraph) => subgraph.id === subgraphId && subgraph.endLine >= 0) : null;
+    if (!model.nodes.has(id3) || subgraphId && !target || subgraphs.some((subgraph) => subgraph.id === id3)) {
+      return code3;
+    }
+    const keep = target ? ancestorsOf(subgraphs, target) : /* @__PURE__ */ new Set();
+    let carried = null;
+    let mentionedInTarget = false;
+    const moved = [];
+    let next2 = rewriteStatements(model, (statement, lineText) => {
+      if (statement.kind !== "chain") return void 0;
+      const refs = statement.groups.flat();
+      if (!refs.some((ref) => ref.id === id3)) return void 0;
+      const owner = subgraphAt(subgraphs, statement.lineIndex);
+      if (owner === target) {
+        mentionedInTarget = true;
+        return void 0;
+      }
+      if (!owner || keep.has(owner)) return void 0;
+      const others2 = refs.filter((ref) => ref.id !== id3);
+      if (!statement.links.length) {
+        const own = refs.find((ref) => ref.id === id3 && ref.shape);
+        if (own && !carried) carried = refText(lineText, own);
+        return others2.length ? [others2.map((ref) => refText(lineText, ref)).join(" & ")] : [];
+      }
+      moved.push(lineText.slice(statement.start, statement.end).trim());
+      return [...new Set(others2.map((ref) => ref.id))];
+    });
+    if (moved.length) {
+      const movedModel = parseFlowchart(next2);
+      const indent4 = getStatementIndent(movedModel);
+      next2 = insertLines(movedModel, moved.map((text2) => `${indent4}${text2}`));
+    }
+    const model2 = parseFlowchart(next2);
+    const entry = carried ?? (mentionedInTarget ? null : id3);
+    if (!entry) {
+      return next2;
+    }
+    if (!target) {
+      if (!carried && model2.nodes.has(id3)) return next2;
+      return insertLines(model2, [`${getStatementIndent(model2)}${entry}`]);
+    }
+    const host = readFlowchartSubgraphs(model2).find((subgraph) => subgraph.id === target.id);
+    return insertLines(model2, [`${subgraphBodyIndent(model2, host)}${entry}`], host.endLine);
+  }
+  function nextFlowchartSubgraphId(model, subgraphs) {
+    const used = /* @__PURE__ */ new Set([...model.nodes.keys(), ...subgraphs.map((subgraph) => subgraph.id)]);
+    for (let index = 1; ; index += 1) {
+      const id3 = `S${index}`;
+      if (!used.has(id3)) return id3;
+    }
+  }
+  function addFlowchartSubgraph(code3, { title = "Group", parent = null, nodeId = null } = {}) {
+    const model = parseFlowchart(code3);
+    if (model.headerIndex < 0) {
+      return { code: code3, id: null, nodeId: null };
+    }
+    const subgraphs = readFlowchartSubgraphs(model);
+    const isSubgraph = (value) => subgraphs.some((subgraph) => subgraph.id === value);
+    const wraps = Boolean(nodeId && model.nodes.has(nodeId) && !isSubgraph(nodeId));
+    const hostId = parent ?? (wraps ? getFlowchartNodeSubgraph(code3, nodeId) : null);
+    const host = hostId ? subgraphs.find((subgraph) => subgraph.id === hostId && subgraph.endLine >= 0) : null;
+    const id3 = nextFlowchartSubgraphId(model, subgraphs);
+    const indent4 = host ? subgraphBodyIndent(model, host) : getStatementIndent(model);
+    const newNodeId = wraps ? null : nextFlowchartNodeId(code3);
+    const block2 = [
+      `${indent4}subgraph ${id3} [${formatFlowchartLabel(title) || id3}]`,
+      ...newNodeId ? [`${indent4}    ${newNodeId}[New node]`] : [],
+      `${indent4}end`
+    ];
+    let next2 = insertLines(model, block2, host ? host.endLine : getInsertionLine(model));
+    if (wraps) {
+      next2 = moveFlowchartNodeToSubgraph(next2, nodeId, id3);
+    }
+    return { code: next2, id: id3, nodeId: wraps ? nodeId : newNodeId };
+  }
+  function removeFlowchartSubgraph(code3, id3) {
+    const model = parseFlowchart(code3);
+    const subgraph = readFlowchartSubgraphs(model).find(
+      (entry) => entry.id === id3 && entry.endLine >= 0
+    );
+    if (!subgraph) {
+      return code3;
+    }
+    const outer = getIndent(model.lines[subgraph.lineIndex]);
+    const inner = subgraphBodyIndent(model, subgraph);
+    const strip = inner.startsWith(outer) ? inner.length - outer.length : 0;
+    const directionLines = new Set(
+      model.statements.filter(
+        (statement) => statement.kind === "direction" && model.lineDepths[statement.lineIndex] === subgraph.depth + 1 && statement.lineIndex > subgraph.lineIndex && statement.lineIndex < subgraph.endLine
+      ).map((statement) => statement.lineIndex)
+    );
+    const dedent3 = new RegExp(`^[ \\t]{0,${strip}}`);
+    const lines = model.lines.flatMap((text2, lineIndex) => {
+      if (lineIndex === subgraph.lineIndex || lineIndex === subgraph.endLine || directionLines.has(lineIndex)) {
+        return [];
+      }
+      const inside = lineIndex > subgraph.lineIndex && lineIndex < subgraph.endLine;
+      return [inside && strip ? text2.replace(dedent3, "") : text2];
+    });
+    return removeFlowchartReferences(parseFlowchart(lines.join("\n")), id3);
   }
   function getFlowchartNodeIds(code3) {
     return new Set(parseFlowchart(code3).nodes.keys());
@@ -51271,7 +51507,7 @@ ${rowText}` },
   }
   function setFlowchartNodeColor(code3, id3, colorKey) {
     const model = parseFlowchart(code3);
-    if (!model.nodes.has(id3)) {
+    if (!hasFlowchartElement(model, id3)) {
       return code3;
     }
     const color = FLOWCHART_COLORS.find((entry) => entry.key === colorKey) || null;
@@ -51306,7 +51542,10 @@ ${rowText}` },
     });
     return lines.join("\n");
   }
-  function addFlowchartNode(code3, { label = "New node", shape = "rect", from: from3 = null } = {}) {
+  function hasFlowchartElement(model, id3) {
+    return model.nodes.has(id3) || readFlowchartSubgraphs(model).some((subgraph) => subgraph.id === id3 && subgraph.endLine >= 0);
+  }
+  function addFlowchartNode(code3, { label = "New node", shape = "rect", from: from3 = null, subgraph = null } = {}) {
     const model = parseFlowchart(code3);
     if (model.headerIndex < 0) {
       return { code: code3, id: null };
@@ -51314,7 +51553,14 @@ ${rowText}` },
     const id3 = nextFlowchartNodeId(code3);
     const shapeSpec = getShape(shape);
     const nodeText = `${id3}${shapeSpec.open}${formatFlowchartLabel(label) || id3}${shapeSpec.close}`;
-    const statement = from3 && model.nodes.has(from3) ? `${from3} --> ${nodeText}` : nodeText;
+    const statement = from3 && hasFlowchartElement(model, from3) ? `${from3} --> ${nodeText}` : nodeText;
+    const host = subgraph ? readFlowchartSubgraphs(model).find((entry) => entry.id === subgraph && entry.endLine >= 0) : null;
+    if (host) {
+      return {
+        code: insertLines(model, [`${subgraphBodyIndent(model, host)}${statement}`], host.endLine),
+        id: id3
+      };
+    }
     return {
       code: insertLines(model, [`${getStatementIndent(model)}${statement}`]),
       id: id3
@@ -51322,7 +51568,7 @@ ${rowText}` },
   }
   function addFlowchartEdge(code3, from3, to, label = "") {
     const model = parseFlowchart(code3);
-    if (model.headerIndex < 0 || !from3 || !to || !model.nodes.has(from3) || !model.nodes.has(to)) {
+    if (model.headerIndex < 0 || !from3 || !to || !hasFlowchartElement(model, from3) || !hasFlowchartElement(model, to)) {
       return code3;
     }
     if (model.edges.some((edge) => edge.from === from3 && edge.to === to)) {
@@ -51498,6 +51744,9 @@ ${rowText}` },
     if (!model.nodes.has(id3)) {
       return code3;
     }
+    return removeFlowchartReferences(model, id3);
+  }
+  function removeFlowchartReferences(model, id3) {
     return rewriteStatements(model, (statement, lineText) => {
       if (statement.kind === "chain") {
         const touches = statement.groups.some(
@@ -51816,6 +52065,8 @@ ${rowText}` },
         return /\s/.test(text2) || entry.quoted ? `"${text2.replace(/"/g, "'")}"` : text2;
       case "flowLabel":
         return formatFlowchartLabel(text2) || text2;
+      case "bracketTitle":
+        return ` [${formatFlowchartLabel(text2) || text2}]`;
       default:
         return text2;
     }
@@ -51984,20 +52235,26 @@ ${rowText}` },
         }
       );
     }
-    for (const statement of model.statements) {
-      if (statement.kind !== "subgraph") continue;
-      const line = context.lines[statement.lineIndex];
+    for (const subgraph of readFlowchartSubgraphs(model)) {
+      const line = context.lines[subgraph.lineIndex];
+      const keys = [`subgraph:${subgraph.id}`];
       const match2 = line.match(/^(\s*subgraph\s+)([^\s[]+)(\s*\[)?/);
-      if (!match2) continue;
-      if (match2[3]) {
+      if (subgraph.form === "bracket" && match2?.[3]) {
         const open = match2[0].length;
-        const close = line.indexOf("]", open);
-        addEntry(context, [`node:${match2[2]}`], statement.lineIndex, open, close < 0 ? line.length : close, {
-          ...quotedOrTrimmed(line, open, close < 0 ? line.length : close),
-          format: "quoted"
+        const close = line.lastIndexOf("]");
+        const span = quotedOrTrimmed(line, open, close < open ? line.length : close);
+        addEntry(context, keys, subgraph.lineIndex, open, close < open ? line.length : close, {
+          ...span,
+          format: span.quoted ? "quoted" : "flowLabel"
         });
-      } else {
-        addEntry(context, [`node:${match2[2]}`], statement.lineIndex, match2[1].length, line.length, {
+      } else if (subgraph.form === "id" && match2) {
+        const idEnd = match2[1].length + match2[2].length;
+        addEntry(context, keys, subgraph.lineIndex, idEnd, idEnd, {
+          label: subgraph.title,
+          format: "bracketTitle"
+        });
+      } else if (match2) {
+        addEntry(context, keys, subgraph.lineIndex, match2[1].length, line.length, {
           format: "text"
         });
       }
@@ -53737,28 +53994,54 @@ ${rowText}` },
       const target = api.getSelection();
       return target?.kind === "node" && target.id ? getFlowchartNode(api.getCode(), target.id) : null;
     };
-    const editNode = (edit) => {
-      const node = selectedNode();
-      if (node) api.apply(edit(api.getCode(), node.id));
+    const selectedSubgraph = () => {
+      const target = api.getSelection();
+      return target?.kind === "subgraph" && target.id ? target.id : null;
+    };
+    const editColor = (colorKey) => {
+      const id3 = selectedNode()?.id ?? selectedSubgraph();
+      if (id3) api.apply(setFlowchartNodeColor(api.getCode(), id3, colorKey));
     };
     const addButton = api.createButton("+ Node", "Add a node (connected to the selected node)", () => {
+      const code3 = api.getCode();
       const from3 = selectedNode()?.id ?? null;
-      const result = addFlowchartNode(api.getCode(), { label: "New node", from: from3 });
+      const subgraph = selectedSubgraph() ?? (from3 ? getFlowchartNodeSubgraph(code3, from3) : null);
+      const result = addFlowchartNode(code3, { label: "New node", from: from3, subgraph });
       if (result.id) api.apply(result.code, { select: { keys: [`node:${result.id}`] }, rename: true });
     });
+    const addGroup = api.createButton(
+      "+ Subgraph",
+      "Add a subgraph (around the selected node, or inside the selected subgraph)",
+      () => {
+        const result = addFlowchartSubgraph(api.getCode(), {
+          nodeId: selectedNode()?.id ?? null,
+          parent: selectedSubgraph()
+        });
+        if (result.id) {
+          api.apply(result.code, { select: { keys: [`subgraph:${result.id}`] }, rename: true });
+        }
+      }
+    );
     const shape = api.createSelect(
       "Node shape",
       FLOWCHART_SHAPES.map((entry) => [entry.key, entry.label]),
-      (value) => editNode((code3, id3) => setFlowchartNodeShape(code3, id3, value))
+      (value) => {
+        const node = selectedNode();
+        if (node) api.apply(setFlowchartNodeShape(api.getCode(), node.id, value));
+      }
     );
+    const membership = api.createSelect("Subgraph of the selected node", [], (value) => {
+      const node = selectedNode();
+      if (!node) return;
+      api.apply(moveFlowchartNodeToSubgraph(api.getCode(), node.id, value || null), {
+        select: { keys: [`node:${node.id}`] }
+      });
+    });
+    let membershipOptions = "";
     const colors = document.createElement("div");
     colors.className = "cm-mermaid-surface-colors";
     const swatches = FLOWCHART_COLORS.map((color) => {
-      const button = api.createButton(
-        "",
-        `Color: ${color.label}`,
-        () => editNode((code3, id3) => setFlowchartNodeColor(code3, id3, color.key))
-      );
+      const button = api.createButton("", `Color: ${color.label}`, () => editColor(color.key));
       button.classList.add("cm-mermaid-surface-swatch");
       button.dataset.color = color.key;
       button.style.setProperty("--swatch-fill", color.fill);
@@ -53766,11 +54049,7 @@ ${rowText}` },
       colors.appendChild(button);
       return button;
     });
-    const clearColor = api.createButton(
-      "\xD7",
-      "Remove color",
-      () => editNode((code3, id3) => setFlowchartNodeColor(code3, id3, null))
-    );
+    const clearColor = api.createButton("\xD7", "Remove color", () => editColor(null));
     clearColor.classList.add("cm-mermaid-surface-swatch", "is-clear");
     colors.appendChild(clearColor);
     const direction = api.createSelect(
@@ -53778,29 +54057,49 @@ ${rowText}` },
       FLOWCHART_DIRECTIONS.map((value) => [value, DIRECTION_LABELS[value]]),
       (value) => api.apply(setFlowchartDirection(api.getCode(), value))
     );
+    function syncMembership(code3, node) {
+      const subgraphs = getFlowchartSubgraphs(code3).filter((subgraph) => subgraph.endLine >= 0);
+      const options = subgraphs.map((subgraph) => [
+        subgraph.id,
+        `${"\u203A ".repeat(subgraph.depth)}${subgraph.title || subgraph.id}`
+      ]);
+      const signature = JSON.stringify(options);
+      if (signature !== membershipOptions) {
+        membershipOptions = signature;
+        setOptions(membership, options, "No subgraph");
+      }
+      membership.hidden = !subgraphs.length;
+      membership.disabled = !node;
+      membership.value = node ? getFlowchartNodeSubgraph(code3, node.id) ?? "" : "";
+    }
     return {
-      element: group(addButton, shape, colors, direction),
+      element: group(addButton, addGroup, shape, membership, colors, direction),
       connectHint: "Drag from one node to another, or click two nodes, to connect them.",
       sync() {
+        const code3 = api.getCode();
         const node = selectedNode();
+        const subgraph = selectedSubgraph();
         shape.disabled = !node || node.shape === "attrs";
         shape.value = node?.shape && node.shape !== "attrs" ? node.shape : "rect";
-        const color = node ? getFlowchartNodeColor(api.getCode(), node.id) : null;
+        syncMembership(code3, node);
+        const colorTarget = node?.id ?? subgraph;
+        const color = colorTarget ? getFlowchartNodeColor(code3, colorTarget) : null;
         for (const swatch of swatches) {
-          swatch.disabled = !node;
+          swatch.disabled = !colorTarget;
           swatch.setAttribute("aria-pressed", String(swatch.dataset.color === color));
         }
-        clearColor.disabled = !node || !color;
-        const current = getFlowchartDirection(api.getCode());
+        clearColor.disabled = !colorTarget || !color;
+        const current = getFlowchartDirection(code3);
         direction.value = current === "TB" ? "TD" : current || "TD";
       },
-      canConnect: (target) => target?.kind === "node" && Boolean(target.id),
+      canConnect: (target) => (target?.kind === "node" || target?.kind === "subgraph") && Boolean(target.id),
       connect(from3, to) {
         api.apply(addFlowchartEdge(api.getCode(), from3.id, to.id));
       },
-      canRemove: (target) => target?.kind === "node" && Boolean(target.id) || target?.kind === "edge" && Boolean(target.from),
+      canRemove: (target) => (target?.kind === "node" || target?.kind === "subgraph") && Boolean(target.id) || target?.kind === "edge" && Boolean(target.from),
       remove(target) {
         if (target.kind === "node") return removeFlowchartNode(api.getCode(), target.id);
+        if (target.kind === "subgraph") return removeFlowchartSubgraph(api.getCode(), target.id);
         return removeFlowchartEdge(api.getCode(), target.from, target.to, target.occurrence);
       }
     };
@@ -54325,6 +54624,7 @@ ${rowText}` },
       });
       this.dragging = false;
       this.moved = false;
+      this.captured = false;
       const width = parseSvgLength(stage.style.width);
       const height = parseSvgLength(stage.style.height);
       this.naturalWidth = width || 800;
@@ -54447,10 +54747,10 @@ ${rowText}` },
         event.preventDefault();
         this.dragging = true;
         this.moved = false;
+        this.captured = false;
         this.lastX = event.clientX;
         this.lastY = event.clientY;
         this.container.classList.add("is-dragging");
-        this.container.setPointerCapture?.(event.pointerId);
       });
       this.container.addEventListener("pointermove", (event) => {
         if (!this.dragging) {
@@ -54463,6 +54763,10 @@ ${rowText}` },
           this.moved = true;
           this.onUserZoom();
         }
+        if (this.moved && !this.captured) {
+          this.captured = true;
+          this.container.setPointerCapture?.(event.pointerId);
+        }
         this.panBy(dx, dy);
         this.lastX = event.clientX;
         this.lastY = event.clientY;
@@ -54473,7 +54777,7 @@ ${rowText}` },
         }
         this.dragging = false;
         this.container.classList.remove("is-dragging");
-        if (event.pointerId !== void 0) {
+        if (this.captured && event.pointerId !== void 0) {
           this.container.releasePointerCapture?.(event.pointerId);
         }
       };
@@ -54657,6 +54961,9 @@ ${rowText}` },
     }
     function handleKey(event, input, row, columnIndex) {
       event.stopPropagation();
+      if (event.isComposing || event.keyCode === 229) {
+        return;
+      }
       if (event.key === "Escape") {
         event.preventDefault();
         input.blur();
@@ -54907,6 +55214,17 @@ ${rowText}` },
           text: readText(findByDataId(context.stage, "g.label", dataId)),
           element: path || data2,
           extraElements: [findByDataId(context.stage, "g.label", dataId)].filter(Boolean)
+        };
+      }
+      const cluster = closestIn(element, "g.cluster", context.stage);
+      const clusterId = cluster && stripRenderId(cluster.id, context.renderId);
+      if (clusterId) {
+        return {
+          kind: "subgraph",
+          id: clusterId,
+          keys: [`subgraph:${clusterId}`],
+          text: readText(cluster.querySelector(".cluster-label")) || readText(cluster) || clusterId,
+          element: cluster
         };
       }
       return null;
@@ -55303,7 +55621,16 @@ ${rowText}` },
       fitMaxScale: variant === "modal" ? 1.6 : 1,
       enableMouse: true,
       wheelZoom: variant === "modal" ? "always" : "modifier",
-      canStartPan: (event) => !resolveTarget(event.target) && !state.renaming,
+      // Buttons and fields on the viewport (the template picker) are not drag
+      // handles. A subgraph covers much of the drawing, so it still pans.
+      canStartPan: (event) => {
+        if (state.renaming || event.target.closest?.("button, input, select")) {
+          return false;
+        }
+        const target = resolveTarget(event.target);
+        const connecting = state.connectMode || event.shiftKey;
+        return !target || target.kind === "subgraph" && !connecting;
+      },
       onUserZoom: () => {
         state.userZoomed = true;
       }
@@ -56658,6 +56985,34 @@ ${rowText}` },
   }
 
   // src/rich-editor/presentation/codemirror/widgets.js
+  var UNORDERED_MARKER_WIDTH_EM = 1.7;
+  var LIST_MARKER_GAP_EM = 0.15;
+  var TASK_CHECKBOX_WIDTH_EM = 1.49;
+  var TASK_PATTERN = /^\[( |x)\]([ \t]*)/i;
+  function getListMarkerWidthEm(listMarker) {
+    if (!listMarker.ordered) {
+      return UNORDERED_MARKER_WIDTH_EM;
+    }
+    return Math.max(2.25, 0.58 * listMarker.marker.length + 0.5);
+  }
+  function getListHangingIndentStyle(text2, { rendered }) {
+    const listMarker = parseListMarker(text2);
+    if (!listMarker) {
+      return null;
+    }
+    const rest = text2.slice(listMarker.markerTo);
+    const task = listMarker.ordered ? null : rest.match(TASK_PATTERN);
+    const indentColumns = countIndentColumns(listMarker.indent);
+    let columns;
+    let em = 0;
+    if (rendered) {
+      columns = indentColumns + (task ? task[2].length : 0);
+      em = getListMarkerWidthEm(listMarker) + LIST_MARKER_GAP_EM + (task ? TASK_CHECKBOX_WIDTH_EM : 0);
+    } else {
+      columns = indentColumns + listMarker.marker.length + listMarker.spacing.length + (task ? task[0].length : 0);
+    }
+    return `--cm-list-hang: calc(${columns}ch + ${Number(em.toFixed(3))}em)`;
+  }
   var ListMarkerWidget = class extends WidgetType {
     constructor(listMarker) {
       super();
@@ -56671,7 +57026,11 @@ ${rowText}` },
     toDOM() {
       const marker = document.createElement("span");
       marker.className = `cm-list-marker ${this.ordered ? "is-ordered" : "is-unordered"}`;
-      marker.textContent = this.ordered ? this.marker : getUnorderedListSymbol(this.level);
+      marker.style.width = `${getListMarkerWidthEm(this)}em`;
+      const symbol3 = document.createElement("span");
+      symbol3.className = "cm-list-marker-symbol";
+      symbol3.textContent = this.ordered ? this.marker : getUnorderedListSymbol(this.level);
+      marker.appendChild(symbol3);
       return marker;
     }
     ignoreEvent() {
@@ -56907,6 +57266,12 @@ ${rowText}` },
                 classesByLine,
                 line.from,
                 `cm-list-line cm-list-depth-${Math.min(listMarker.level, 3)} ${listMarker.ordered ? "cm-list-ordered" : "cm-list-unordered"}`
+              );
+              stylesByLine.set(
+                line.from,
+                getListHangingIndentStyle(line.text, {
+                  rendered: !isLineFocused2(view2.state, line)
+                })
               );
             }
           }
@@ -60685,11 +61050,21 @@ ${rowText}` },
         boxShadow: "0 0 0 1px color-mix(in srgb, var(--rip-bg) 78%, transparent)",
         verticalAlign: "-0.08em"
       },
-      ".cm-list-line": {
-        position: "relative"
+      // Wrapped list items continue under their text, not at the line start:
+      // --cm-list-hang (set per line) is the width of the indent and marker.
+      ".cm-line.cm-list-line": {
+        position: "relative",
+        paddingLeft: "calc(6px + var(--cm-list-hang, 0px))",
+        textIndent: "calc(-1 * var(--cm-list-hang, 0px))"
+      },
+      // text-indent is inherited; inline blocks (markers, checkboxes, images)
+      // would otherwise shift their own content.
+      ".cm-line.cm-list-line *": {
+        textIndent: "0"
       },
       ".cm-list-marker": {
-        minWidth: "1.7em",
+        // Width is set by ListMarkerWidget so it matches the hanging indent.
+        boxSizing: "border-box",
         display: "inline-flex",
         alignItems: "center",
         justifyContent: "center",
@@ -60703,10 +61078,11 @@ ${rowText}` },
         color: "var(--rip-heading)"
       },
       ".cm-list-marker.is-ordered": {
-        minWidth: "2.2em",
         justifyContent: "flex-end",
-        paddingRight: "0.25em",
-        color: "var(--rip-muted)",
+        paddingRight: "0.23em",
+        color: "var(--rip-muted)"
+      },
+      ".cm-list-marker.is-ordered .cm-list-marker-symbol": {
         fontSize: "0.92em"
       },
       ".cm-list-depth-1 .cm-list-marker.is-unordered": {
@@ -61933,6 +62309,9 @@ ${rowText}` },
         font: "12px var(--vscode-editor-font-family, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace)"
       },
       ".cm-task-checkbox": {
+        // A button would use the browser's control font size; its em has to be
+        // the line's for the list hanging indent (widgets.js) to line up.
+        fontSize: "inherit",
         width: "1.05em",
         height: "1.05em",
         display: "inline-grid",
@@ -62736,6 +63115,33 @@ ${rowText}` },
     }
     .cm-mermaid-surface-select {
       padding: 0 4px;
+    }
+    .cm-mermaid-surface-select[hidden] {
+      display: none;
+    }
+    /* The open dropdown list is drawn by the browser, which paints it for
+       the page's color scheme (light unless told otherwise) while the options
+       inherit the theme's text color: light text on white in dark themes. */
+    .cm-mermaid-surface-select,
+    select.cm-mermaid-table-input {
+      color-scheme: light;
+    }
+    :root[data-rich-theme="midnight"] .cm-mermaid-surface-select,
+    :root[data-rich-theme="graphite"] .cm-mermaid-surface-select,
+    :root[data-rich-theme="forest"] .cm-mermaid-surface-select,
+    :root[data-rich-theme="midnight"] select.cm-mermaid-table-input,
+    :root[data-rich-theme="graphite"] select.cm-mermaid-table-input,
+    :root[data-rich-theme="forest"] select.cm-mermaid-table-input,
+    :root[data-rich-theme="default"] body.vscode-dark .cm-mermaid-surface-select,
+    :root[data-rich-theme="default"] body.vscode-dark select.cm-mermaid-table-input,
+    :root[data-rich-theme="default"] body.vscode-high-contrast:not(.vscode-high-contrast-light) .cm-mermaid-surface-select,
+    :root[data-rich-theme="default"] body.vscode-high-contrast:not(.vscode-high-contrast-light) select.cm-mermaid-table-input {
+      color-scheme: dark;
+    }
+    .cm-mermaid-surface-select option,
+    select.cm-mermaid-table-input option {
+      color: var(--rip-fg);
+      background-color: var(--rip-panel);
     }
     .cm-mermaid-surface-button:hover:not(:disabled),
     .cm-mermaid-surface-select:hover:not(:disabled) {

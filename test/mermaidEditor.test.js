@@ -24,7 +24,13 @@ function fakeSvg(renderId, code) {
   const edges = [...code.matchAll(/\b([A-Z]|N\d+)\b[^\n]*?-->\s*(?:\|[^|]*\|\s*)?\b([A-Z]|N\d+)\b/g)]
     .map(([, from, to]) => `<path class="flowchart-link" data-id="L_${from}_${to}_0"></path>`)
     .join("");
-  return `<svg viewBox="0 0 400 200">${edges}${groups}</svg>`;
+  const clusters = [...code.matchAll(/^\s*subgraph\s+([^\s[]+)(?:\s*\[([^\]]*)\])?/gm)]
+    .map(
+      ([, id, title]) =>
+        `<g class="cluster" id="${renderId}-${id}"><rect></rect><g class="cluster-label"><text>${title ?? id}</text></g></g>`,
+    )
+    .join("");
+  return `<svg viewBox="0 0 400 200">${clusters}${edges}${groups}</svg>`;
 }
 
 let harness;
@@ -291,6 +297,43 @@ describe("inline live editor", () => {
     expect(harness.text()).toMatch(/^```mermaid\npie title Share\n/);
   });
 
+  it("does not turn a press on a template button into a diagram pan", async () => {
+    harness = createPreviewHarness({ doc: "```mermaid\n```\n", mermaidScriptUri: "m.js" });
+    click(harness.widget("MermaidPreviewWidget").toDOM(harness.view));
+    const dom = harness.widget("MermaidLiveEditorWidget").toDOM(harness.view);
+    document.body.appendChild(dom);
+    const viewport = dom.querySelector(".cm-mermaid-surface-viewport");
+    viewport.setPointerCapture = vi.fn();
+    await vi.waitFor(() => {
+      expect(dom.querySelector(".cm-mermaid-surface-templates").hidden).toBe(false);
+    });
+    const button = surfaceButton(dom, "Insert a Flowchart diagram");
+
+    // A captured pointer would retarget the click away from the button.
+    const pressed = button.dispatchEvent(
+      new PointerEvent("pointerdown", { bubbles: true, cancelable: true, button: 0 }),
+    );
+    expect(pressed, "the press is not cancelled").toBe(true);
+    expect(viewport.classList.contains("is-dragging")).toBe(false);
+    expect(viewport.setPointerCapture).not.toHaveBeenCalled();
+  });
+
+  it("captures the pointer only once the diagram is really dragged", async () => {
+    const { dom } = mountEditing();
+    await rendered(dom);
+    const viewport = dom.querySelector(".cm-mermaid-surface-viewport");
+    viewport.setPointerCapture = vi.fn();
+    viewport.releasePointerCapture = vi.fn();
+    const stage = dom.querySelector(".cm-mermaid-surface-stage");
+
+    stage.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, button: 0, clientX: 5, clientY: 5 }));
+    expect(viewport.setPointerCapture).not.toHaveBeenCalled();
+    viewport.dispatchEvent(new PointerEvent("pointermove", { bubbles: true, clientX: 30, clientY: 5 }));
+    expect(viewport.setPointerCapture).toHaveBeenCalledTimes(1);
+    viewport.dispatchEvent(new PointerEvent("pointerup", { bubbles: true }));
+    expect(viewport.classList.contains("is-dragging")).toBe(false);
+  });
+
   it("leaves edit mode from the Done button with the caret after the block", async () => {
     const { dom, view } = mountEditing();
     click(surfaceButton(dom, "Finish editing the diagram"));
@@ -317,6 +360,98 @@ describe("inline live editor", () => {
     cats.dispatchEvent(new Event("change"));
 
     expect(diagramText()).toBe('pie title Pets\n    "Fish" : 1\n    "Dogs" : 386\n    "Cats" : 90');
+  });
+});
+
+describe("flowchart subgraphs", () => {
+  const GROUPED = [
+    "flowchart TD",
+    "    A[Start] --> B",
+    "    subgraph S1 [Backend]",
+    "        C",
+    "    end",
+  ].join("\n");
+  const cluster = (dom, id) => dom.querySelector(`g.cluster[id$="-${id}"]`);
+  const addSubgraphTitle = "Add a subgraph (around the selected node, or inside the selected subgraph)";
+
+  it("wraps the selected node in a new subgraph and opens its title for renaming", async () => {
+    const { dom } = mountEditing();
+    await rendered(dom);
+    click(node(dom, "B"));
+
+    click(surfaceButton(dom, addSubgraphTitle));
+
+    expect(diagramText()).toBe(
+      [FLOW, "    subgraph S1 [Group]", "        B", "    end"].join("\n"),
+    );
+    const input = dom.querySelector(".cm-mermaid-surface-rename");
+    await vi.waitFor(() => expect(input.hidden).toBe(false));
+    expect(input.value).toBe("Group");
+    input.value = "Core";
+    input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+    expect(diagramText()).toContain("    subgraph S1 [Core]");
+  });
+
+  it("selects a subgraph from its cluster and adds a node inside it", async () => {
+    const { dom, view } = mountEditing({ code: GROUPED });
+    await rendered(dom);
+
+    click(cluster(dom, "S1").querySelector("rect"));
+    expect(cluster(dom, "S1").classList.contains("is-rd-selected")).toBe(true);
+    expect(view.state.doc.lineAt(view.state.selection.main.head).text).toBe(
+      "    subgraph S1 [Backend]",
+    );
+
+    click(surfaceButton(dom, "Add a node (connected to the selected node)"));
+    expect(diagramText()).toBe(
+      [
+        "flowchart TD",
+        "    A[Start] --> B",
+        "    subgraph S1 [Backend]",
+        "        C",
+        "        N1[New node]",
+        "    end",
+      ].join("\n"),
+    );
+  });
+
+  it("moves the selected node into a subgraph from the dropdown", async () => {
+    const { dom } = mountEditing({ code: GROUPED });
+    await rendered(dom);
+    const membership = dom.querySelector('select[title="Subgraph of the selected node"]');
+    expect(membership.hidden).toBe(false);
+    expect(membership.disabled).toBe(true);
+
+    click(node(dom, "A"));
+    expect(membership.disabled).toBe(false);
+    expect(membership.value).toBe("");
+    expect([...membership.options].map((option) => option.textContent)).toEqual([
+      "No subgraph",
+      "Backend",
+    ]);
+    membership.value = "S1";
+    membership.dispatchEvent(new Event("change"));
+
+    expect(diagramText()).toBe(
+      [
+        "flowchart TD",
+        "    A[Start] --> B",
+        "    subgraph S1 [Backend]",
+        "        C",
+        "        A",
+        "    end",
+      ].join("\n"),
+    );
+  });
+
+  it("removes a selected subgraph but keeps its nodes", async () => {
+    const { dom } = mountEditing({ code: GROUPED });
+    await rendered(dom);
+    click(cluster(dom, "S1").querySelector("text"));
+
+    click(surfaceButton(dom, "Delete the selected element"));
+
+    expect(diagramText()).toBe(["flowchart TD", "    A[Start] --> B", "    C"].join("\n"));
   });
 });
 

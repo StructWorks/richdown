@@ -787,11 +787,258 @@ function getInsertionLine(model) {
   return index + 1;
 }
 
-function insertLines(model, newLines) {
-  const at = getInsertionLine(model);
+function insertLines(model, newLines, at = getInsertionLine(model)) {
   const lines = [...model.lines];
   lines.splice(at, 0, ...newLines);
   return lines.join("\n");
+}
+
+// ---------------------------------------------------------------------------
+// Flowchart subgraphs
+
+// Subgraph blocks in source order. Ids follow Mermaid: "subgraph id [title]"
+// and "subgraph id" name the block; a bare title with spaces gets
+// "subGraphN", numbered in the order blocks close. `parent` is the enclosing
+// block's id; an unclosed block keeps endLine -1.
+export function readFlowchartSubgraphs(model) {
+  const subgraphs = [];
+  const stack = [];
+  let closed = 0;
+  for (const statement of model.statements) {
+    if (statement.kind === "subgraph") {
+      const header = parseSubgraphHeader(
+        model.lines[statement.lineIndex].slice(statement.start),
+      );
+      const subgraph = {
+        ...header,
+        lineIndex: statement.lineIndex,
+        endLine: -1,
+        depth: stack.length,
+        parentBlock: stack.at(-1) ?? null,
+        order: -1,
+      };
+      subgraphs.push(subgraph);
+      stack.push(subgraph);
+    } else if (statement.kind === "end" && stack.length) {
+      const subgraph = stack.pop();
+      subgraph.endLine = statement.lineIndex;
+      subgraph.order = closed;
+      subgraph.id = subgraph.id ?? `subGraph${closed}`;
+      closed += 1;
+    }
+  }
+  return subgraphs.map(({ parentBlock, ...subgraph }) => ({
+    ...subgraph,
+    parent: parentBlock?.id ?? null,
+  }));
+}
+
+export function getFlowchartSubgraphs(code) {
+  return readFlowchartSubgraphs(parseFlowchart(code));
+}
+
+function parseSubgraphHeader(text) {
+  const rest = text.replace(/^subgraph\b\s*/, "").trim();
+  const bracket = rest.match(/^([^\s[]+)\s*\[(.*)\]$/);
+  if (bracket) {
+    return { id: bracket[1], title: unquoteFlowchartLabel(bracket[2].trim()), form: "bracket" };
+  }
+  const title = unquoteFlowchartLabel(rest);
+  if (!rest || /\s/.test(title)) {
+    return { id: null, title, form: "title" };
+  }
+  return { id: title, title, form: "id" };
+}
+
+// The innermost closed subgraph whose body holds `lineIndex`.
+function subgraphAt(subgraphs, lineIndex) {
+  let owner = null;
+  for (const subgraph of subgraphs) {
+    if (
+      subgraph.endLine >= 0 &&
+      subgraph.lineIndex < lineIndex &&
+      lineIndex < subgraph.endLine &&
+      (!owner || subgraph.depth > owner.depth)
+    ) {
+      owner = subgraph;
+    }
+  }
+  return owner;
+}
+
+function subgraphBodyIndent(model, subgraph) {
+  for (let lineIndex = subgraph.lineIndex + 1; lineIndex < subgraph.endLine; lineIndex += 1) {
+    if (model.lines[lineIndex].trim()) {
+      return getIndent(model.lines[lineIndex]);
+    }
+  }
+  return `${getIndent(model.lines[subgraph.lineIndex])}    `;
+}
+
+function ancestorsOf(subgraphs, subgraph) {
+  const chain = new Set();
+  for (let current = subgraph; current; ) {
+    chain.add(current);
+    current = current.parent ? subgraphs.find((entry) => entry.id === current.parent) : null;
+  }
+  return chain;
+}
+
+// The subgraph Mermaid draws a node in. Every node mentioned in a block's own
+// body belongs to it, and blocks claim nodes in the order they close, so an
+// inner or earlier block wins over later ones.
+export function getFlowchartNodeSubgraph(code, id) {
+  const model = parseFlowchart(code);
+  const subgraphs = readFlowchartSubgraphs(model).filter((subgraph) => subgraph.endLine >= 0);
+  const owners = new Set();
+  for (const statement of model.statements) {
+    if (statement.kind !== "chain" || !statement.groups.flat().some((ref) => ref.id === id)) {
+      continue;
+    }
+    const owner = subgraphAt(subgraphs, statement.lineIndex);
+    if (owner) owners.add(owner);
+  }
+  const [first] = [...owners].sort((left, right) => left.order - right.order);
+  return first?.id ?? null;
+}
+
+// Moves a node into `subgraphId`, or out to the top level for null. Mentions
+// in other blocks would keep claiming the node, so they are taken out: a lone
+// mention is dropped (its label and shape travel with the node) and an edge is
+// moved to the top level, leaving bare ids behind so the other nodes stay
+// where they were.
+export function moveFlowchartNodeToSubgraph(code, id, subgraphId = null) {
+  const model = parseFlowchart(code);
+  const subgraphs = readFlowchartSubgraphs(model);
+  const target = subgraphId
+    ? subgraphs.find((subgraph) => subgraph.id === subgraphId && subgraph.endLine >= 0)
+    : null;
+  if (
+    !model.nodes.has(id) ||
+    (subgraphId && !target) ||
+    subgraphs.some((subgraph) => subgraph.id === id)
+  ) {
+    return code;
+  }
+  // Enclosing blocks close after the target, so their mentions never win.
+  const keep = target ? ancestorsOf(subgraphs, target) : new Set();
+  let carried = null;
+  let mentionedInTarget = false;
+  const moved = [];
+  let next = rewriteStatements(model, (statement, lineText) => {
+    if (statement.kind !== "chain") return undefined;
+    const refs = statement.groups.flat();
+    if (!refs.some((ref) => ref.id === id)) return undefined;
+    const owner = subgraphAt(subgraphs, statement.lineIndex);
+    if (owner === target) {
+      mentionedInTarget = true;
+      return undefined;
+    }
+    if (!owner || keep.has(owner)) return undefined;
+    const others = refs.filter((ref) => ref.id !== id);
+    if (!statement.links.length) {
+      const own = refs.find((ref) => ref.id === id && ref.shape);
+      if (own && !carried) carried = refText(lineText, own);
+      return others.length ? [others.map((ref) => refText(lineText, ref)).join(" & ")] : [];
+    }
+    moved.push(lineText.slice(statement.start, statement.end).trim());
+    return [...new Set(others.map((ref) => ref.id))];
+  });
+  if (moved.length) {
+    const movedModel = parseFlowchart(next);
+    const indent = getStatementIndent(movedModel);
+    next = insertLines(movedModel, moved.map((text) => `${indent}${text}`));
+  }
+  const model2 = parseFlowchart(next);
+  const entry = carried ?? (mentionedInTarget ? null : id);
+  if (!entry) {
+    return next;
+  }
+  if (!target) {
+    // At the top level a bare id is only needed when nothing mentions it.
+    if (!carried && model2.nodes.has(id)) return next;
+    return insertLines(model2, [`${getStatementIndent(model2)}${entry}`]);
+  }
+  const host = readFlowchartSubgraphs(model2).find((subgraph) => subgraph.id === target.id);
+  return insertLines(model2, [`${subgraphBodyIndent(model2, host)}${entry}`], host.endLine);
+}
+
+function nextFlowchartSubgraphId(model, subgraphs) {
+  const used = new Set([...model.nodes.keys(), ...subgraphs.map((subgraph) => subgraph.id)]);
+  for (let index = 1; ; index += 1) {
+    const id = `S${index}`;
+    if (!used.has(id)) return id;
+  }
+}
+
+// Adds a subgraph. With `nodeId` the node moves into it, and the new block
+// nests inside the node's current subgraph; otherwise it starts with a new
+// node, inside `parent` when given.
+export function addFlowchartSubgraph(code, { title = "Group", parent = null, nodeId = null } = {}) {
+  const model = parseFlowchart(code);
+  if (model.headerIndex < 0) {
+    return { code, id: null, nodeId: null };
+  }
+  const subgraphs = readFlowchartSubgraphs(model);
+  const isSubgraph = (value) => subgraphs.some((subgraph) => subgraph.id === value);
+  const wraps = Boolean(nodeId && model.nodes.has(nodeId) && !isSubgraph(nodeId));
+  const hostId = parent ?? (wraps ? getFlowchartNodeSubgraph(code, nodeId) : null);
+  const host = hostId
+    ? subgraphs.find((subgraph) => subgraph.id === hostId && subgraph.endLine >= 0)
+    : null;
+  const id = nextFlowchartSubgraphId(model, subgraphs);
+  const indent = host ? subgraphBodyIndent(model, host) : getStatementIndent(model);
+  const newNodeId = wraps ? null : nextFlowchartNodeId(code);
+  const block = [
+    `${indent}subgraph ${id} [${formatFlowchartLabel(title) || id}]`,
+    ...(newNodeId ? [`${indent}    ${newNodeId}[New node]`] : []),
+    `${indent}end`,
+  ];
+  let next = insertLines(model, block, host ? host.endLine : getInsertionLine(model));
+  if (wraps) {
+    next = moveFlowchartNodeToSubgraph(next, nodeId, id);
+  }
+  return { code: next, id, nodeId: wraps ? nodeId : newNodeId };
+}
+
+// Removes a subgraph block but keeps what it drew: the body moves up one
+// level. Edges, styles, and clicks aimed at the block go with it, as does a
+// `direction` line that only applied inside it.
+export function removeFlowchartSubgraph(code, id) {
+  const model = parseFlowchart(code);
+  const subgraph = readFlowchartSubgraphs(model).find(
+    (entry) => entry.id === id && entry.endLine >= 0,
+  );
+  if (!subgraph) {
+    return code;
+  }
+  const outer = getIndent(model.lines[subgraph.lineIndex]);
+  const inner = subgraphBodyIndent(model, subgraph);
+  const strip = inner.startsWith(outer) ? inner.length - outer.length : 0;
+  const directionLines = new Set(
+    model.statements
+      .filter(
+        (statement) =>
+          statement.kind === "direction" &&
+          model.lineDepths[statement.lineIndex] === subgraph.depth + 1 &&
+          statement.lineIndex > subgraph.lineIndex &&
+          statement.lineIndex < subgraph.endLine,
+      )
+      .map((statement) => statement.lineIndex),
+  );
+  const dedent = new RegExp(`^[ \\t]{0,${strip}}`);
+  const lines = model.lines.flatMap((text, lineIndex) => {
+    if (
+      lineIndex === subgraph.lineIndex ||
+      lineIndex === subgraph.endLine ||
+      directionLines.has(lineIndex)
+    ) {
+      return [];
+    }
+    const inside = lineIndex > subgraph.lineIndex && lineIndex < subgraph.endLine;
+    return [inside && strip ? text.replace(dedent, "") : text];
+  });
+  return removeFlowchartReferences(parseFlowchart(lines.join("\n")), id);
 }
 
 export function getFlowchartNodeIds(code) {
@@ -922,7 +1169,7 @@ export function getFlowchartNodeColor(code, id) {
 // with !important, so they win over Richdown's palette as well.
 export function setFlowchartNodeColor(code, id, colorKey) {
   const model = parseFlowchart(code);
-  if (!model.nodes.has(id)) {
+  if (!hasFlowchartElement(model, id)) {
     return code;
   }
   const color = FLOWCHART_COLORS.find((entry) => entry.key === colorKey) || null;
@@ -962,7 +1209,20 @@ export function setFlowchartNodeColor(code, id, colorKey) {
   return lines.join("\n");
 }
 
-export function addFlowchartNode(code, { label = "New node", shape = "rect", from = null } = {}) {
+// Colors and edges also apply to subgraphs, which are addressed by their id.
+function hasFlowchartElement(model, id) {
+  return (
+    model.nodes.has(id) ||
+    readFlowchartSubgraphs(model).some((subgraph) => subgraph.id === id && subgraph.endLine >= 0)
+  );
+}
+
+// `subgraph` puts the new statement inside that block instead of at the top
+// level.
+export function addFlowchartNode(
+  code,
+  { label = "New node", shape = "rect", from = null, subgraph = null } = {},
+) {
   const model = parseFlowchart(code);
   if (model.headerIndex < 0) {
     return { code, id: null };
@@ -971,7 +1231,16 @@ export function addFlowchartNode(code, { label = "New node", shape = "rect", fro
   const shapeSpec = getShape(shape);
   const nodeText = `${id}${shapeSpec.open}${formatFlowchartLabel(label) || id}${shapeSpec.close}`;
   const statement =
-    from && model.nodes.has(from) ? `${from} --> ${nodeText}` : nodeText;
+    from && hasFlowchartElement(model, from) ? `${from} --> ${nodeText}` : nodeText;
+  const host = subgraph
+    ? readFlowchartSubgraphs(model).find((entry) => entry.id === subgraph && entry.endLine >= 0)
+    : null;
+  if (host) {
+    return {
+      code: insertLines(model, [`${subgraphBodyIndent(model, host)}${statement}`], host.endLine),
+      id,
+    };
+  }
   return {
     code: insertLines(model, [`${getStatementIndent(model)}${statement}`]),
     id,
@@ -984,8 +1253,8 @@ export function addFlowchartEdge(code, from, to, label = "") {
     model.headerIndex < 0 ||
     !from ||
     !to ||
-    !model.nodes.has(from) ||
-    !model.nodes.has(to)
+    !hasFlowchartElement(model, from) ||
+    !hasFlowchartElement(model, to)
   ) {
     return code;
   }
@@ -1185,6 +1454,11 @@ export function removeFlowchartNode(code, id) {
   if (!model.nodes.has(id)) {
     return code;
   }
+  return removeFlowchartReferences(model, id);
+}
+
+// Drops every edge, style, class, and click statement naming `id`.
+function removeFlowchartReferences(model, id) {
   return rewriteStatements(model, (statement, lineText) => {
     if (statement.kind === "chain") {
       const touches = statement.groups.some((group) =>

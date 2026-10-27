@@ -10,13 +10,17 @@ import {
 import {
   addFlowchartEdge,
   addFlowchartNode,
+  addFlowchartSubgraph,
   detectMermaidDiagramType,
   formatFlowchartLabel,
   getFlowchartDirection,
   getFlowchartNode,
   getFlowchartNodeColor,
+  getFlowchartNodeSubgraph,
+  getFlowchartSubgraphs,
   getMermaidBlockContentChange,
   getMermaidErrorLine,
+  moveFlowchartNodeToSubgraph,
   nextFlowchartNodeId,
   parseFlowchart,
   parseFlowchartEdgeDomId,
@@ -24,6 +28,7 @@ import {
   readMermaidBlockContent,
   removeFlowchartEdge,
   removeFlowchartNode,
+  removeFlowchartSubgraph,
   renameFlowchartEdgeLabel,
   renameFlowchartNodeLabel,
   renameSequenceParticipant,
@@ -441,5 +446,162 @@ describe("block content", () => {
     expect(
       doc.replace(change.from, change.to, Text.of(change.insert.split("\n"))).toString(),
     ).toBe("```mermaid\npie\n```");
+  });
+});
+
+describe("flowchart subgraphs", () => {
+  const code = lines(
+    "flowchart TD",
+    "    A[Start] --> B",
+    "    subgraph S1 [Backend]",
+    "        C[(DB)] --> D",
+    "        subgraph inner",
+    "            E",
+    "        end",
+    "    end",
+    "    subgraph Two words",
+    "        F",
+    "    end",
+  );
+
+  it("lists blocks with Mermaid's ids, titles, and nesting", () => {
+    expect(
+      getFlowchartSubgraphs(code).map(({ id, title, parent, depth, lineIndex, endLine }) => ({
+        id,
+        title,
+        parent,
+        depth,
+        lineIndex,
+        endLine,
+      })),
+    ).toEqual([
+      { id: "S1", title: "Backend", parent: null, depth: 0, lineIndex: 2, endLine: 7 },
+      { id: "inner", title: "inner", parent: "S1", depth: 1, lineIndex: 4, endLine: 6 },
+      // Untitled ids count blocks in closing order: inner, S1, then this one.
+      { id: "subGraph2", title: "Two words", parent: null, depth: 0, lineIndex: 8, endLine: 10 },
+    ]);
+  });
+
+  it("finds the subgraph a node is drawn in", () => {
+    expect(getFlowchartNodeSubgraph(code, "A")).toBeNull();
+    expect(getFlowchartNodeSubgraph(code, "C")).toBe("S1");
+    expect(getFlowchartNodeSubgraph(code, "E")).toBe("inner");
+    // The block that closes first claims a node mentioned in two blocks.
+    const twice = lines("graph TD", "  subgraph X", "    A", "  end", "  subgraph Y", "    A", "  end");
+    expect(getFlowchartNodeSubgraph(twice, "A")).toBe("X");
+  });
+
+  it("wraps a top-level node in a new subgraph", () => {
+    const result = addFlowchartSubgraph(lines("flowchart TD", "    A[Start] --> B"), { nodeId: "B" });
+    expect(result).toMatchObject({ id: "S1", nodeId: "B" });
+    expect(result.code).toBe(
+      lines("flowchart TD", "    A[Start] --> B", "    subgraph S1 [Group]", "        B", "    end"),
+    );
+  });
+
+  it("adds a subgraph with a first node, nested in the selected one", () => {
+    const top = addFlowchartSubgraph(lines("flowchart TD", "    A"));
+    expect(top.code).toBe(
+      lines("flowchart TD", "    A", "    subgraph S1 [Group]", "        N1[New node]", "    end"),
+    );
+    const nested = addFlowchartSubgraph(top.code, { parent: "S1", title: "Inner: part" });
+    expect(nested.id).toBe("S2");
+    expect(nested.code).toBe(
+      lines(
+        "flowchart TD",
+        "    A",
+        "    subgraph S1 [Group]",
+        "        N1[New node]",
+        '        subgraph S2 ["Inner: part"]',
+        "            N2[New node]",
+        "        end",
+        "    end",
+      ),
+    );
+  });
+
+  it("moves a node between subgraphs, keeping its label and the other nodes' places", () => {
+    const moved = moveFlowchartNodeToSubgraph(code, "C", "subGraph2");
+    expect(moved).toBe(
+      lines(
+        "flowchart TD",
+        "    A[Start] --> B",
+        "    subgraph S1 [Backend]",
+        "        D",
+        "        subgraph inner",
+        "            E",
+        "        end",
+        "    end",
+        "    subgraph Two words",
+        "        F",
+        "        C",
+        "    end",
+        "    C[(DB)] --> D",
+      ),
+    );
+    expect(getFlowchartNodeSubgraph(moved, "C")).toBe("subGraph2");
+    expect(getFlowchartNodeSubgraph(moved, "D")).toBe("S1");
+  });
+
+  it("moves a defining mention with its shape, and out to the top level", () => {
+    const code2 = lines("graph TD", "  subgraph X", "    A[Label] & B", "  end", "  subgraph Y", "    C", "  end");
+    const intoY = moveFlowchartNodeToSubgraph(code2, "A", "Y");
+    expect(intoY).toBe(
+      lines("graph TD", "  subgraph X", "    B", "  end", "  subgraph Y", "    C", "    A[Label]", "  end"),
+    );
+    expect(moveFlowchartNodeToSubgraph(intoY, "C", null)).toBe(
+      lines("graph TD", "  subgraph X", "    B", "  end", "  subgraph Y", "    A[Label]", "  end", "    C"),
+    );
+  });
+
+  it("moves a node out of a nested block into its parent", () => {
+    const moved = moveFlowchartNodeToSubgraph(code, "E", "S1");
+    expect(getFlowchartNodeSubgraph(moved, "E")).toBe("S1");
+    expect(moved).toContain(lines("        subgraph inner", "        end", "        E", "    end"));
+  });
+
+  it("leaves the code alone for unknown nodes or targets", () => {
+    expect(moveFlowchartNodeToSubgraph(code, "Z", "S1")).toBe(code);
+    expect(moveFlowchartNodeToSubgraph(code, "A", "nope")).toBe(code);
+    expect(moveFlowchartNodeToSubgraph(code, "inner", "S1")).toBe(code);
+  });
+
+  it("removes a subgraph but keeps its contents and drops references to it", () => {
+    const withRefs = lines(
+      "flowchart LR",
+      "    A --> S1",
+      "    subgraph S1 [Group]",
+      "        direction TB",
+      "        B --> C",
+      "    end",
+      "    style S1 fill:#fff",
+    );
+    expect(removeFlowchartSubgraph(withRefs, "S1")).toBe(
+      lines("flowchart LR", "    A", "    B --> C"),
+    );
+    expect(removeFlowchartSubgraph(code, "inner")).toContain(
+      lines("        C[(DB)] --> D", "        E", "    end"),
+    );
+    expect(removeFlowchartSubgraph(code, "missing")).toBe(code);
+  });
+
+  it("adds nodes inside a subgraph and connects or colors subgraphs", () => {
+    expect(addFlowchartNode(code, { from: "C", subgraph: "S1" }).code).toContain(
+      lines("        end", "        C --> N1[New node]", "    end"),
+    );
+    expect(addFlowchartEdge(code, "A", "S1").split("\n")).toContain("    A --> S1");
+    const colored = setFlowchartNodeColor(code, "S1", "green");
+    expect(colored.split("\n").at(-1)).toBe("    style S1 fill:#dcfce7,stroke:#16a34a,color:#172033");
+    expect(getFlowchartNodeColor(colored, "S1")).toBe("green");
+  });
+
+  it("renames subgraph titles without touching their ids", () => {
+    const target = (id) => ({ kind: "subgraph", id, keys: [`subgraph:${id}`] });
+    expect(renameMermaidTarget(code, target("S1"), "Server")).toContain("subgraph S1 [Server]");
+    expect(renameMermaidTarget(code, target("inner"), "Core db")).toContain(
+      "subgraph inner [Core db]",
+    );
+    expect(renameMermaidTarget(code, target("subGraph2"), "Other")).toContain("subgraph Other");
+    expect(findMermaidSourceLine(code, target("inner"))).toBe(4);
   });
 });

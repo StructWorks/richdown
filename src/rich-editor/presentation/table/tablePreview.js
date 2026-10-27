@@ -168,6 +168,25 @@ function scheduleTableCellFocus(focusTarget) {
   window.setTimeout(restore, 100);
 }
 
+// Opens a cell editor in the table rebuilt at `sourceFrom` once CodeMirror
+// has drawn it.
+function scheduleTableCellEdit(view, { sourceFrom, rowIndex, columnIndex }) {
+  let done = false;
+  const open = () => {
+    if (done) {
+      return;
+    }
+    const wrapper = view.dom.querySelector(
+      `.cm-rich-table-preview[data-source-from="${sourceFrom}"]`,
+    );
+    if (wrapper && focusRichTableCell(wrapper, { row: rowIndex, column: columnIndex })) {
+      done = true;
+    }
+  };
+  open();
+  window.requestAnimationFrame(() => window.requestAnimationFrame(open));
+}
+
 function focusOutsideTable(wrapper, reverse = false) {
   const candidates = [
     ...document.querySelectorAll(
@@ -605,8 +624,6 @@ export function createTablePreviewWidgetClass({
         });
         editor.addEventListener("focus", () => {
           setRovingTableCell(wrapper, preview);
-          editor.dataset.editStartValue = editor.textContent || "";
-          editor.dataset.editStartDirty = wrapper.dataset.dirty || "false";
           activateRichTableCellEditor(editor, { focus: false });
         });
         editor.addEventListener("blur", () => {
@@ -654,6 +671,12 @@ export function createTablePreviewWidgetClass({
     }
   
     handleCellPreviewKeydown(event, editor, view, wrapper) {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+        this.leaveTable(view, wrapper);
+        return;
+      }
       if (event.key === "Enter" || event.key === "F2") {
         event.preventDefault();
         event.stopPropagation();
@@ -683,23 +706,15 @@ export function createTablePreviewWidgetClass({
     }
 
     handleCellKeydown(event, view, wrapper) {
+      // Enter, Escape and the arrows belong to the IME while it composes
+      // (Enter confirms a conversion, Escape cancels it).
+      if (event.isComposing || event.keyCode === 229) {
+        return;
+      }
       if (event.key === "Escape") {
         event.preventDefault();
-        const editor = event.currentTarget;
-        editor.textContent = editor.dataset.editStartValue || "";
-        const preview = editor
-          .closest(".cm-rich-table-cell")
-          ?.querySelector(".cm-rich-table-cell-preview");
-        renderRichTableCellPreview(preview, editor.textContent, view);
-        wrapper.dataset.dirty = editor.dataset.editStartDirty || "false";
-        const focusTarget = {
-          element: preview,
-          sourceFrom: wrapper.dataset.sourceFrom,
-          rowIndex: editor.dataset.rowIndex,
-          columnIndex: editor.dataset.columnIndex,
-        };
-        editor.blur();
-        scheduleTableCellFocus(focusTarget);
+        event.stopPropagation();
+        this.leaveTable(view, wrapper);
         return;
       }
       if (event.key === "Enter" && !event.shiftKey) {
@@ -708,7 +723,7 @@ export function createTablePreviewWidgetClass({
           activate: true,
         });
         if (!moved) {
-          event.currentTarget.blur();
+          this.continueBelowLastRow(view, wrapper, event.currentTarget);
         }
         return;
       }
@@ -868,6 +883,46 @@ export function createTablePreviewWidgetClass({
       view.dispatch({ ...spec, scrollIntoView: true });
       view.focus();
       return true;
+    }
+
+    // Escape leaves the table for the start of the line below, keeping what
+    // was typed in the cells.
+    leaveTable(view, wrapper) {
+      this.exitToEditor(view, "right");
+      this.commitTableEdits(view, wrapper);
+    }
+
+    // Enter on the last row adds a row and continues in the same column of
+    // it. On a row that is still empty it ends the table instead: the row is
+    // dropped and the caret goes to the line below, like Enter on an empty
+    // last row of Markdown table source.
+    continueBelowLastRow(view, wrapper, editor) {
+      if (view.state.readOnly || this.isStale(view)) {
+        return;
+      }
+      const rowIndex = Number.parseInt(editor.dataset.rowIndex || "0", 10);
+      const columnIndex = Number.parseInt(editor.dataset.columnIndex || "0", 10);
+      const rows = collectEditableTableRows(wrapper, this.tableBlock);
+      wrapper.dataset.dirty = "false";
+      if (rowIndex > 0 && rows[rowIndex]?.every((cell) => !cell)) {
+        // A table keeps at least one body row.
+        if (rows.length > 2) {
+          rows.splice(rowIndex, 1);
+        }
+        // Moving the caret first keeps the table offsets valid for the
+        // rewrite; the caret is then mapped past the shorter table.
+        this.exitToEditor(view, "right");
+        this.replaceTable(view, rows);
+        return;
+      }
+      rows.push(Array.from({ length: this.tableBlock.columnCount }, () => ""));
+      const sourceFrom = this.tableBlock.from;
+      this.replaceTable(view, rows);
+      scheduleTableCellEdit(view, {
+        sourceFrom,
+        rowIndex: rows.length - 1,
+        columnIndex,
+      });
     }
 
     // Shows the table as Markdown source with the caret in its first cell,

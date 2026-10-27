@@ -1,5 +1,54 @@
 import { WidgetType } from "@codemirror/view";
 
+import { countIndentColumns, parseListMarker } from "../../domain/markdownBlocks.js";
+
+// Rendered list markers and task checkboxes get fixed widths (in the line's
+// em) so the hanging indent of a wrapped list item can be computed from the
+// same numbers: continuation lines then start where the item's text starts.
+const UNORDERED_MARKER_WIDTH_EM = 1.7;
+const LIST_MARKER_GAP_EM = 0.15;
+// .cm-task-checkbox: 1.05em wide (a button, so border-box) plus 0.08em and
+// 0.36em margins.
+const TASK_CHECKBOX_WIDTH_EM = 1.49;
+const TASK_PATTERN = /^\[( |x)\]([ \t]*)/i;
+
+export function getListMarkerWidthEm(listMarker) {
+  if (!listMarker.ordered) {
+    return UNORDERED_MARKER_WIDTH_EM;
+  }
+  // Room for "1." up to "10."; longer numbers grow with their digits.
+  return Math.max(2.25, 0.58 * listMarker.marker.length + 0.5);
+}
+
+// Inline style giving a list line its hanging indent, or null for other
+// lines. `rendered` is true when the marker (and a task box) are drawn as
+// widgets, false when the line shows its raw Markdown.
+export function getListHangingIndentStyle(text, { rendered }) {
+  const listMarker = parseListMarker(text);
+  if (!listMarker) {
+    return null;
+  }
+  const rest = text.slice(listMarker.markerTo);
+  const task = listMarker.ordered ? null : rest.match(TASK_PATTERN);
+  const indentColumns = countIndentColumns(listMarker.indent);
+  let columns;
+  let em = 0;
+  if (rendered) {
+    columns = indentColumns + (task ? task[2].length : 0);
+    em =
+      getListMarkerWidthEm(listMarker) +
+      LIST_MARKER_GAP_EM +
+      (task ? TASK_CHECKBOX_WIDTH_EM : 0);
+  } else {
+    columns =
+      indentColumns +
+      listMarker.marker.length +
+      listMarker.spacing.length +
+      (task ? task[0].length : 0);
+  }
+  return `--cm-list-hang: calc(${columns}ch + ${Number(em.toFixed(3))}em)`;
+}
+
 export class ListMarkerWidget extends WidgetType {
   constructor(listMarker) {
     super();
@@ -21,9 +70,14 @@ export class ListMarkerWidget extends WidgetType {
     marker.className = `cm-list-marker ${
       this.ordered ? "is-ordered" : "is-unordered"
     }`;
-    marker.textContent = this.ordered
+    marker.style.width = `${getListMarkerWidthEm(this)}em`;
+    // The number is drawn smaller inside a box sized in the line's em.
+    const symbol = document.createElement("span");
+    symbol.className = "cm-list-marker-symbol";
+    symbol.textContent = this.ordered
       ? this.marker
       : getUnorderedListSymbol(this.level);
+    marker.appendChild(symbol);
     return marker;
   }
 

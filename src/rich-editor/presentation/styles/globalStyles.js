@@ -683,6 +683,33 @@ export function injectStyles() {
     .cm-mermaid-surface-select {
       padding: 0 4px;
     }
+    .cm-mermaid-surface-select[hidden] {
+      display: none;
+    }
+    /* The open dropdown list is drawn by the browser, which paints it for
+       the page's color scheme (light unless told otherwise) while the options
+       inherit the theme's text color: light text on white in dark themes. */
+    .cm-mermaid-surface-select,
+    select.cm-mermaid-table-input {
+      color-scheme: light;
+    }
+    :root[data-rich-theme="midnight"] .cm-mermaid-surface-select,
+    :root[data-rich-theme="graphite"] .cm-mermaid-surface-select,
+    :root[data-rich-theme="forest"] .cm-mermaid-surface-select,
+    :root[data-rich-theme="midnight"] select.cm-mermaid-table-input,
+    :root[data-rich-theme="graphite"] select.cm-mermaid-table-input,
+    :root[data-rich-theme="forest"] select.cm-mermaid-table-input,
+    :root[data-rich-theme="default"] body.vscode-dark .cm-mermaid-surface-select,
+    :root[data-rich-theme="default"] body.vscode-dark select.cm-mermaid-table-input,
+    :root[data-rich-theme="default"] body.vscode-high-contrast:not(.vscode-high-contrast-light) .cm-mermaid-surface-select,
+    :root[data-rich-theme="default"] body.vscode-high-contrast:not(.vscode-high-contrast-light) select.cm-mermaid-table-input {
+      color-scheme: dark;
+    }
+    .cm-mermaid-surface-select option,
+    select.cm-mermaid-table-input option {
+      color: var(--rip-fg);
+      background-color: var(--rip-panel);
+    }
     .cm-mermaid-surface-button:hover:not(:disabled),
     .cm-mermaid-surface-select:hover:not(:disabled) {
       border-color: var(--rip-focus);

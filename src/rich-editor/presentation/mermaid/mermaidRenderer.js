@@ -213,6 +213,7 @@ export class MermaidViewportController {
     this.onUserZoom = options.onUserZoom ?? (() => {});
     this.dragging = false;
     this.moved = false;
+    this.captured = false;
 
     const width = parseSvgLength(stage.style.width);
     const height = parseSvgLength(stage.style.height);
@@ -355,10 +356,10 @@ export class MermaidViewportController {
       event.preventDefault();
       this.dragging = true;
       this.moved = false;
+      this.captured = false;
       this.lastX = event.clientX;
       this.lastY = event.clientY;
       this.container.classList.add("is-dragging");
-      this.container.setPointerCapture?.(event.pointerId);
     });
 
     this.container.addEventListener("pointermove", (event) => {
@@ -372,6 +373,13 @@ export class MermaidViewportController {
         this.moved = true;
         this.onUserZoom();
       }
+      // Capture only once the pointer really drags: a captured pointer
+      // retargets the click to the container, so a plain click would never
+      // reach the button or diagram element under it.
+      if (this.moved && !this.captured) {
+        this.captured = true;
+        this.container.setPointerCapture?.(event.pointerId);
+      }
       this.panBy(dx, dy);
       this.lastX = event.clientX;
       this.lastY = event.clientY;
@@ -383,7 +391,7 @@ export class MermaidViewportController {
       }
       this.dragging = false;
       this.container.classList.remove("is-dragging");
-      if (event.pointerId !== undefined) {
+      if (this.captured && event.pointerId !== undefined) {
         this.container.releasePointerCapture?.(event.pointerId);
       }
     };

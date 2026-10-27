@@ -130,7 +130,16 @@ export function createMermaidEditorSurface({
     fitMaxScale: variant === "modal" ? 1.6 : 1,
     enableMouse: true,
     wheelZoom: variant === "modal" ? "always" : "modifier",
-    canStartPan: (event) => !resolveTarget(event.target) && !state.renaming,
+    // Buttons and fields on the viewport (the template picker) are not drag
+    // handles. A subgraph covers much of the drawing, so it still pans.
+    canStartPan: (event) => {
+      if (state.renaming || event.target.closest?.("button, input, select")) {
+        return false;
+      }
+      const target = resolveTarget(event.target);
+      const connecting = state.connectMode || event.shiftKey;
+      return !target || (target.kind === "subgraph" && !connecting);
+    },
     onUserZoom: () => {
       state.userZoomed = true;
     },

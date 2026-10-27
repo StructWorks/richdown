@@ -49,6 +49,19 @@ describe("node diagrams", () => {
     });
   });
 
+  it("reads flowchart subgraph clusters, but prefers the node inside", () => {
+    const stage = stageFor(`
+      <g class="cluster" id="R-S1"><rect></rect><g class="cluster-label"><text>Backend</text></g></g>
+      <g class="node" id="R-flowchart-C-0"><rect></rect><text>C</text></g>`);
+    expect(describeIn(stage, "flowchart", "g.cluster rect")).toMatchObject({
+      kind: "subgraph",
+      id: "S1",
+      keys: ["subgraph:S1"],
+      text: "Backend",
+    });
+    expect(describeIn(stage, "flowchart", "g.node rect").keys).toEqual(["node:C"]);
+  });
+
   it("tells class members from the class name", () => {
     const stage = stageFor(`
       <path data-id="id_Animal_Duck_1"></path>

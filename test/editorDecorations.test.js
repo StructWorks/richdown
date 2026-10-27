@@ -5,6 +5,7 @@ import {
   CheckboxWidget,
   CodeCopyButtonWidget,
   ColorPreviewWidget,
+  getListHangingIndentStyle,
   ListMarkerWidget,
 } from "../src/rich-editor/presentation/codemirror/widgets.js";
 import { createPreviewHarness } from "./helpers/previewHarness.js";
@@ -45,6 +46,13 @@ describe("list marker widget", () => {
 
     expect(dom.className).toContain("is-ordered");
     expect(dom.textContent).toBe("3.");
+  });
+
+  it("sizes the marker box so the hanging indent can match it", () => {
+    const bullet = new ListMarkerWidget({ marker: "-", ordered: false, level: 1 }).toDOM();
+    const number = new ListMarkerWidget({ marker: "100.", ordered: true, level: 0 }).toDOM();
+    expect(bullet.style.width).toBe("1.7em");
+    expect(number.style.width).toBe("2.82em");
   });
 
   it("compares by marker, kind and level", () => {
@@ -444,6 +452,51 @@ describe("inline and line decorations", () => {
     expect(classesFor("1. first\n\nbody")).toContain(
       "cm-list-line cm-list-depth-0 cm-list-ordered",
     );
+  });
+
+  it("hangs wrapped list text under the item's text", () => {
+    const rendered = { rendered: true };
+    const raw = { rendered: false };
+    // Indent (ch, raw spaces) plus the drawn marker and its gap (em).
+    expect(getListHangingIndentStyle("  - nested item", rendered)).toBe(
+      "--cm-list-hang: calc(2ch + 1.85em)",
+    );
+    expect(getListHangingIndentStyle("\t- tab", rendered)).toBe(
+      "--cm-list-hang: calc(4ch + 1.85em)",
+    );
+    expect(getListHangingIndentStyle("1. first", rendered)).toBe(
+      "--cm-list-hang: calc(0ch + 2.4em)",
+    );
+    // A task box and the spaces after it come before the text.
+    expect(getListHangingIndentStyle("    - [x] done", rendered)).toBe(
+      "--cm-list-hang: calc(5ch + 3.34em)",
+    );
+    // The caret's line shows raw Markdown: everything is in columns.
+    expect(getListHangingIndentStyle("  - nested item", raw)).toBe(
+      "--cm-list-hang: calc(4ch + 0em)",
+    );
+    expect(getListHangingIndentStyle("  10.  ten", raw)).toBe(
+      "--cm-list-hang: calc(7ch + 0em)",
+    );
+    expect(getListHangingIndentStyle("- [ ] todo", raw)).toBe(
+      "--cm-list-hang: calc(6ch + 0em)",
+    );
+    expect(getListHangingIndentStyle("plain text", rendered)).toBeNull();
+  });
+
+  it("gives list lines their hanging indent, raw on the caret's line", () => {
+    harness = createPreviewHarness({
+      doc: "- first\n  - nested\n\nbody",
+      selection: { anchor: 0 },
+    });
+    const styles = harness
+      .entries()
+      .filter((entry) => entry.className?.includes("cm-list-line"))
+      .map((entry) => entry.spec.attributes?.style);
+    expect(styles).toEqual([
+      "--cm-list-hang: calc(2ch + 0em)",
+      "--cm-list-hang: calc(2ch + 1.85em)",
+    ]);
   });
 
   it("replaces list markers with a bullet widget", () => {
