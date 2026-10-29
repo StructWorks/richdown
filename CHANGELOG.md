@@ -2,7 +2,7 @@
 
 All notable changes to Richdown will be documented in this file.
 
-## Unreleased
+## 0.11.0 - 2026-10-29
 
 - GitHub alerts (`> [!NOTE]`, `[!TIP]`, `[!IMPORTANT]`, `[!WARNING]`, `[!CAUTION]`) are drawn with GitHub's icons, colors, and titles, and Obsidian callouts with their titles, `+`/`-` folding, nesting, and types (unknown types look like `note`), in the rich editor, Richdown Diff, and HTML/PDF export, with light and dark colors. The caret's callout shows its Markdown; folding only changes the view (#32).
 - Obsidian wikilinks (`[[note]]`, `[[note|alias]]`, `[[note#heading]]`, `[[#heading]]`) render as links that open the note found by name in the workspace (the nearest one when names repeat), links to missing notes look faded, and `![[image.png|300]]` embeds images at the given width. Typing `[[` completes file names and `[[note#` headings (#33).
