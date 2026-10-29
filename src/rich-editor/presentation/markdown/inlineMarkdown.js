@@ -4,11 +4,17 @@
 // (details bodies, table cells, image replacements). It intentionally covers a
 // practical subset of Markdown rather than acting as a full parser.
 import { WidgetType } from "@codemirror/view";
+import {
+  findWikilinks,
+  isImageTarget,
+  wikilinkHref,
+} from "../../../markdown/wikilinks.js";
 
 export function createInlineMarkdownSupport({
   postMessage,
   requestEditorMeasure,
   resolveImageSource: customResolveImageSource,
+  getWikilinkStatus = () => undefined,
 }) {
   let imageRequestId = 0;
   const pendingImageRequests = new Map();
@@ -39,7 +45,7 @@ export function createInlineMarkdownSupport({
     // A table row cannot contain a newline, so GFM tables spell line breaks
     // as <br>; render it rather than leaving the tag as literal text.
     const pattern =
-      /!\[(?<imageAlt>[^\]]*)\]\(\s*(?:<(?<imageSrcAngle>[^>]+)>|(?<imageSrc>[^)\s]+))(?:\s+(?:"[^"]*"|'[^']*'))?\s*\)|`(?<code>[^`]+)`|(?<lineBreak><[Bb][Rr]\s*\/?>)|\*\*(?<boldStar>[^*]+)\*\*|(?<![\p{L}\p{N}\p{M}_])__(?<boldUnderscore>[^_\s](?:[^_]*?[^_\s])?)__(?![\p{L}\p{N}\p{M}_])|\*(?<italicStar>[^*\s][^*]*?)\*|(?<![\p{L}\p{N}\p{M}_])_(?<italicUnderscore>[^_\s](?:[^_]*?[^_\s])?)_(?![\p{L}\p{N}\p{M}_])|~~(?<strike>[^~]+)~~|\[(?<linkText>[^\]]+)\]\(\s*(?:<(?<linkHrefAngle>[^>]+)>|(?<linkHref>[^)\s]+))(?:\s+(?:"[^"]*"|'[^']*'))?\s*\)|(?<bareUrl>https?:\/\/[^\s)]+)/gu;
+      /(?<wikilink>!?\[\[[^[\]\n]+?\]\])|!\[(?<imageAlt>[^\]]*)\]\(\s*(?:<(?<imageSrcAngle>[^>]+)>|(?<imageSrc>[^)\s]+))(?:\s+(?:"[^"]*"|'[^']*'))?\s*\)|`(?<code>[^`]+)`|(?<lineBreak><[Bb][Rr]\s*\/?>)|\*\*(?<boldStar>[^*]+)\*\*|(?<![\p{L}\p{N}\p{M}_])__(?<boldUnderscore>[^_\s](?:[^_]*?[^_\s])?)__(?![\p{L}\p{N}\p{M}_])|\*(?<italicStar>[^*\s][^*]*?)\*|(?<![\p{L}\p{N}\p{M}_])_(?<italicUnderscore>[^_\s](?:[^_]*?[^_\s])?)_(?![\p{L}\p{N}\p{M}_])|~~(?<strike>[^~]+)~~|\[(?<linkText>[^\]]+)\]\(\s*(?:<(?<linkHrefAngle>[^>]+)>|(?<linkHref>[^)\s]+))(?:\s+(?:"[^"]*"|'[^']*'))?\s*\)|(?<bareUrl>https?:\/\/[^\s)]+)/gu;
     let lastIndex = 0;
   
     for (const match of text.matchAll(pattern)) {
@@ -50,7 +56,21 @@ export function createInlineMarkdownSupport({
         );
       }
   
-      if (groups.imageAlt !== undefined) {
+      const wikilink = groups.wikilink ? findWikilinks(groups.wikilink)[0] : null;
+      if (wikilink) {
+        if (wikilink.embed && isImageTarget(wikilink.target) && options.renderImages) {
+          parent.appendChild(
+            createInlineMarkdownImage(wikilink.target, wikilink.alias, options.onImageReady, {
+              wikilink: true,
+              width: wikilink.width,
+            }),
+          );
+        } else {
+          parent.appendChild(createWikilinkElement(wikilink));
+        }
+      } else if (groups.wikilink) {
+        parent.appendChild(document.createTextNode(match[0]));
+      } else if (groups.imageAlt !== undefined) {
         const src = groups.imageSrcAngle || groups.imageSrc || "";
         if (options.renderImages) {
           parent.appendChild(
@@ -106,20 +126,45 @@ export function createInlineMarkdownSupport({
     }
   }
   
-  function createInlineMarkdownImage(src, alt, onImageReady) {
+  function createWikilinkElement(wikilink) {
+    const link = document.createElement("a");
+    link.href = "#";
+    link.className = wikilinkClassName(wikilink.target);
+    link.textContent = wikilink.label;
+    link.title = wikilinkHref(wikilink);
+    link.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      postMessage({ type: "openWikilink", href: wikilinkHref(wikilink) });
+    });
+    return link;
+  }
+
+  // An unresolved name gets its own look, like Obsidian's links to notes that
+  // do not exist yet. Unknown (no host answered) looks like a plain link.
+  function wikilinkClassName(target) {
+    return getWikilinkStatus(target) === false
+      ? "cm-wikilink cm-wikilink-unresolved"
+      : "cm-wikilink";
+  }
+
+  function createInlineMarkdownImage(src, alt, onImageReady, imageOptions = {}) {
     const wrapper = document.createElement("span");
     wrapper.className = "cm-inline-markdown-image";
     wrapper.title = src;
   
     const image = document.createElement("img");
     image.alt = alt || src;
+    if (imageOptions.width) {
+      image.style.width = `${imageOptions.width}px`;
+    }
   
     const error = document.createElement("span");
     error.className = "cm-inline-markdown-image-error";
     error.hidden = true;
     error.textContent = alt || src;
   
-    resolveImageSource(src)
+    resolveImageSource(src, imageOptions)
       .then((uri) => {
         image.src = uri;
         onImageReady?.();
@@ -170,19 +215,25 @@ export function createInlineMarkdownSupport({
     return ranges.some((range) => from >= range.from && to <= range.to);
   }
   
+  // `options.wikilink` marks an Obsidian embed, whose src is a file name for
+  // the host to find; `options.width` is its "|300" size.
   class ImagePreviewWidget extends WidgetType {
-    constructor(src, alt, from) {
+    constructor(src, alt, from, options = {}) {
       super();
       this.src = src;
       this.alt = alt;
       this.from = from;
+      this.wikilink = Boolean(options.wikilink);
+      this.width = options.width || null;
     }
   
     eq(other) {
       return (
         other.src === this.src &&
         other.alt === this.alt &&
-        other.from === this.from
+        other.from === this.from &&
+        other.wikilink === this.wikilink &&
+        other.width === this.width
       );
     }
 
@@ -200,13 +251,16 @@ export function createInlineMarkdownSupport({
   
       const image = document.createElement("img");
       image.alt = this.alt || this.src;
+      if (this.width) {
+        image.style.width = `${this.width}px`;
+      }
   
       const error = document.createElement("span");
       error.className = "cm-image-preview-error";
       error.hidden = true;
       error.textContent = `Image not found: ${this.src}`;
   
-      resolveImageSource(this.src)
+      resolveImageSource(this.src, { wikilink: this.wikilink })
         .then((uri) => {
           image.src = uri;
           requestEditorMeasure(view);
@@ -228,7 +282,11 @@ export function createInlineMarkdownSupport({
       image.addEventListener("click", (event) => {
         event.preventDefault();
         event.stopPropagation();
-        postMessage({ type: "openLink", href: this.src });
+        postMessage(
+          this.wikilink
+            ? { type: "openWikilink", href: this.src }
+            : { type: "openLink", href: this.src },
+        );
       });
   
       wrapper.addEventListener("mousedown", (event) => {
@@ -267,17 +325,23 @@ export function createInlineMarkdownSupport({
     }
   }
   
-  function resolveImageSource(src) {
-    if (/^(https?:|data:|blob:)/i.test(src)) {
+  // Embeds are looked up by name: the host is asked with `wikilink: true`,
+  // and an export's image map keys them as "[[name]]".
+  function resolveImageSource(src, { wikilink = false } = {}) {
+    if (!wikilink && /^(https?:|data:|blob:)/i.test(src)) {
       return Promise.resolve(src);
     }
 
     if (typeof customResolveImageSource === "function") {
-      return customResolveImageSource(src);
+      return customResolveImageSource(wikilink ? `[[${src}]]` : src);
     }
   
     const requestId = String((imageRequestId += 1));
-    postMessage({ type: "resolveImage", requestId, src });
+    postMessage(
+      wikilink
+        ? { type: "resolveImage", requestId, src, wikilink: true }
+        : { type: "resolveImage", requestId, src },
+    );
   
     return new Promise((resolve, reject) => {
       const timeout = window.setTimeout(() => {
@@ -295,6 +359,7 @@ export function createInlineMarkdownSupport({
   return {
     appendInlineMarkdown,
     findMarkdownImages,
+    wikilinkClassName,
     handleResolvedImage,
     ImagePreviewWidget,
     isRangeInsideRanges,

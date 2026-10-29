@@ -6,6 +6,7 @@
 import { RangeSetBuilder, StateEffect, StateField } from "@codemirror/state";
 import { Decoration, EditorView } from "@codemirror/view";
 import {
+  findCalloutBlocks,
   findDetailsBlocks,
   findFrontmatterBlock,
   findGherkinBlocks,
@@ -18,6 +19,7 @@ import {
   rangeIntersectsRanges,
   selectionInsideRange,
 } from "../../domain/markdownBlocks.js";
+import { createCalloutPreviewWidgetClass } from "../callout/calloutPreview.js";
 import { createDetailsPreviewWidgetClass } from "../details/detailsPreview.js";
 import { createFrontmatterPreviewWidgetClass } from "../frontmatter/frontmatterPreview.js";
 import { createGherkinPreviewWidgetClass } from "../gherkin/gherkinPreview.js";
@@ -39,6 +41,7 @@ export function createPreviewExtensions({
   reportError,
   requestEditorMeasure,
   getSettings,
+  wikilinkClassName,
 }) {
   let previewDecorationRevision = 0;
 
@@ -118,6 +121,8 @@ export function createPreviewExtensions({
     ImagePreviewWidget,
     isRangeInsideRanges,
     postMessage,
+    refreshPreviewDecorations,
+    wikilinkClassName,
   });
   
   const setActiveDetailsEdit = StateEffect.define({
@@ -196,6 +201,38 @@ export function createPreviewExtensions({
       EditorView.decorations.from(field, (value) => value.decorations),
   });
   
+  // Folded state of foldable callouts, by callout source. Folding is a view
+  // state only, so it lives outside the document and the editor state.
+  const calloutFoldStates = new Map();
+  const CalloutPreviewWidget = createCalloutPreviewWidgetClass({
+    appendInlineMarkdown,
+    requestEditorMeasure,
+    foldStates: calloutFoldStates,
+  });
+
+  const calloutDecorationField = StateField.define({
+    create(state) {
+      return safeBuildDecorations("callout-preview", () => buildCalloutDecorations(state));
+    },
+
+    update(value, transaction) {
+      if (
+        !transaction.docChanged &&
+        !transaction.selection &&
+        !transaction.effects.some(
+          (effect) => effect.is(toggleDetailsPreview) || effect.is(setActiveDetailsEdit),
+        )
+      ) {
+        return value;
+      }
+      return safeBuildDecorations("callout-preview", () =>
+        buildCalloutDecorations(transaction.state),
+      );
+    },
+
+    provide: (field) => EditorView.decorations.from(field),
+  });
+
   const setActiveTableEdit = StateEffect.define({
     map(value, changes) {
       if (!value) {
@@ -665,6 +702,32 @@ export function createPreviewExtensions({
     });
   }
   
+  // Callouts the caret is not in are drawn as widgets; the one it is in shows
+  // its Markdown. Read-only views always draw them.
+  function getPreviewedCalloutBlocks(state) {
+    const detailsRanges = getPreviewedDetailsRanges(state);
+    return findCalloutBlocks(state.doc).filter(
+      (block) =>
+        !rangeIntersectsRanges(block.from, block.to, detailsRanges) &&
+        (state.readOnly ||
+          !state.selection.ranges.some(
+            (range) => range.from <= block.to && range.to >= block.from,
+          )),
+    );
+  }
+
+  function buildCalloutDecorations(state) {
+    const builder = new RangeSetBuilder();
+    for (const block of getPreviewedCalloutBlocks(state)) {
+      builder.add(
+        block.from,
+        block.to,
+        Decoration.replace({ block: true, widget: new CalloutPreviewWidget(block) }),
+      );
+    }
+    return builder.finish();
+  }
+
   function getPreviewedDetailsRanges(state) {
     const activeEdit = getActiveDetailsEdit(state);
     return findDetailsBlocks(state.doc)
@@ -673,11 +736,14 @@ export function createPreviewExtensions({
   }
 
   // Ranges that other decorations must leave alone: previewed <details> blocks
-  // plus the YAML front matter block. The front matter range is included even
-  // while it is being edited so its lines never pick up Markdown styling such
-  // as thematic breaks or list markers.
+  // and callouts, plus the YAML front matter block. The front matter range is
+  // included even while it is being edited so its lines never pick up
+  // Markdown styling such as thematic breaks or list markers.
   function getPreviewedBlockRanges(state) {
-    const ranges = getPreviewedDetailsRanges(state);
+    const ranges = [
+      ...getPreviewedDetailsRanges(state),
+      ...getPreviewedCalloutBlocks(state).map((block) => ({ from: block.from, to: block.to })),
+    ];
     const frontmatterBlock = findFrontmatterBlock(state.doc);
     if (frontmatterBlock) {
       ranges.push({ from: frontmatterBlock.from, to: frontmatterBlock.to });
@@ -1034,6 +1100,14 @@ export function createPreviewExtensions({
     );
   }
 
+  // Redraws inline decorations only, for example when the host has answered
+  // which wikilink names point to files.
+  function refreshInline(view) {
+    if (view) {
+      view.dispatch({ effects: refreshPreviewDecorations.of(null) });
+    }
+  }
+
   function refresh(view) {
     if (!view) return;
     // Some previews depend on settings rather than source text. Bumping this
@@ -1055,6 +1129,7 @@ export function createPreviewExtensions({
     extensions: [
       frontmatterDecorationField,
       detailsDecorationField,
+      calloutDecorationField,
       tableDecorationField,
       mermaidDecorationField,
       gherkinDecorationField,
@@ -1064,6 +1139,7 @@ export function createPreviewExtensions({
       taskCheckboxes,
     ],
     refresh,
+    refreshInline,
     openMermaidEditor,
     exitDetailsEditMode,
     exitFrontmatterEditMode,

@@ -46308,6 +46308,177 @@
     { tag: tags.invalid, color: "var(--rip-danger)" }
   ]);
 
+  // src/markdown/callouts.js
+  var QUOTE_LINE = /^( {0,3}> ?)/;
+  var MARKER = /^\[!([^\]\s]+)\]([+-]?)(?:[ \t]+(.*?))?[ \t]*$/;
+  var githubTitles = {
+    note: "Note",
+    tip: "Tip",
+    important: "Important",
+    warning: "Warning",
+    caution: "Caution"
+  };
+  var calloutKinds = {
+    note: { color: "blue", icon: "info" },
+    tip: { color: "green", icon: "lightBulb" },
+    important: { color: "purple", icon: "report" },
+    warning: { color: "yellow", icon: "alert" },
+    caution: { color: "red", icon: "stop" },
+    abstract: { color: "cyan", icon: "list" },
+    info: { color: "blue", icon: "info" },
+    todo: { color: "blue", icon: "checkCircle" },
+    success: { color: "green", icon: "check" },
+    question: { color: "yellow", icon: "question" },
+    failure: { color: "red", icon: "x" },
+    danger: { color: "red", icon: "zap" },
+    bug: { color: "red", icon: "bug" },
+    example: { color: "purple", icon: "list" },
+    quote: { color: "gray", icon: "quote" }
+  };
+  var calloutAliases = {
+    summary: "abstract",
+    tldr: "abstract",
+    hint: "tip",
+    check: "success",
+    done: "success",
+    help: "question",
+    faq: "question",
+    attention: "warning",
+    fail: "failure",
+    missing: "failure",
+    error: "danger",
+    cite: "quote"
+  };
+  var calloutIcons = {
+    info: {
+      fill: "M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8Zm8-6.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13ZM6.5 7.75A.75.75 0 0 1 7.25 7h1a.75.75 0 0 1 .75.75v2.75h.25a.75.75 0 0 1 0 1.5h-2a.75.75 0 0 1 0-1.5h.25v-2h-.25a.75.75 0 0 1-.75-.75ZM8 6a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z"
+    },
+    lightBulb: {
+      fill: "M8 1.5c-2.363 0-4 1.69-4 3.75 0 .984.424 1.625.984 2.304l.214.253c.223.264.47.556.673.848.284.411.537.896.621 1.49a.75.75 0 0 1-1.484.211c-.04-.282-.163-.547-.37-.847a8.456 8.456 0 0 0-.542-.68c-.084-.1-.173-.205-.268-.32C3.201 7.75 2.5 6.766 2.5 5.25 2.5 2.31 4.863 0 8 0s5.5 2.31 5.5 5.25c0 1.516-.701 2.5-1.328 3.259-.095.115-.184.22-.268.319-.207.245-.383.453-.541.681-.208.3-.33.565-.37.847a.751.751 0 0 1-1.485-.212c.084-.593.337-1.078.621-1.489.203-.292.45-.584.673-.848.075-.088.147-.173.213-.253.561-.679.985-1.32.985-2.304 0-2.06-1.637-3.75-4-3.75ZM5.75 12h4.5a.75.75 0 0 1 0 1.5h-4.5a.75.75 0 0 1 0-1.5ZM6 15.25a.75.75 0 0 1 .75-.75h2.5a.75.75 0 0 1 0 1.5h-2.5a.75.75 0 0 1-.75-.75Z"
+    },
+    report: {
+      fill: "M0 1.75C0 .784.784 0 1.75 0h12.5C15.216 0 16 .784 16 1.75v9.5A1.75 1.75 0 0 1 14.25 13H8.06l-2.573 2.573A1.458 1.458 0 0 1 3 14.543V13H1.75A1.75 1.75 0 0 1 0 11.25Zm1.75-.25a.25.25 0 0 0-.25.25v9.5c0 .138.112.25.25.25h2a.75.75 0 0 1 .75.75v2.19l2.72-2.72a.749.749 0 0 1 .53-.22h6.5a.25.25 0 0 0 .25-.25v-9.5a.25.25 0 0 0-.25-.25Zm7 2.25v2.5a.75.75 0 0 1-1.5 0v-2.5a.75.75 0 0 1 1.5 0ZM9 9a1 1 0 1 1-2 0 1 1 0 0 1 2 0Z"
+    },
+    alert: {
+      fill: "M6.457 1.047c.659-1.234 2.427-1.234 3.086 0l6.082 11.378A1.75 1.75 0 0 1 14.082 15H1.918a1.75 1.75 0 0 1-1.543-2.575Zm1.763.707a.25.25 0 0 0-.44 0L1.698 13.132a.25.25 0 0 0 .22.368h12.164a.25.25 0 0 0 .22-.368Zm.53 3.996v2.5a.75.75 0 0 1-1.5 0v-2.5a.75.75 0 0 1 1.5 0ZM9 11a1 1 0 1 1-2 0 1 1 0 0 1 2 0Z"
+    },
+    stop: {
+      fill: "M4.47.22A.749.749 0 0 1 5 0h6c.199 0 .389.079.53.22l4.25 4.25c.141.14.22.331.22.53v6a.749.749 0 0 1-.22.53l-4.25 4.25A.749.749 0 0 1 11 16H5a.749.749 0 0 1-.53-.22L.22 11.53A.749.749 0 0 1 0 11V5c0-.199.079-.389.22-.53Zm.84 1.28L1.5 5.31v5.38l3.81 3.81h5.38l3.81-3.81V5.31L10.69 1.5ZM8 4a.75.75 0 0 1 .75.75v3.5a.75.75 0 0 1-1.5 0v-3.5A.75.75 0 0 1 8 4Zm0 8a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z"
+    },
+    list: { stroke: "M5.5 4h8M5.5 8h8M5.5 12h8M2.5 4h.01M2.5 8h.01M2.5 12h.01" },
+    check: { stroke: "M2.75 8.5l3.5 3.5 7-7.5" },
+    checkCircle: { stroke: "M8 1.25a6.75 6.75 0 1 0 0 13.5 6.75 6.75 0 0 0 0-13.5ZM5 8.25l2 2 4-4.25" },
+    question: {
+      stroke: "M8 1.25a6.75 6.75 0 1 0 0 13.5 6.75 6.75 0 0 0 0-13.5ZM6 6.25a2 2 0 1 1 2.9 1.8c-.55.27-.9.7-.9 1.3v.4M8 11.75h.01"
+    },
+    x: { stroke: "M3.75 3.75l8.5 8.5M12.25 3.75l-8.5 8.5" },
+    zap: { stroke: "M9.25 1.25 3 9h4.5l-.75 5.75L13 7H8.5l.75-5.75Z" },
+    bug: {
+      stroke: "M5.5 5.5a2.5 2.5 0 0 1 5 0M4.75 6.5h6.5v3.25a3.25 3.25 0 0 1-6.5 0ZM8 6.5v6.5M1.75 8.5h3M11.25 8.5h3M2.5 4.5l2.25 2M13.5 4.5l-2.25 2M2.5 13l2.5-1.75M13.5 13 11 11.25"
+    },
+    quote: {
+      stroke: "M2.75 7.25h3.5v4h-3.5v-4c0-2 1-3.25 3-3.75M9.75 7.25h3.5v4h-3.5v-4c0-2 1-3.25 3-3.75"
+    }
+  };
+  function stripQuoteMarker(text2) {
+    const match2 = QUOTE_LINE.exec(text2);
+    if (!match2) {
+      return null;
+    }
+    return { prefix: match2[1], content: text2.slice(match2[1].length) };
+  }
+  function parseCalloutMarker(content2) {
+    const match2 = MARKER.exec(String(content2 ?? "").trim());
+    if (!match2) {
+      return null;
+    }
+    const type4 = match2[1].toLowerCase();
+    const sign = match2[2];
+    const customTitle = match2[3]?.trim() || "";
+    const kindName = calloutKinds[type4] ? type4 : calloutAliases[type4] || "note";
+    const kind = calloutKinds[kindName];
+    const github = Boolean(githubTitles[type4]) && !sign && !customTitle;
+    return {
+      type: type4,
+      kind: kindName,
+      color: kind.color,
+      icon: kind.icon,
+      title: customTitle || (github ? githubTitles[type4] : `${match2[1][0].toUpperCase()}${match2[1].slice(1).toLowerCase()}`),
+      foldable: Boolean(sign),
+      collapsed: sign === "-",
+      github
+    };
+  }
+  function findCallouts(lines) {
+    const callouts = [];
+    let fence = null;
+    for (let index = 0; index < lines.length; index += 1) {
+      const text2 = lines[index];
+      const fenceMatch = /^ {0,3}(`{3,}|~{3,})/.exec(text2);
+      if (fence) {
+        if (fenceMatch && fenceMatch[1][0] === fence[0] && fenceMatch[1].length >= fence.length) {
+          fence = null;
+        }
+        continue;
+      }
+      if (fenceMatch) {
+        fence = fenceMatch[1];
+        continue;
+      }
+      const quote2 = stripQuoteMarker(text2);
+      if (!quote2 || index > 0 && stripQuoteMarker(lines[index - 1])) {
+        continue;
+      }
+      const marker = parseCalloutMarker(quote2.content);
+      if (!marker) {
+        continue;
+      }
+      let end = index;
+      const body2 = [];
+      while (end + 1 < lines.length) {
+        const next2 = stripQuoteMarker(lines[end + 1]);
+        if (!next2) {
+          break;
+        }
+        end += 1;
+        body2.push({ index: end, text: next2.content, offset: next2.prefix.length });
+      }
+      callouts.push({ start: index, end, marker, body: body2 });
+      index = end;
+    }
+    return callouts;
+  }
+  function calloutIconSvg(iconName, className2 = "") {
+    const icon = calloutIcons[iconName] || calloutIcons.info;
+    const classAttribute = className2 ? ` class="${className2}"` : "";
+    const shape = icon.fill ? `<path fill="currentColor" d="${icon.fill}"></path>` : `<path fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" d="${icon.stroke}"></path>`;
+    return `<svg${classAttribute} viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">${shape}</svg>`;
+  }
+  var calloutPalette = {
+    blue: ["#0969da", "#4493f8"],
+    green: ["#1a7f37", "#3fb950"],
+    purple: ["#8250df", "#ab7df8"],
+    yellow: ["#9a6700", "#d29922"],
+    red: ["#d1242f", "#f85149"],
+    cyan: ["#0a7f8c", "#39c5cf"],
+    gray: ["#59636e", "#9198a1"]
+  };
+  var calloutColors = Object.keys(calloutPalette);
+  function calloutThemeCss(darkSelectors) {
+    const variables = (variant) => calloutColors.map((color) => `--rip-callout-${color}: ${calloutPalette[color][variant]};`).join(" ");
+    return `
+    :root { ${variables(0)} }
+    ${darkSelectors.join(",\n    ")} { ${variables(1)} }
+  `;
+  }
+  var darkThemeSelectors = [
+    ':root[data-rich-theme="midnight"]',
+    ':root[data-rich-theme="graphite"]',
+    ':root[data-rich-theme="forest"]',
+    ':root[data-rich-theme="default"] body.vscode-dark',
+    ':root[data-rich-theme="default"] body.vscode-high-contrast:not(.vscode-high-contrast-light)'
+  ];
+
   // src/markdown/tableCells.js
   function scanMarkdownTableRow(text2) {
     const indent4 = text2.match(/^[\t ]*/)?.[0] || "";
@@ -46450,6 +46621,7 @@
   var mermaidBlocksCache = /* @__PURE__ */ new WeakMap();
   var gherkinBlocksCache = /* @__PURE__ */ new WeakMap();
   var frontmatterBlockCache = /* @__PURE__ */ new WeakMap();
+  var calloutBlocksCache = /* @__PURE__ */ new WeakMap();
   function memoizeBlocks(cache4, doc2, compute) {
     let result = cache4.get(doc2);
     if (result === void 0) {
@@ -46472,6 +46644,40 @@
   }
   function findGherkinBlocks(doc2) {
     return memoizeBlocks(gherkinBlocksCache, doc2, computeGherkinBlocks);
+  }
+  function findCalloutBlocks(doc2) {
+    return memoizeBlocks(calloutBlocksCache, doc2, computeCalloutBlocks);
+  }
+  function computeCalloutBlocks(doc2) {
+    const lines = [];
+    for (let lineNumber = 1; lineNumber <= doc2.lines; lineNumber += 1) {
+      lines.push(doc2.line(lineNumber).text);
+    }
+    return findCallouts(lines).map((callout) => {
+      const first = doc2.line(callout.start + 1);
+      const last2 = doc2.line(callout.end + 1);
+      const lineStarts = [];
+      for (let lineNumber = first.number; lineNumber <= last2.number; lineNumber += 1) {
+        lineStarts.push(doc2.line(lineNumber).from);
+      }
+      const signature = lines.slice(callout.start, callout.end + 1).join("\n");
+      return {
+        from: first.from,
+        to: last2.to,
+        sourceTo: last2.to,
+        lineStarts,
+        signature,
+        // Fold state follows the source, so an edit that changes the callout
+        // falls back to the fold sign it is written with.
+        key: signature,
+        callout: {
+          marker: callout.marker,
+          start: 0,
+          startOffset: 0,
+          body: callout.body.map((line) => ({ ...line, index: line.index - callout.start }))
+        }
+      };
+    });
   }
   function findFrontmatterBlock(doc2) {
     return memoizeBlocks(frontmatterBlockCache, doc2, computeFrontmatterBlock);
@@ -46973,6 +47179,8 @@
 
   // src/rich-editor/presentation/codemirror/completions.js
   var LINK_TARGET_PATTERN = /!?\[[^\]]*\]\([^)\s]*$/;
+  var WIKILINK_NAME_PATTERN = /\[\[([^[\]|#\n]*)$/;
+  var WIKILINK_HEADING_PATTERN = /\[\[([^[\]|#\n]*)#([^[\]|\n]*)$/;
   var FENCE_PATTERN = /^\s{0,3}(`{3,}|~{3,}|:{3,})([\w+#-]*)$/;
   var WORDISH_PATTERN = /[\w#/.-]+$/;
   var HOST_KIND_TYPES = {
@@ -47002,6 +47210,7 @@
     let requestSequence = 0;
     const pendingHostRequests = /* @__PURE__ */ new Map();
     const pendingLinkRequests = /* @__PURE__ */ new Map();
+    const pendingWikilinkRequests = /* @__PURE__ */ new Map();
     let hostAvailable = null;
     function handleHostCompletions(message) {
       const pending = pendingHostRequests.get(message.requestId);
@@ -47019,6 +47228,14 @@
       }
       pendingLinkRequests.delete(message.requestId);
       pending(Array.isArray(message.paths) ? message.paths : []);
+    }
+    function handleWikilinkCompletions(message) {
+      const pending = pendingWikilinkRequests.get(message.requestId);
+      if (!pending) {
+        return;
+      }
+      pendingWikilinkRequests.delete(message.requestId);
+      pending(Array.isArray(message.items) ? message.items : []);
     }
     function requestWithTimeout(pendingMap, message, timeoutMs) {
       return new Promise((resolve) => {
@@ -47057,6 +47274,46 @@
         { type: "requestLinkCompletions" },
         2e3
       );
+    }
+    async function wikilinkSource(context) {
+      const line = context.state.doc.lineAt(context.pos);
+      const before = line.text.slice(0, context.pos - line.from);
+      const after = line.text.slice(context.pos - line.from);
+      const closing3 = after.startsWith("]]") ? "" : "]]";
+      const heading2 = before.match(WIKILINK_HEADING_PATTERN);
+      if (heading2) {
+        const items2 = heading2[1].trim() ? await requestWithTimeout(
+          pendingWikilinkRequests,
+          { type: "requestWikilinkCompletions", target: heading2[1].trim() },
+          2e3
+        ) : collectHeadingAnchors(context.state.doc).filter((anchor) => !anchor.title.startsWith("<")).map((anchor) => ({ label: anchor.title }));
+        return buildWikilinkResult(context, context.pos - heading2[2].length, items2, closing3, /^[^[\]|\n]*$/);
+      }
+      const name2 = before.match(WIKILINK_NAME_PATTERN);
+      if (!name2) {
+        return null;
+      }
+      const items = await requestWithTimeout(
+        pendingWikilinkRequests,
+        { type: "requestWikilinkCompletions" },
+        2e3
+      );
+      return buildWikilinkResult(context, context.pos - name2[1].length, items, closing3, /^[^[\]|#\n]*$/);
+    }
+    function buildWikilinkResult(context, from3, items, closing3, validFor) {
+      if (context.aborted || items.length === 0) {
+        return null;
+      }
+      return {
+        from: from3,
+        options: items.map((item) => ({
+          label: item.label,
+          detail: item.detail,
+          type: "text",
+          apply: `${item.label}${closing3}`
+        })),
+        validFor
+      };
     }
     function fenceLanguageSource(context) {
       const line = context.state.doc.lineAt(context.pos);
@@ -47154,11 +47411,12 @@
     }
     return {
       extension: autocompletion({
-        override: [fenceLanguageSource, hostCompletionSource],
+        override: [fenceLanguageSource, wikilinkSource, hostCompletionSource],
         icons: false
       }),
       handleHostCompletions,
-      handleLinkCompletions
+      handleLinkCompletions,
+      handleWikilinkCompletions
     };
   }
   function isInsideFrontmatter(context) {
@@ -47728,6 +47986,49 @@
     return dom;
   }
 
+  // src/markdown/wikilinks.js
+  var WIKILINK = /(!?)\[\[([^[\]\n]+?)\]\]/g;
+  var IMAGE_EXTENSION = /\.(?:png|jpe?g|gif|svg|webp|bmp|avif|ico|tiff?)$/i;
+  function findWikilinks(text2) {
+    const links = [];
+    for (const match2 of String(text2 ?? "").matchAll(WIKILINK)) {
+      const embed = match2[1] === "!";
+      const inner = match2[2];
+      const innerFrom = match2.index + match2[1].length + 2;
+      const pipe = inner.indexOf("|");
+      const destination = (pipe >= 0 ? inner.slice(0, pipe) : inner).replace(/\\$/, "");
+      const alias = pipe >= 0 ? inner.slice(pipe + 1).trim() : "";
+      const hash3 = destination.indexOf("#");
+      const target = (hash3 >= 0 ? destination.slice(0, hash3) : destination).trim();
+      const heading2 = hash3 >= 0 ? destination.slice(hash3 + 1).trim() : "";
+      if (!target && !heading2) {
+        continue;
+      }
+      const size = embed ? /^(\d+)(?:x(\d+))?$/.exec(alias) : null;
+      const label = alias && !size ? alias : heading2 && !target ? heading2 : destination.trim();
+      const labelFrom = alias && !size ? innerFrom + pipe + 1 : innerFrom;
+      links.push({
+        from: match2.index,
+        to: match2.index + match2[0].length,
+        embed,
+        target,
+        heading: heading2,
+        alias: size ? "" : alias,
+        width: size ? Number(size[1]) : null,
+        label,
+        labelFrom,
+        labelTo: alias && !size ? innerFrom + inner.length : innerFrom + (pipe >= 0 ? pipe : inner.length)
+      });
+    }
+    return links;
+  }
+  function isImageTarget(target) {
+    return IMAGE_EXTENSION.test(String(target ?? ""));
+  }
+  function wikilinkHref(link) {
+    return link.heading ? `${link.target}#${link.heading}` : link.target;
+  }
+
   // src/rich-editor/presentation/codemirror/links.js
   function isMarkdownMarker(nodeName) {
     return [
@@ -47773,7 +48074,8 @@
       }
       return {
         href: link.href,
-        position
+        position,
+        ...link.wikilink ? { wikilink: true } : {}
       };
     }
     return null;
@@ -47795,6 +48097,19 @@
         sourceTo: sourceFrom + match2[0].length,
         visibleFrom: labelFrom,
         visibleTo: labelTo
+      });
+    }
+    for (const link of findWikilinks(text2)) {
+      if (link.embed && isImageTarget(link.target)) {
+        continue;
+      }
+      links.push({
+        href: wikilinkHref(link),
+        wikilink: true,
+        sourceFrom: link.from,
+        sourceTo: link.to,
+        visibleFrom: link.labelFrom,
+        visibleTo: link.labelTo
       });
     }
     for (const match2 of text2.matchAll(/https?:\/\/[^\s)]+/g)) {
@@ -47823,6 +48138,71 @@
     const top2 = Math.min(start2.top, end.top) - 3;
     const bottom = Math.max(start2.bottom, end.bottom) + 3;
     return event.clientX >= left && event.clientX <= right && event.clientY >= top2 && event.clientY <= bottom;
+  }
+
+  // src/rich-editor/presentation/markdown/wikilinkResolver.js
+  function createWikilinkResolver({ postMessage, onChange = () => {
+  } }) {
+    const statuses = /* @__PURE__ */ new Map();
+    const pending = /* @__PURE__ */ new Set();
+    const requested = /* @__PURE__ */ new Set();
+    let requestSequence = 0;
+    let flushScheduled = false;
+    const openRequests = /* @__PURE__ */ new Map();
+    function status(target) {
+      if (!target) {
+        return true;
+      }
+      if (statuses.has(target)) {
+        return statuses.get(target);
+      }
+      if (!requested.has(target)) {
+        pending.add(target);
+        scheduleFlush();
+      }
+      return void 0;
+    }
+    function scheduleFlush() {
+      if (flushScheduled) {
+        return;
+      }
+      flushScheduled = true;
+      Promise.resolve().then(() => {
+        flushScheduled = false;
+        if (pending.size === 0) {
+          return;
+        }
+        const targets = [...pending];
+        pending.clear();
+        targets.forEach((target) => requested.add(target));
+        const requestId = String(requestSequence += 1);
+        openRequests.set(requestId, targets);
+        postMessage({ type: "resolveWikilinks", requestId, targets });
+      });
+    }
+    function handleResolved(message) {
+      if (!openRequests.has(message.requestId)) {
+        return;
+      }
+      openRequests.delete(message.requestId);
+      let changed = false;
+      for (const [target, found] of Object.entries(message.results || {})) {
+        if (statuses.get(target) !== Boolean(found)) {
+          statuses.set(target, Boolean(found));
+          changed = true;
+        }
+      }
+      if (changed) {
+        onChange();
+      }
+    }
+    function invalidate() {
+      statuses.clear();
+      requested.clear();
+      openRequests.clear();
+      onChange();
+    }
+    return { status, handleResolved, invalidate };
   }
 
   // src/rich-editor/presentation/codemirror/slashCommands.js
@@ -49739,6 +50119,175 @@ ${rowText}` },
   }
   function splitTableCells2(text2) {
     return splitMarkdownTableCells(text2, { unescapePipes: true });
+  }
+
+  // src/rich-editor/presentation/callout/calloutPreview.js
+  function createCalloutPreviewWidgetClass({
+    appendInlineMarkdown: appendInlineMarkdown2,
+    requestEditorMeasure: requestEditorMeasure2,
+    foldStates
+  }) {
+    class CalloutPreviewWidget extends WidgetType {
+      constructor(calloutBlock) {
+        super();
+        this.calloutBlock = calloutBlock;
+      }
+      eq(other) {
+        return other.calloutBlock.from === this.calloutBlock.from && other.calloutBlock.signature === this.calloutBlock.signature;
+      }
+      get estimatedHeight() {
+        const title = 40;
+        if (isCollapsed(foldStates, this.calloutBlock.key, this.calloutBlock.callout.marker)) {
+          return title;
+        }
+        return title + this.calloutBlock.callout.body.length * 24 + 12;
+      }
+      toDOM(view2) {
+        const element = renderCallout(this.calloutBlock.callout, {
+          key: this.calloutBlock.key,
+          lineFrom: (index) => this.calloutBlock.lineStarts[index],
+          appendInlineMarkdown: appendInlineMarkdown2,
+          foldStates,
+          onImageReady: () => requestEditorMeasure2(view2),
+          onToggle: () => requestEditorMeasure2(view2),
+          onFocusSource: (position) => this.focusSource(view2, position)
+        });
+        element.addEventListener("mousedown", (event) => {
+          event.preventDefault();
+        });
+        return element;
+      }
+      focusSource(view2, position) {
+        if (view2.state.readOnly) {
+          return;
+        }
+        view2.dispatch({
+          selection: {
+            anchor: Math.max(0, Math.min(position, view2.state.doc.length))
+          },
+          scrollIntoView: true
+        });
+        view2.focus();
+      }
+      ignoreEvent() {
+        return false;
+      }
+    }
+    return CalloutPreviewWidget;
+  }
+  function isCollapsed(foldStates, key, marker) {
+    return marker.foldable && (foldStates.has(key) ? foldStates.get(key) : marker.collapsed);
+  }
+  function renderCallout(callout, options) {
+    const { marker } = callout;
+    const { key, lineFrom, appendInlineMarkdown: appendInlineMarkdown2, foldStates } = options;
+    const element = document.createElement("div");
+    element.className = [
+      "cm-callout",
+      `cm-callout-${marker.color}`,
+      marker.github ? "cm-callout-github" : "cm-callout-obsidian",
+      marker.foldable ? "is-foldable" : ""
+    ].filter(Boolean).join(" ");
+    element.dataset.callout = marker.type;
+    const title = document.createElement("div");
+    title.className = "cm-callout-title";
+    title.innerHTML = calloutIconSvg(marker.icon, "cm-callout-icon");
+    const titleText = document.createElement("span");
+    titleText.className = "cm-callout-title-text";
+    appendInlineMarkdown2(titleText, marker.title);
+    title.appendChild(titleText);
+    element.appendChild(title);
+    const body2 = document.createElement("div");
+    body2.className = "cm-callout-body";
+    appendCalloutBody(body2, callout.body, {
+      ...options,
+      keyPrefix: key
+    });
+    element.appendChild(body2);
+    if (marker.foldable) {
+      const fold = document.createElement("span");
+      fold.className = "cm-callout-fold";
+      fold.setAttribute("aria-hidden", "true");
+      fold.textContent = "\u203A";
+      title.appendChild(fold);
+      title.setAttribute("role", "button");
+      title.tabIndex = 0;
+      const apply = () => {
+        const collapsed = isCollapsed(foldStates, key, marker);
+        element.classList.toggle("is-collapsed", collapsed);
+        title.setAttribute("aria-expanded", String(!collapsed));
+      };
+      const toggle = (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        foldStates.set(key, !isCollapsed(foldStates, key, marker));
+        apply();
+        options.onToggle?.();
+      };
+      title.addEventListener("click", toggle);
+      title.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          toggle(event);
+        }
+      });
+      apply();
+    } else {
+      title.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        options.onFocusSource?.(lineFrom(callout.start) + (callout.startOffset || 0));
+      });
+    }
+    body2.addEventListener("click", (event) => {
+      if (event.target instanceof Element && event.target.closest("a, .cm-callout-title")) {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      const line = event.target instanceof Element ? event.target.closest("[data-source-from]") : null;
+      options.onFocusSource?.(
+        line?.dataset.sourceFrom ? Number(line.dataset.sourceFrom) : lineFrom(callout.start) + (callout.startOffset || 0)
+      );
+    });
+    return element;
+  }
+  function appendCalloutBody(parent, bodyLines, options) {
+    const sourceLine = (line) => ({
+      text: line.text,
+      sourceFrom: options.lineFrom(line.index) + line.offset
+    });
+    const nested = findCallouts(bodyLines.map((line) => line.text));
+    let next2 = 0;
+    const appendPlain = (until) => {
+      const lines = bodyLines.slice(next2, until).map(sourceLine);
+      if (lines.length > 0) {
+        appendDetailsBody(parent, lines, {
+          appendInlineMarkdown: options.appendInlineMarkdown,
+          getSourcePosition: (line) => line.sourceFrom,
+          onImageReady: options.onImageReady,
+          onCodeHighlighted: options.onImageReady
+        });
+      }
+    };
+    for (const callout of nested) {
+      appendPlain(callout.start);
+      const titleLine = bodyLines[callout.start];
+      const child = {
+        ...callout,
+        start: titleLine.index,
+        startOffset: titleLine.offset,
+        body: callout.body.map((line) => ({
+          index: bodyLines[line.index].index,
+          text: line.text,
+          offset: bodyLines[line.index].offset + line.offset
+        }))
+      };
+      parent.appendChild(
+        renderCallout(child, { ...options, key: `${options.keyPrefix}/${callout.start}` })
+      );
+      next2 = callout.end + 1;
+    }
+    appendPlain(bodyLines.length);
   }
 
   // src/rich-editor/presentation/frontmatter/frontmatterPreview.js
@@ -57144,7 +57693,9 @@ ${rowText}` },
     findMarkdownImages: findMarkdownImages2,
     ImagePreviewWidget: ImagePreviewWidget2,
     isRangeInsideRanges: isRangeInsideRanges2,
-    postMessage
+    postMessage,
+    refreshPreviewDecorations,
+    wikilinkClassName: wikilinkClassName2 = () => "cm-wikilink"
   }) {
     const blockLineDecorations = ViewPlugin.fromClass(
       class {
@@ -57176,7 +57727,9 @@ ${rowText}` },
           );
         }
         update(update) {
-          if (update.docChanged || update.viewportChanged || update.selectionSet) {
+          if (update.docChanged || update.viewportChanged || update.selectionSet || update.transactions.some(
+            (transaction) => transaction.effects.some((effect) => effect.is(refreshPreviewDecorations))
+          )) {
             this.decorations = safeBuildDecorations(
               "inline-decorations",
               () => buildInlineDecorations(update.view)
@@ -57237,6 +57790,18 @@ ${rowText}` },
       const codeBlockLineSpecs = collectCodeBlockLineSpecs(view2);
       const codeBlockLineStarts = new Set(codeBlockLineSpecs.keys());
       const previewedBlockRanges = getPreviewedBlockRanges(view2.state);
+      const calloutLineClasses = /* @__PURE__ */ new Map();
+      for (const block2 of findCalloutBlocks(view2.state.doc)) {
+        if (rangeIntersectsRanges(block2.from, block2.to, previewedBlockRanges)) {
+          continue;
+        }
+        block2.lineStarts.forEach((lineStart, index) => {
+          calloutLineClasses.set(
+            lineStart,
+            `cm-callout-line cm-callout-${block2.callout.marker.color}${index === 0 ? " cm-callout-title-line" : ""}`
+          );
+        });
+      }
       for (const range of view2.visibleRanges) {
         let position = range.from;
         while (position <= range.to) {
@@ -57245,6 +57810,9 @@ ${rowText}` },
             position = line.to + 1;
             if (position > view2.state.doc.length) break;
             continue;
+          }
+          if (calloutLineClasses.has(line.from)) {
+            addLineClass(classesByLine, line.from, calloutLineClasses.get(line.from));
           }
           if (!codeBlockLineStarts.has(line.from)) {
             const heading2 = line.text.match(/^(\s{0,3})(#{1,6})\s+/);
@@ -57652,6 +58220,7 @@ ${rowText}` },
               });
             }
           }
+          addWikilinkDecorations(view2.state, line, lineFocused, ranges, imageRanges);
           position = line.to + 1;
           if (position > view2.state.doc.length) break;
         }
@@ -57713,6 +58282,49 @@ ${rowText}` },
         ranges.map((range) => range.decoration.range(range.from, range.to)),
         true
       );
+    }
+    function addWikilinkDecorations(state, line, lineFocused, ranges, imageRanges) {
+      for (const link of findWikilinks(line.text)) {
+        const from3 = line.from + link.from;
+        const to = line.from + link.to;
+        if (isInsideCode(state, from3)) {
+          continue;
+        }
+        if (link.embed && isImageTarget(link.target)) {
+          if (!lineFocused) {
+            imageRanges.push({ from: from3, to });
+            ranges.push({
+              from: from3,
+              to,
+              decoration: Decoration.replace({
+                widget: new ImagePreviewWidget2(link.target, link.alias, from3, {
+                  wikilink: true,
+                  width: link.width
+                })
+              })
+            });
+          }
+          continue;
+        }
+        const marker = Decoration.mark({ class: "cm-markdown-marker" });
+        ranges.push(
+          { from: from3, to: line.from + link.labelFrom, decoration: marker },
+          {
+            from: line.from + link.labelFrom,
+            to: line.from + link.labelTo,
+            decoration: Decoration.mark({ class: `cm-link ${wikilinkClassName2(link.target)}` })
+          },
+          { from: line.from + link.labelTo, to, decoration: marker }
+        );
+      }
+    }
+    function isInsideCode(state, position) {
+      for (let node = syntaxTree(state).resolveInner(position, 1); node; node = node.parent) {
+        if (["InlineCode", "FencedCode", "CodeBlock", "CodeText", "HTMLBlock", "CommentBlock"].includes(node.name)) {
+          return true;
+        }
+      }
+      return false;
     }
     function getInlineCodeColor(source) {
       const code3 = getInlineCodeText(source).trim();
@@ -57787,7 +58399,8 @@ ${rowText}` },
     postMessage,
     reportError,
     requestEditorMeasure: requestEditorMeasure2,
-    getSettings
+    getSettings,
+    wikilinkClassName: wikilinkClassName2
   }) {
     let previewDecorationRevision = 0;
     function safeBuildDecorations(context, build) {
@@ -57859,7 +58472,9 @@ ${rowText}` },
       findMarkdownImages: findMarkdownImages2,
       ImagePreviewWidget: ImagePreviewWidget2,
       isRangeInsideRanges: isRangeInsideRanges2,
-      postMessage
+      postMessage,
+      refreshPreviewDecorations,
+      wikilinkClassName: wikilinkClassName2
     });
     const setActiveDetailsEdit = StateEffect.define({
       map(value, changes) {
@@ -57922,6 +58537,29 @@ ${rowText}` },
         );
       },
       provide: (field2) => EditorView.decorations.from(field2, (value) => value.decorations)
+    });
+    const calloutFoldStates = /* @__PURE__ */ new Map();
+    const CalloutPreviewWidget = createCalloutPreviewWidgetClass({
+      appendInlineMarkdown: appendInlineMarkdown2,
+      requestEditorMeasure: requestEditorMeasure2,
+      foldStates: calloutFoldStates
+    });
+    const calloutDecorationField = StateField.define({
+      create(state) {
+        return safeBuildDecorations("callout-preview", () => buildCalloutDecorations(state));
+      },
+      update(value, transaction) {
+        if (!transaction.docChanged && !transaction.selection && !transaction.effects.some(
+          (effect) => effect.is(toggleDetailsPreview) || effect.is(setActiveDetailsEdit)
+        )) {
+          return value;
+        }
+        return safeBuildDecorations(
+          "callout-preview",
+          () => buildCalloutDecorations(transaction.state)
+        );
+      },
+      provide: (field2) => EditorView.decorations.from(field2)
     });
     const setActiveTableEdit = StateEffect.define({
       map(value, changes) {
@@ -58302,12 +58940,34 @@ ${rowText}` },
         effects: setActiveGherkinEdit.of(null)
       });
     }
+    function getPreviewedCalloutBlocks(state) {
+      const detailsRanges = getPreviewedDetailsRanges(state);
+      return findCalloutBlocks(state.doc).filter(
+        (block2) => !rangeIntersectsRanges(block2.from, block2.to, detailsRanges) && (state.readOnly || !state.selection.ranges.some(
+          (range) => range.from <= block2.to && range.to >= block2.from
+        ))
+      );
+    }
+    function buildCalloutDecorations(state) {
+      const builder = new RangeSetBuilder();
+      for (const block2 of getPreviewedCalloutBlocks(state)) {
+        builder.add(
+          block2.from,
+          block2.to,
+          Decoration.replace({ block: true, widget: new CalloutPreviewWidget(block2) })
+        );
+      }
+      return builder.finish();
+    }
     function getPreviewedDetailsRanges(state) {
       const activeEdit = getActiveDetailsEdit(state);
       return findDetailsBlocks(state.doc).filter((block2) => !activeEdit || activeEdit.from !== block2.from).map((block2) => ({ from: block2.from, to: block2.to }));
     }
     function getPreviewedBlockRanges(state) {
-      const ranges = getPreviewedDetailsRanges(state);
+      const ranges = [
+        ...getPreviewedDetailsRanges(state),
+        ...getPreviewedCalloutBlocks(state).map((block2) => ({ from: block2.from, to: block2.to }))
+      ];
       const frontmatterBlock = findFrontmatterBlock(state.doc);
       if (frontmatterBlock) {
         ranges.push({ from: frontmatterBlock.from, to: frontmatterBlock.to });
@@ -58583,6 +59243,11 @@ ${rowText}` },
         (range) => range.from <= line.to && range.to >= line.from
       );
     }
+    function refreshInline(view2) {
+      if (view2) {
+        view2.dispatch({ effects: refreshPreviewDecorations.of(null) });
+      }
+    }
     function refresh(view2) {
       if (!view2) return;
       previewDecorationRevision += 1;
@@ -58601,6 +59266,7 @@ ${rowText}` },
       extensions: [
         frontmatterDecorationField,
         detailsDecorationField,
+        calloutDecorationField,
         tableDecorationField,
         mermaidDecorationField,
         gherkinDecorationField,
@@ -58610,6 +59276,7 @@ ${rowText}` },
         taskCheckboxes
       ],
       refresh,
+      refreshInline,
       openMermaidEditor,
       exitDetailsEditMode,
       exitFrontmatterEditMode,
@@ -58719,7 +59386,8 @@ ${rowText}` },
   function createInlineMarkdownSupport({
     postMessage,
     requestEditorMeasure: requestEditorMeasure2,
-    resolveImageSource: customResolveImageSource
+    resolveImageSource: customResolveImageSource,
+    getWikilinkStatus = () => void 0
   }) {
     let imageRequestId = 0;
     const pendingImageRequests = /* @__PURE__ */ new Map();
@@ -58738,7 +59406,7 @@ ${rowText}` },
       return true;
     }
     function appendInlineMarkdown2(parent, text2, options = {}) {
-      const pattern = /!\[(?<imageAlt>[^\]]*)\]\(\s*(?:<(?<imageSrcAngle>[^>]+)>|(?<imageSrc>[^)\s]+))(?:\s+(?:"[^"]*"|'[^']*'))?\s*\)|`(?<code>[^`]+)`|(?<lineBreak><[Bb][Rr]\s*\/?>)|\*\*(?<boldStar>[^*]+)\*\*|(?<![\p{L}\p{N}\p{M}_])__(?<boldUnderscore>[^_\s](?:[^_]*?[^_\s])?)__(?![\p{L}\p{N}\p{M}_])|\*(?<italicStar>[^*\s][^*]*?)\*|(?<![\p{L}\p{N}\p{M}_])_(?<italicUnderscore>[^_\s](?:[^_]*?[^_\s])?)_(?![\p{L}\p{N}\p{M}_])|~~(?<strike>[^~]+)~~|\[(?<linkText>[^\]]+)\]\(\s*(?:<(?<linkHrefAngle>[^>]+)>|(?<linkHref>[^)\s]+))(?:\s+(?:"[^"]*"|'[^']*'))?\s*\)|(?<bareUrl>https?:\/\/[^\s)]+)/gu;
+      const pattern = /(?<wikilink>!?\[\[[^[\]\n]+?\]\])|!\[(?<imageAlt>[^\]]*)\]\(\s*(?:<(?<imageSrcAngle>[^>]+)>|(?<imageSrc>[^)\s]+))(?:\s+(?:"[^"]*"|'[^']*'))?\s*\)|`(?<code>[^`]+)`|(?<lineBreak><[Bb][Rr]\s*\/?>)|\*\*(?<boldStar>[^*]+)\*\*|(?<![\p{L}\p{N}\p{M}_])__(?<boldUnderscore>[^_\s](?:[^_]*?[^_\s])?)__(?![\p{L}\p{N}\p{M}_])|\*(?<italicStar>[^*\s][^*]*?)\*|(?<![\p{L}\p{N}\p{M}_])_(?<italicUnderscore>[^_\s](?:[^_]*?[^_\s])?)_(?![\p{L}\p{N}\p{M}_])|~~(?<strike>[^~]+)~~|\[(?<linkText>[^\]]+)\]\(\s*(?:<(?<linkHrefAngle>[^>]+)>|(?<linkHref>[^)\s]+))(?:\s+(?:"[^"]*"|'[^']*'))?\s*\)|(?<bareUrl>https?:\/\/[^\s)]+)/gu;
       let lastIndex = 0;
       for (const match2 of text2.matchAll(pattern)) {
         const groups = match2.groups || {};
@@ -58747,7 +59415,21 @@ ${rowText}` },
             document.createTextNode(text2.slice(lastIndex, match2.index))
           );
         }
-        if (groups.imageAlt !== void 0) {
+        const wikilink = groups.wikilink ? findWikilinks(groups.wikilink)[0] : null;
+        if (wikilink) {
+          if (wikilink.embed && isImageTarget(wikilink.target) && options.renderImages) {
+            parent.appendChild(
+              createInlineMarkdownImage(wikilink.target, wikilink.alias, options.onImageReady, {
+                wikilink: true,
+                width: wikilink.width
+              })
+            );
+          } else {
+            parent.appendChild(createWikilinkElement(wikilink));
+          }
+        } else if (groups.wikilink) {
+          parent.appendChild(document.createTextNode(match2[0]));
+        } else if (groups.imageAlt !== void 0) {
           const src = groups.imageSrcAngle || groups.imageSrc || "";
           if (options.renderImages) {
             parent.appendChild(
@@ -58793,17 +59475,36 @@ ${rowText}` },
         parent.appendChild(document.createTextNode(text2.slice(lastIndex)));
       }
     }
-    function createInlineMarkdownImage(src, alt, onImageReady) {
+    function createWikilinkElement(wikilink) {
+      const link = document.createElement("a");
+      link.href = "#";
+      link.className = wikilinkClassName2(wikilink.target);
+      link.textContent = wikilink.label;
+      link.title = wikilinkHref(wikilink);
+      link.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        postMessage({ type: "openWikilink", href: wikilinkHref(wikilink) });
+      });
+      return link;
+    }
+    function wikilinkClassName2(target) {
+      return getWikilinkStatus(target) === false ? "cm-wikilink cm-wikilink-unresolved" : "cm-wikilink";
+    }
+    function createInlineMarkdownImage(src, alt, onImageReady, imageOptions = {}) {
       const wrapper = document.createElement("span");
       wrapper.className = "cm-inline-markdown-image";
       wrapper.title = src;
       const image = document.createElement("img");
       image.alt = alt || src;
+      if (imageOptions.width) {
+        image.style.width = `${imageOptions.width}px`;
+      }
       const error = document.createElement("span");
       error.className = "cm-inline-markdown-image-error";
       error.hidden = true;
       error.textContent = alt || src;
-      resolveImageSource(src).then((uri) => {
+      resolveImageSource(src, imageOptions).then((uri) => {
         image.src = uri;
         onImageReady?.();
       }).catch(() => {
@@ -58845,14 +59546,16 @@ ${rowText}` },
       return ranges.some((range) => from3 >= range.from && to <= range.to);
     }
     class ImagePreviewWidget2 extends WidgetType {
-      constructor(src, alt, from3) {
+      constructor(src, alt, from3, options = {}) {
         super();
         this.src = src;
         this.alt = alt;
         this.from = from3;
+        this.wikilink = Boolean(options.wikilink);
+        this.width = options.width || null;
       }
       eq(other) {
-        return other.src === this.src && other.alt === this.alt && other.from === this.from;
+        return other.src === this.src && other.alt === this.alt && other.from === this.from && other.wikilink === this.wikilink && other.width === this.width;
       }
       // The real image height isn't known until it loads, so reserve a nominal
       // block. This advisory value reduces (not eliminates) scroll jump; the
@@ -58866,11 +59569,14 @@ ${rowText}` },
         wrapper.title = this.src;
         const image = document.createElement("img");
         image.alt = this.alt || this.src;
+        if (this.width) {
+          image.style.width = `${this.width}px`;
+        }
         const error = document.createElement("span");
         error.className = "cm-image-preview-error";
         error.hidden = true;
         error.textContent = `Image not found: ${this.src}`;
-        resolveImageSource(this.src).then((uri) => {
+        resolveImageSource(this.src, { wikilink: this.wikilink }).then((uri) => {
           image.src = uri;
           requestEditorMeasure2(view2);
         }).catch(() => {
@@ -58889,7 +59595,9 @@ ${rowText}` },
         image.addEventListener("click", (event) => {
           event.preventDefault();
           event.stopPropagation();
-          postMessage({ type: "openLink", href: this.src });
+          postMessage(
+            this.wikilink ? { type: "openWikilink", href: this.src } : { type: "openLink", href: this.src }
+          );
         });
         wrapper.addEventListener("mousedown", (event) => {
           event.preventDefault();
@@ -58923,15 +59631,17 @@ ${rowText}` },
         return false;
       }
     }
-    function resolveImageSource(src) {
-      if (/^(https?:|data:|blob:)/i.test(src)) {
+    function resolveImageSource(src, { wikilink = false } = {}) {
+      if (!wikilink && /^(https?:|data:|blob:)/i.test(src)) {
         return Promise.resolve(src);
       }
       if (typeof customResolveImageSource === "function") {
-        return customResolveImageSource(src);
+        return customResolveImageSource(wikilink ? `[[${src}]]` : src);
       }
       const requestId = String(imageRequestId += 1);
-      postMessage({ type: "resolveImage", requestId, src });
+      postMessage(
+        wikilink ? { type: "resolveImage", requestId, src, wikilink: true } : { type: "resolveImage", requestId, src }
+      );
       return new Promise((resolve, reject) => {
         const timeout = window.setTimeout(() => {
           pendingImageRequests.delete(requestId);
@@ -58947,6 +59657,7 @@ ${rowText}` },
     return {
       appendInlineMarkdown: appendInlineMarkdown2,
       findMarkdownImages: findMarkdownImages2,
+      wikilinkClassName: wikilinkClassName2,
       handleResolvedImage: handleResolvedImage2,
       ImagePreviewWidget: ImagePreviewWidget2,
       isRangeInsideRanges: isRangeInsideRanges2
@@ -63429,6 +64140,82 @@ ${rowText}` },
       min-width: 0;
       min-height: 0;
     }
+    /* Obsidian wikilinks to names no workspace file has. */
+    .cm-wikilink-unresolved {
+      opacity: 0.7;
+      text-decoration-style: dashed;
+    }
+    a.cm-wikilink {
+      color: var(--rip-link);
+    }
+    /* GitHub alerts, drawn like GitHub's .markdown-alert, and Obsidian
+       callouts. Each color class sets --callout-color for the widget and for
+       the quote lines of a callout being edited. */
+    ${calloutThemeCss(darkThemeSelectors)}
+    ${calloutColors.map((color) => `.cm-callout-${color} { --callout-color: var(--rip-callout-${color}); }`).join("\n    ")}
+    .cm-callout {
+      box-sizing: border-box;
+      max-width: 100%;
+      margin: 0;
+      border-left: 0.25em solid var(--callout-color);
+      padding: 8px 16px;
+      color: var(--rip-fg);
+    }
+    .cm-callout-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--callout-color);
+      font-weight: 500;
+      line-height: 1.5;
+    }
+    .cm-callout-icon {
+      flex: none;
+    }
+    .cm-callout-body {
+      display: grid;
+      gap: 10px;
+      margin-top: 6px;
+    }
+    .cm-callout-body:empty {
+      display: none;
+    }
+    .cm-callout-obsidian {
+      border-left: 0;
+      border-radius: 4px;
+      padding: 12px 16px;
+      background: color-mix(in srgb, var(--callout-color) 10%, transparent);
+    }
+    .cm-callout-obsidian > .cm-callout-title {
+      font-weight: 600;
+    }
+    .cm-callout.is-foldable > .cm-callout-title {
+      cursor: pointer;
+      user-select: none;
+    }
+    .cm-callout-fold {
+      display: inline-block;
+      transform: rotate(90deg);
+      transition: transform 0.12s ease;
+    }
+    .cm-callout.is-collapsed > .cm-callout-title > .cm-callout-fold {
+      transform: none;
+    }
+    .cm-callout.is-collapsed > .cm-callout-body {
+      display: none;
+    }
+    @media print {
+      .cm-callout.is-collapsed > .cm-callout-body {
+        display: grid;
+      }
+    }
+    .cm-editor .cm-line.cm-callout-line {
+      border-left-color: var(--callout-color);
+    }
+    .cm-editor .cm-line.cm-callout-title-line {
+      color: var(--callout-color);
+      font-weight: 500;
+    }
   `;
     document.head.appendChild(style2);
   }
@@ -63467,17 +64254,27 @@ ${rowText}` },
     postMessage: (message) => vscodePort.postMessage(message),
     refreshDecorations: () => previewExtensions.refresh(view)
   });
+  var wikilinkResolver = createWikilinkResolver({
+    postMessage: (message) => {
+      if (!exportMode) {
+        vscodePort.postMessage(message);
+      }
+    },
+    onChange: () => previewExtensions.refreshInline(view)
+  });
   var inlineMarkdown = createInlineMarkdownSupport({
     postMessage: (message) => vscodePort.postMessage(message),
     requestEditorMeasure,
-    resolveImageSource: exportMode ? resolveExportImageSource : void 0
+    resolveImageSource: exportMode ? resolveExportImageSource : void 0,
+    getWikilinkStatus: (target) => wikilinkResolver.status(target)
   });
   var {
     appendInlineMarkdown,
     findMarkdownImages,
     handleResolvedImage,
     ImagePreviewWidget,
-    isRangeInsideRanges
+    isRangeInsideRanges,
+    wikilinkClassName
   } = inlineMarkdown;
   var markdownCompletion = createMarkdownCompletion({
     postMessage: (message) => vscodePort.postMessage(message)
@@ -63491,7 +64288,8 @@ ${rowText}` },
     postMessage: (message) => vscodePort.postMessage(message),
     reportError: reportRichdownError,
     requestEditorMeasure,
-    getSettings: () => settings
+    getSettings: () => settings,
+    wikilinkClassName
   });
   applyTheme(settings.richTheme);
   applyPreviewWidth(settings.previewWidth);
@@ -63627,7 +64425,7 @@ ${rowText}` },
                 }
                 event.preventDefault();
                 vscodePort.postMessage({
-                  type: "openLink",
+                  type: linkTarget.wikilink ? "openWikilink" : "openLink",
                   href: linkTarget.href
                 });
                 return true;
@@ -63706,6 +64504,18 @@ ${rowText}` },
     }
     if (event.data.type === "linkCompletions") {
       markdownCompletion.handleLinkCompletions(event.data);
+      return;
+    }
+    if (event.data.type === "wikilinkCompletions") {
+      markdownCompletion.handleWikilinkCompletions(event.data);
+      return;
+    }
+    if (event.data.type === "wikilinksResolved") {
+      wikilinkResolver.handleResolved(event.data);
+      return;
+    }
+    if (event.data.type === "wikilinksChanged") {
+      wikilinkResolver.invalidate();
       return;
     }
     if (event.data.type === "reveal") {

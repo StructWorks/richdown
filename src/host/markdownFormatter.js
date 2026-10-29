@@ -6,13 +6,24 @@
 // Code blocks, front matter, HTML blocks, and block quotes are never rewritten,
 // and a rule that cannot change a construct without changing how it renders
 // leaves it alone.
+//
+// The Japanese rules (src/host/japaneseRules.js) are off by default. They
+// share their names with the lint rules they fix, and the lint suppression
+// comments that silence a rule on a line keep the formatter off that line too.
 
 const {
+  collectSuppressions,
   displayWidth,
   isBlank,
   scanMarkdown,
   scanTableRow,
 } = require("./markdownStructure");
+const {
+  applyFixes,
+  isProseLine,
+  lineRules: japaneseLineRules,
+  maskNonProse,
+} = require("./japaneseRules");
 
 const formatRules = [
   {
@@ -69,6 +80,35 @@ const formatRules = [
     name: "final-newline",
     description: "End the document with exactly one newline.",
   },
+  // Japanese writing rules (src/host/japaneseRules.js), off by default.
+  {
+    name: "ja-no-zenkaku-alnum",
+    description: "Japanese: convert full-width alphanumerics to half width (ＡＢＣ１２３ -> ABC123).",
+    defaultEnabled: false,
+  },
+  {
+    name: "ja-space-between-half-and-full-width",
+    description: "Japanese: remove (\"never\") or add (\"always\") the space between Japanese text and half-width alphanumerics.",
+    defaultEnabled: false,
+    options: japaneseLineRules["ja-space-between-half-and-full-width"].options,
+  },
+  {
+    name: "ja-punctuation",
+    description: "Japanese: convert punctuation to one pair, 、。 or ，．. Marks between digits, as in ３．５, are kept.",
+    defaultEnabled: false,
+    options: japaneseLineRules["ja-punctuation"].options,
+  },
+  {
+    name: "ja-no-halfwidth-kana",
+    description: "Japanese: convert half-width katakana to full width (ｶﾀｶﾅ -> カタカナ).",
+    defaultEnabled: false,
+  },
+  {
+    name: "ja-symbol-width",
+    description: "Japanese: convert exclamation and question marks and parentheses in Japanese text to full width (！？（）) or half width (!?()).",
+    defaultEnabled: false,
+    options: japaneseLineRules["ja-symbol-width"].options,
+  },
 ];
 
 // Runs the enabled rules in a fixed order. `rules` maps a rule name to its
@@ -88,7 +128,12 @@ function formatMarkdown(text, rules) {
   return lines.join("\n");
 }
 
+// The Japanese passes run first, so the table pass aligns cells whose width
+// they changed.
 const formatPasses = [
+  ...formatRules
+    .filter((rule) => rule.name.startsWith("ja-"))
+    .map((rule) => ({ name: rule.name, run: (lines, options) => fixJapaneseLines(lines, rule.name, options) })),
   { name: "heading-style", run: convertSetextHeadings },
   { name: "atx-heading", run: normalizeAtxHeadings },
   { name: "list-marker", run: normalizeListMarkers },
@@ -103,6 +148,20 @@ const formatPasses = [
   { name: "consecutive-blank-lines", run: collapseBlankLines },
   { name: "final-newline", run: ensureFinalNewline },
 ];
+
+function fixJapaneseLines(lines, name, options) {
+  const structure = scanMarkdown(lines.join("\n"));
+  const suppressions = collectSuppressions(structure);
+  return lines.map((line, index) => {
+    if (!isProseLine(structure.lines[index]) || suppressions.isSuppressed(name, index)) {
+      return line;
+    }
+    const fixes = japaneseLineRules[name]
+      .find(maskNonProse(line), options)
+      .flatMap((problem) => problem.fixes || []);
+    return fixes.length > 0 ? applyFixes(line, fixes) : line;
+  });
+}
 
 function convertSetextHeadings(lines) {
   const { headings } = scanMarkdown(lines.join("\n"));

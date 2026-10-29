@@ -39,6 +39,7 @@ import { createGitDiffGutter } from "./rich-editor/presentation/codemirror/gitDi
 import { createHeadingCursorFilter } from "./rich-editor/presentation/codemirror/headingCursor.js";
 import { createLintDecorations } from "./rich-editor/presentation/codemirror/lintDecorations.js";
 import { findLinkAtClick } from "./rich-editor/presentation/codemirror/links.js";
+import { createWikilinkResolver } from "./rich-editor/presentation/markdown/wikilinkResolver.js";
 import { createSlashCommandController } from "./rich-editor/presentation/codemirror/slashCommands.js";
 import {
   tableKeymap,
@@ -110,10 +111,20 @@ const settingsMenu = createSettingsMenuController({
   postMessage: (message) => vscodePort.postMessage(message),
   refreshDecorations: () => previewExtensions.refresh(view),
 });
+// Exports have no host to resolve wikilink names, so links there stay plain.
+const wikilinkResolver = createWikilinkResolver({
+  postMessage: (message) => {
+    if (!exportMode) {
+      vscodePort.postMessage(message);
+    }
+  },
+  onChange: () => previewExtensions.refreshInline(view),
+});
 const inlineMarkdown = createInlineMarkdownSupport({
   postMessage: (message) => vscodePort.postMessage(message),
   requestEditorMeasure,
   resolveImageSource: exportMode ? resolveExportImageSource : undefined,
+  getWikilinkStatus: (target) => wikilinkResolver.status(target),
 });
 const {
   appendInlineMarkdown,
@@ -121,6 +132,7 @@ const {
   handleResolvedImage,
   ImagePreviewWidget,
   isRangeInsideRanges,
+  wikilinkClassName,
 } = inlineMarkdown;
 const markdownCompletion = createMarkdownCompletion({
   postMessage: (message) => vscodePort.postMessage(message),
@@ -135,6 +147,7 @@ const previewExtensions = createPreviewExtensions({
   reportError: reportRichdownError,
   requestEditorMeasure,
   getSettings: () => settings,
+  wikilinkClassName,
 });
 
 
@@ -286,7 +299,7 @@ queueMicrotask(() => {
 
               event.preventDefault();
               vscodePort.postMessage({
-                type: "openLink",
+                type: linkTarget.wikilink ? "openWikilink" : "openLink",
                 href: linkTarget.href,
               });
               return true;
@@ -374,6 +387,21 @@ window.addEventListener("message", (event) => {
 
   if (event.data.type === "linkCompletions") {
     markdownCompletion.handleLinkCompletions(event.data);
+    return;
+  }
+
+  if (event.data.type === "wikilinkCompletions") {
+    markdownCompletion.handleWikilinkCompletions(event.data);
+    return;
+  }
+
+  if (event.data.type === "wikilinksResolved") {
+    wikilinkResolver.handleResolved(event.data);
+    return;
+  }
+
+  if (event.data.type === "wikilinksChanged") {
+    wikilinkResolver.invalidate();
     return;
   }
 

@@ -1,3 +1,9 @@
+import {
+  calloutColors,
+  calloutThemeCss,
+  darkThemeSelectors,
+} from "../../../markdown/callouts.js";
+
 export function injectStyles() {
   if (document.querySelector("#richdown-global-styles")) {
     return;
@@ -995,6 +1001,84 @@ export function injectStyles() {
     .cm-mermaid-editor-diagram {
       min-width: 0;
       min-height: 0;
+    }
+    /* Obsidian wikilinks to names no workspace file has. */
+    .cm-wikilink-unresolved {
+      opacity: 0.7;
+      text-decoration-style: dashed;
+    }
+    a.cm-wikilink {
+      color: var(--rip-link);
+    }
+    /* GitHub alerts, drawn like GitHub's .markdown-alert, and Obsidian
+       callouts. Each color class sets --callout-color for the widget and for
+       the quote lines of a callout being edited. */
+    ${calloutThemeCss(darkThemeSelectors)}
+    ${calloutColors
+      .map((color) => `.cm-callout-${color} { --callout-color: var(--rip-callout-${color}); }`)
+      .join("\n    ")}
+    .cm-callout {
+      box-sizing: border-box;
+      max-width: 100%;
+      margin: 0;
+      border-left: 0.25em solid var(--callout-color);
+      padding: 8px 16px;
+      color: var(--rip-fg);
+    }
+    .cm-callout-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--callout-color);
+      font-weight: 500;
+      line-height: 1.5;
+    }
+    .cm-callout-icon {
+      flex: none;
+    }
+    .cm-callout-body {
+      display: grid;
+      gap: 10px;
+      margin-top: 6px;
+    }
+    .cm-callout-body:empty {
+      display: none;
+    }
+    .cm-callout-obsidian {
+      border-left: 0;
+      border-radius: 4px;
+      padding: 12px 16px;
+      background: color-mix(in srgb, var(--callout-color) 10%, transparent);
+    }
+    .cm-callout-obsidian > .cm-callout-title {
+      font-weight: 600;
+    }
+    .cm-callout.is-foldable > .cm-callout-title {
+      cursor: pointer;
+      user-select: none;
+    }
+    .cm-callout-fold {
+      display: inline-block;
+      transform: rotate(90deg);
+      transition: transform 0.12s ease;
+    }
+    .cm-callout.is-collapsed > .cm-callout-title > .cm-callout-fold {
+      transform: none;
+    }
+    .cm-callout.is-collapsed > .cm-callout-body {
+      display: none;
+    }
+    @media print {
+      .cm-callout.is-collapsed > .cm-callout-body {
+        display: grid;
+      }
+    }
+    .cm-editor .cm-line.cm-callout-line {
+      border-left-color: var(--callout-color);
+    }
+    .cm-editor .cm-line.cm-callout-title-line {
+      color: var(--callout-color);
+      font-weight: 500;
     }
   `;
   document.head.appendChild(style);

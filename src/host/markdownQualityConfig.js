@@ -102,7 +102,7 @@ function resolveFormatConfig(config) {
 function resolveFormatRule(rule, section) {
   const value = Object.prototype.hasOwnProperty.call(section.rules, rule.name)
     ? section.rules[rule.name]
-    : section.defaultValue ?? true;
+    : section.defaultValue ?? rule.defaultEnabled !== false;
   if (value === false || value === "off") {
     return null;
   }
@@ -185,8 +185,12 @@ function isPlainObject(value) {
 function createDefaultConfigText() {
   const lines = ["{", '  "format": {', '    "rules": {'];
   formatRules.forEach((rule, index) => {
-    const value = rule.options ? formatInlineObject(defaultOptions(rule)) : "true";
+    const onValue = rule.options ? formatInlineObject(defaultOptions(rule)) : "true";
+    const value = rule.defaultEnabled === false ? "false" : onValue;
     lines.push(`      // ${rule.description}`);
+    if (rule.defaultEnabled === false) {
+      lines.push(`      // Off by default. To turn it on: ${onValue}`);
+    }
     lines.push(`      "${rule.name}": ${value}${index < formatRules.length - 1 ? "," : ""}`);
   });
   lines.push("    }", "  },", '  "lint": {', '    "rules": {');
@@ -235,8 +239,8 @@ function buildConfigSchema() {
       ]),
     );
   const formatRuleSchema = (rule) => ({
-    description: rule.description,
-    default: rule.options ? defaultOptions(rule) : true,
+    description: rule.defaultEnabled === false ? `${rule.description} Default: off.` : rule.description,
+    default: rule.defaultEnabled === false ? false : rule.options ? defaultOptions(rule) : true,
     anyOf: [
       { type: "boolean" },
       { const: "off" },

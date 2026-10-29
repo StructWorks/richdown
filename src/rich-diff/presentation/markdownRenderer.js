@@ -4,7 +4,9 @@
 // analysis pass records multi-line context such as fenced code blocks and
 // tables, then renderMarkdownLine can output richer HTML for each row.
 import { escapeAttribute, escapeHtml } from "./htmlEscape.js";
+import { calloutIconSvg, findCallouts } from "../../markdown/callouts.js";
 import { splitMarkdownTableCells } from "../../markdown/tableCells.js";
+import { findWikilinks, isImageTarget, wikilinkHref } from "../../markdown/wikilinks.js";
 
 const LANGUAGE_ALIASES = new Map([
   ["bf", "brainfuck"],
@@ -82,7 +84,33 @@ export function createMarkdownRenderer({ hljs, registerCopyPayload }) {
     const meta = new Map();
     collectCodeBlockMeta(lines, meta);
     collectTableMeta(lines, meta);
+    collectCalloutMeta(lines, meta);
     return meta;
+  }
+
+  // Callout lines carry the callouts they sit in, outermost first, so each row
+  // can draw its own share of the box. Diff rows show every line, so folded
+  // callouts are drawn open.
+  function collectCalloutMeta(lines, meta, indexes = lines.map((_, index) => index), levels = []) {
+    for (const callout of findCallouts(lines)) {
+      const level = { color: callout.marker.color, github: callout.marker.github };
+      const nested = [...levels, level];
+      meta.set(indexes[callout.start] + 1, {
+        kind: "callout",
+        role: "title",
+        levels: nested,
+        marker: callout.marker,
+      });
+      for (const line of callout.body) {
+        meta.set(indexes[line.index] + 1, { kind: "callout", role: "body", levels: nested });
+      }
+      collectCalloutMeta(
+        callout.body.map((line) => line.text),
+        meta,
+        callout.body.map((line) => indexes[line.index]),
+        nested,
+      );
+    }
   }
   
   function collectCodeBlockMeta(lines, meta) {
@@ -196,6 +224,10 @@ export function createMarkdownRenderer({ hljs, registerCopyPayload }) {
     if (meta?.kind === "table") {
       return renderTableLine(text, meta.role);
     }
+
+    if (meta?.kind === "callout") {
+      return renderCalloutLine(text, meta);
+    }
   
     if (isThematicBreakLine(text)) {
       return '<hr class="rdiff-hr">';
@@ -228,6 +260,26 @@ export function createMarkdownRenderer({ hljs, registerCopyPayload }) {
     return renderInlineMarkdown(text);
   }
   
+  function renderCalloutLine(text, meta) {
+    let content = text;
+    for (let depth = 0; depth < meta.levels.length; depth += 1) {
+      content = content.replace(/^ {0,3}> ?/, "");
+    }
+    const marker = meta.marker;
+    let html =
+      meta.role === "title"
+        ? `<span class="rdiff-callout-title">${calloutIconSvg(marker.icon, "rdiff-callout-icon")}<span>${renderInlineMarkdown(marker.title)}</span>${marker.foldable ? '<span class="rdiff-callout-fold" aria-hidden="true">›</span>' : ""}</span>`
+        : content.trim()
+          ? renderMarkdownLine(content)
+          : '<span class="rdiff-blank-line" aria-hidden="true">&nbsp;</span>';
+    for (let depth = meta.levels.length - 1; depth >= 0; depth -= 1) {
+      const level = meta.levels[depth];
+      const style = level.github ? "rdiff-callout-github" : "rdiff-callout-obsidian";
+      html = `<div class="rdiff-callout rdiff-callout-${level.color} ${style}">${html}</div>`;
+    }
+    return html;
+  }
+
   function renderCodeFence(text, meta) {
     const copyId = registerCopyPayload(meta.code || "");
     const label = meta.role === "open" && meta.language ? meta.language : "";
@@ -276,7 +328,7 @@ export function createMarkdownRenderer({ hljs, registerCopyPayload }) {
   
   function renderInlineMarkdown(text) {
     const pattern =
-      /!\[(?<imageAlt>[^\]]*)\]\(\s*(?:<(?<imageSrcAngle>[^>]+)>|(?<imageSrc>[^)\s]+))(?:\s+(?:"[^"]*"|'[^']*'))?\s*\)|`(?<code>[^`]+)`|(?<lineBreak><[Bb][Rr]\s*\/?>)|\*\*(?<boldStar>[^*]+)\*\*|__(?<boldUnderscore>[^_]+)__|\*(?<italicStar>[^*\s][^*]*?)\*|_(?<italicUnderscore>[^_\s][^_]*?)_|~~(?<strike>[^~]+)~~|\[(?<linkText>[^\]]+)\]\(\s*(?:<(?<linkHrefAngle>[^>]+)>|(?<linkHref>[^)\s]+))(?:\s+(?:"[^"]*"|'[^']*'))?\s*\)|(?<bareUrl>https?:\/\/[^\s<>"')\]]+)/g;
+      /(?<wikilink>!?\[\[[^[\]\n]+?\]\])|!\[(?<imageAlt>[^\]]*)\]\(\s*(?:<(?<imageSrcAngle>[^>]+)>|(?<imageSrc>[^)\s]+))(?:\s+(?:"[^"]*"|'[^']*'))?\s*\)|`(?<code>[^`]+)`|(?<lineBreak><[Bb][Rr]\s*\/?>)|\*\*(?<boldStar>[^*]+)\*\*|__(?<boldUnderscore>[^_]+)__|\*(?<italicStar>[^*\s][^*]*?)\*|_(?<italicUnderscore>[^_\s][^_]*?)_|~~(?<strike>[^~]+)~~|\[(?<linkText>[^\]]+)\]\(\s*(?:<(?<linkHrefAngle>[^>]+)>|(?<linkHref>[^)\s]+))(?:\s+(?:"[^"]*"|'[^']*'))?\s*\)|(?<bareUrl>https?:\/\/[^\s<>"')\]]+)/g;
     let html = "";
     let lastIndex = 0;
 
@@ -284,7 +336,15 @@ export function createMarkdownRenderer({ hljs, registerCopyPayload }) {
       const groups = match.groups || {};
       html += escapeHtml(text.slice(lastIndex, match.index));
 
-      if (groups.imageAlt !== undefined) {
+      const wikilink = groups.wikilink ? findWikilinks(groups.wikilink)[0] : null;
+      if (wikilink && wikilink.embed && isImageTarget(wikilink.target)) {
+        const width = wikilink.width ? ` data-image-width="${wikilink.width}"` : "";
+        html += `<span class="rdiff-image" data-image-src="${escapeAttribute(wikilink.target)}" data-image-alt="${escapeAttribute(wikilink.alias)}" data-wikilink="true"${width}><span class="rdiff-image-loading">${escapeHtml(wikilink.alias || wikilink.target)}</span></span>`;
+      } else if (wikilink) {
+        html += `<a href="#" class="rdiff-wikilink" data-wikilink="${escapeAttribute(wikilinkHref(wikilink))}">${escapeHtml(wikilink.label)}</a>`;
+      } else if (groups.wikilink) {
+        html += escapeHtml(groups.wikilink);
+      } else if (groups.imageAlt !== undefined) {
         const src = groups.imageSrcAngle || groups.imageSrc || "";
         html += `<span class="rdiff-image" data-image-src="${escapeAttribute(src)}" data-image-alt="${escapeAttribute(groups.imageAlt)}"><span class="rdiff-image-loading">${escapeHtml(groups.imageAlt || "Loading image")}</span></span>`;
       } else if (groups.code !== undefined) {

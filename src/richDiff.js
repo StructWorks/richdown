@@ -204,7 +204,8 @@ window.addEventListener("message", (event) => {
     window.clearTimeout(pending.timeout);
     pendingImageRequests.delete(event.data.requestId);
     if (event.data.uri) {
-      pending.element.innerHTML = `<img alt="${escapeAttribute(pending.alt)}" src="${escapeAttribute(event.data.uri)}">`;
+      const width = pending.width ? ` style="width: ${Number(pending.width)}px"` : "";
+      pending.element.innerHTML = `<img alt="${escapeAttribute(pending.alt)}" src="${escapeAttribute(event.data.uri)}"${width}>`;
     } else {
       pending.element.innerHTML = `<span class="rdiff-image-error">${escapeHtml(pending.alt || "Image could not be loaded")}</span>`;
     }
@@ -248,6 +249,13 @@ root.addEventListener("click", (event) => {
   if (link) {
     event.preventDefault();
     vscode.postMessage({ type: "openLink", href: link.dataset.href });
+    return;
+  }
+
+  const wikilink = event.target.closest("a[data-wikilink]");
+  if (wikilink) {
+    event.preventDefault();
+    vscode.postMessage({ type: "openWikilink", href: wikilink.dataset.wikilink });
   }
 });
 
@@ -360,8 +368,14 @@ function resolveImages() {
     pendingImageRequests.set(requestId, {
       element,
       alt: element.dataset.imageAlt || "",
+      width: element.dataset.imageWidth || "",
       timeout,
     });
-    vscode.postMessage({ type: "resolveImage", requestId, src });
+    // Obsidian embeds (![[name]]) name a file for the host to find.
+    vscode.postMessage(
+      element.dataset.wikilink
+        ? { type: "resolveImage", requestId, src, wikilink: true }
+        : { type: "resolveImage", requestId, src },
+    );
   });
 }

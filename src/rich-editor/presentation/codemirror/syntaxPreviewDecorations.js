@@ -7,11 +7,13 @@ import { syntaxTree } from "@codemirror/language";
 import { EditorState, RangeSetBuilder } from "@codemirror/state";
 import { Decoration, ViewPlugin } from "@codemirror/view";
 import {
+  findCalloutBlocks,
   findMermaidFenceBlocks,
   isThematicBreakLine,
   parseListMarker,
   rangeIntersectsRanges,
 } from "../../domain/markdownBlocks.js";
+import { findWikilinks, isImageTarget } from "../../../markdown/wikilinks.js";
 import { isMarkdownMarker } from "./links.js";
 import {
   CheckboxWidget,
@@ -29,6 +31,8 @@ export function createSyntaxPreviewDecorations({
   ImagePreviewWidget,
   isRangeInsideRanges,
   postMessage,
+  refreshPreviewDecorations,
+  wikilinkClassName = () => "cm-wikilink",
 }) {
   const blockLineDecorations = ViewPlugin.fromClass(
     class {
@@ -60,7 +64,16 @@ export function createSyntaxPreviewDecorations({
       }
   
       update(update) {
-        if (update.docChanged || update.viewportChanged || update.selectionSet) {
+        // A refresh also arrives when the host answers which wikilink names
+        // point to files.
+        if (
+          update.docChanged ||
+          update.viewportChanged ||
+          update.selectionSet ||
+          update.transactions.some((transaction) =>
+            transaction.effects.some((effect) => effect.is(refreshPreviewDecorations)),
+          )
+        ) {
           this.decorations = safeBuildDecorations("inline-decorations", () =>
             buildInlineDecorations(update.view),
           );
@@ -124,6 +137,22 @@ export function createSyntaxPreviewDecorations({
     const codeBlockLineSpecs = collectCodeBlockLineSpecs(view);
     const codeBlockLineStarts = new Set(codeBlockLineSpecs.keys());
     const previewedBlockRanges = getPreviewedBlockRanges(view.state);
+    // A callout the caret is in shows its Markdown as quote lines in the
+    // callout's color.
+    const calloutLineClasses = new Map();
+    for (const block of findCalloutBlocks(view.state.doc)) {
+      if (rangeIntersectsRanges(block.from, block.to, previewedBlockRanges)) {
+        continue;
+      }
+      block.lineStarts.forEach((lineStart, index) => {
+        calloutLineClasses.set(
+          lineStart,
+          `cm-callout-line cm-callout-${block.callout.marker.color}${
+            index === 0 ? " cm-callout-title-line" : ""
+          }`,
+        );
+      });
+    }
   
     for (const range of view.visibleRanges) {
       let position = range.from;
@@ -133,6 +162,9 @@ export function createSyntaxPreviewDecorations({
           position = line.to + 1;
           if (position > view.state.doc.length) break;
           continue;
+        }
+        if (calloutLineClasses.has(line.from)) {
+          addLineClass(classesByLine, line.from, calloutLineClasses.get(line.from));
         }
         if (!codeBlockLineStarts.has(line.from)) {
           const heading = line.text.match(/^(\s{0,3})(#{1,6})\s+/);
@@ -658,6 +690,8 @@ export function createSyntaxPreviewDecorations({
           }
         }
   
+        addWikilinkDecorations(view.state, line, lineFocused, ranges, imageRanges);
+  
         position = line.to + 1;
         if (position > view.state.doc.length) break;
       }
@@ -727,6 +761,54 @@ export function createSyntaxPreviewDecorations({
       ranges.map((range) => range.decoration.range(range.from, range.to)),
       true,
     );
+  }
+
+  // Wikilinks show their label as a link and hide the brackets (and the name
+  // before an alias) like other Markdown markers; image embeds are replaced
+  // by the image when the caret is elsewhere.
+  function addWikilinkDecorations(state, line, lineFocused, ranges, imageRanges) {
+    for (const link of findWikilinks(line.text)) {
+      const from = line.from + link.from;
+      const to = line.from + link.to;
+      if (isInsideCode(state, from)) {
+        continue;
+      }
+      if (link.embed && isImageTarget(link.target)) {
+        if (!lineFocused) {
+          imageRanges.push({ from, to });
+          ranges.push({
+            from,
+            to,
+            decoration: Decoration.replace({
+              widget: new ImagePreviewWidget(link.target, link.alias, from, {
+                wikilink: true,
+                width: link.width,
+              }),
+            }),
+          });
+        }
+        continue;
+      }
+      const marker = Decoration.mark({ class: "cm-markdown-marker" });
+      ranges.push(
+        { from, to: line.from + link.labelFrom, decoration: marker },
+        {
+          from: line.from + link.labelFrom,
+          to: line.from + link.labelTo,
+          decoration: Decoration.mark({ class: `cm-link ${wikilinkClassName(link.target)}` }),
+        },
+        { from: line.from + link.labelTo, to, decoration: marker },
+      );
+    }
+  }
+
+  function isInsideCode(state, position) {
+    for (let node = syntaxTree(state).resolveInner(position, 1); node; node = node.parent) {
+      if (["InlineCode", "FencedCode", "CodeBlock", "CodeText", "HTMLBlock", "CommentBlock"].includes(node.name)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   function getInlineCodeColor(source) {

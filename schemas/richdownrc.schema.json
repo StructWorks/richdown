@@ -28,6 +28,132 @@
             "rules": {
               "type": "object",
               "properties": {
+                "ja-no-zenkaku-alnum": {
+                  "description": "Japanese: convert full-width alphanumerics to half width (ＡＢＣ１２３ -> ABC123). Default: off.",
+                  "default": false,
+                  "anyOf": [
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "const": "off"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "enabled": {
+                          "type": "boolean"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  ]
+                },
+                "ja-space-between-half-and-full-width": {
+                  "description": "Japanese: remove (\"never\") or add (\"always\") the space between Japanese text and half-width alphanumerics. Default: off.",
+                  "default": false,
+                  "anyOf": [
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "const": "off"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "enabled": {
+                          "type": "boolean"
+                        },
+                        "space": {
+                          "enum": [
+                            "never",
+                            "always"
+                          ],
+                          "default": "never"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  ]
+                },
+                "ja-punctuation": {
+                  "description": "Japanese: convert punctuation to one pair, 、。 or ，．. Marks between digits, as in ３．５, are kept. Default: off.",
+                  "default": false,
+                  "anyOf": [
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "const": "off"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "enabled": {
+                          "type": "boolean"
+                        },
+                        "style": {
+                          "enum": [
+                            "、。",
+                            "，．"
+                          ],
+                          "default": "、。"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  ]
+                },
+                "ja-no-halfwidth-kana": {
+                  "description": "Japanese: convert half-width katakana to full width (ｶﾀｶﾅ -> カタカナ). Default: off.",
+                  "default": false,
+                  "anyOf": [
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "const": "off"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "enabled": {
+                          "type": "boolean"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  ]
+                },
+                "ja-symbol-width": {
+                  "description": "Japanese: convert exclamation and question marks and parentheses in Japanese text to full width (！？（）) or half width (!?()). Default: off.",
+                  "default": false,
+                  "anyOf": [
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "const": "off"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "enabled": {
+                          "type": "boolean"
+                        },
+                        "style": {
+                          "enum": [
+                            "fullwidth",
+                            "halfwidth"
+                          ],
+                          "default": "fullwidth"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  ]
+                },
                 "heading-style": {
                   "description": "Convert single-line setext headings (underlined with === or ---) to ATX headings (# Heading).",
                   "default": true,
@@ -1175,6 +1301,273 @@
                           "type": "integer",
                           "minimum": 1,
                           "default": 120
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  ]
+                },
+                "ja-no-zenkaku-alnum": {
+                  "description": "Japanese: write alphanumerics in half width (ＡＢＣ１２３ -> ABC123). Default: info.",
+                  "anyOf": [
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "enum": [
+                        "error",
+                        "warning",
+                        "info",
+                        "hint",
+                        "off"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "enabled": {
+                          "type": "boolean"
+                        },
+                        "severity": {
+                          "enum": [
+                            "error",
+                            "warning",
+                            "info",
+                            "hint"
+                          ]
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  ]
+                },
+                "ja-space-between-half-and-full-width": {
+                  "description": "Japanese: put no space (\"never\") or one space (\"always\") between Japanese text and half-width alphanumerics. Default: off.",
+                  "anyOf": [
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "enum": [
+                        "error",
+                        "warning",
+                        "info",
+                        "hint",
+                        "off"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "enabled": {
+                          "type": "boolean"
+                        },
+                        "severity": {
+                          "enum": [
+                            "error",
+                            "warning",
+                            "info",
+                            "hint"
+                          ]
+                        },
+                        "space": {
+                          "enum": [
+                            "never",
+                            "always"
+                          ],
+                          "default": "never"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  ]
+                },
+                "ja-punctuation": {
+                  "description": "Japanese: use one pair of punctuation marks, 、。 or ，．. Default: off.",
+                  "anyOf": [
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "enum": [
+                        "error",
+                        "warning",
+                        "info",
+                        "hint",
+                        "off"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "enabled": {
+                          "type": "boolean"
+                        },
+                        "severity": {
+                          "enum": [
+                            "error",
+                            "warning",
+                            "info",
+                            "hint"
+                          ]
+                        },
+                        "style": {
+                          "enum": [
+                            "、。",
+                            "，．"
+                          ],
+                          "default": "、。"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  ]
+                },
+                "ja-no-mixed-style": {
+                  "description": "Japanese: do not mix sentences ending in the です・ます style and the である style. Only paragraph text is checked; headings, list items, tables, block quotes, and text in brackets are skipped. Default: off.",
+                  "anyOf": [
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "enum": [
+                        "error",
+                        "warning",
+                        "info",
+                        "hint",
+                        "off"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "enabled": {
+                          "type": "boolean"
+                        },
+                        "severity": {
+                          "enum": [
+                            "error",
+                            "warning",
+                            "info",
+                            "hint"
+                          ]
+                        },
+                        "style": {
+                          "enum": [
+                            "consistent",
+                            "desumasu",
+                            "dearu"
+                          ],
+                          "default": "consistent"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  ]
+                },
+                "ja-no-halfwidth-kana": {
+                  "description": "Japanese: do not use half-width katakana (ｶﾀｶﾅ -> カタカナ). Default: warning.",
+                  "anyOf": [
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "enum": [
+                        "error",
+                        "warning",
+                        "info",
+                        "hint",
+                        "off"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "enabled": {
+                          "type": "boolean"
+                        },
+                        "severity": {
+                          "enum": [
+                            "error",
+                            "warning",
+                            "info",
+                            "hint"
+                          ]
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  ]
+                },
+                "ja-no-zenkaku-space": {
+                  "description": "Japanese: do not use full-width spaces (U+3000). Default: off.",
+                  "anyOf": [
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "enum": [
+                        "error",
+                        "warning",
+                        "info",
+                        "hint",
+                        "off"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "enabled": {
+                          "type": "boolean"
+                        },
+                        "severity": {
+                          "enum": [
+                            "error",
+                            "warning",
+                            "info",
+                            "hint"
+                          ]
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  ]
+                },
+                "ja-symbol-width": {
+                  "description": "Japanese: write exclamation and question marks and parentheses in Japanese text in full width (！？（）) or half width (!?()). Default: off.",
+                  "anyOf": [
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "enum": [
+                        "error",
+                        "warning",
+                        "info",
+                        "hint",
+                        "off"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "enabled": {
+                          "type": "boolean"
+                        },
+                        "severity": {
+                          "enum": [
+                            "error",
+                            "warning",
+                            "info",
+                            "hint"
+                          ]
+                        },
+                        "style": {
+                          "enum": [
+                            "fullwidth",
+                            "halfwidth"
+                          ],
+                          "default": "fullwidth"
                         }
                       },
                       "additionalProperties": false
