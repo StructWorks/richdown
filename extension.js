@@ -14,6 +14,12 @@ const { createMarkdownEditorRouter, createTabKey } = require('./src/host/markdow
 const { createSelectionRevealTarget, parseLinkFragment } = require('./src/host/revealTarget');
 const { createMarkdownQuality } = require('./src/host/markdownQuality');
 const { createWebviewDocumentSync } = require('./src/host/webviewDocumentSync');
+const {
+  resolveWikilinkTarget,
+  splitWikilinkHref,
+  wikilinkCompletionItems
+} = require('./src/host/wikilinks');
+const { scanMarkdown } = require('./src/host/markdownStructure');
 
 const richEditorViewType = 'richdown.richEditor';
 const legacyMarkdownEditorAssociationPatterns = ['*.md', '*.markdown'];
@@ -92,6 +98,7 @@ function activate(context) {
   );
   registerMarkdownEditorRouting(context);
   registerChatEditTracking(context);
+  registerWikilinkFileIndex(context);
   markdownQuality.register(context);
   void syncMarkdownEditorAssociations();
 }
@@ -559,7 +566,8 @@ async function exportMarkdown(context, resource, format) {
         const imageMap = await createExportImageMap({
           markdown,
           sourcePath: uri.fsPath,
-          allowedRoots
+          allowedRoots,
+          resolveWikilinkPath: name => findWikilinkFile({ uri }, name)
         });
         const includeMermaid = containsMermaidBlocks(markdown);
 
@@ -782,8 +790,15 @@ function createRichDiffPanel(context, documentUri, diffData) {
       return;
     }
 
+    if (event.type === 'openWikilink') {
+      await openWikilink({ uri: documentUri }, event.href);
+      return;
+    }
+
     if (event.type === 'resolveImage') {
-      const uri = resolveMarkdownImageUri({ uri: documentUri }, panel.webview, event.src);
+      const uri = event.wikilink
+        ? await resolveWikilinkImageUri({ uri: documentUri }, panel.webview, event.src)
+        : resolveMarkdownImageUri({ uri: documentUri }, panel.webview, event.src);
       panel.webview.postMessage({
         type: 'resolvedImage',
         requestId: event.requestId,
@@ -1248,11 +1263,36 @@ class RichdownEditorProvider {
       }
 
       if (event.type === 'resolveImage') {
-        const uri = resolveMarkdownImageUri(document, webviewPanel.webview, event.src);
+        const uri = event.wikilink
+          ? await resolveWikilinkImageUri(document, webviewPanel.webview, event.src)
+          : resolveMarkdownImageUri(document, webviewPanel.webview, event.src);
         webviewPanel.webview.postMessage({
           type: 'resolvedImage',
           requestId: event.requestId,
           uri
+        });
+        return;
+      }
+
+      if (event.type === 'openWikilink') {
+        await openWikilink(document, event.href, { fromRichEditor: true });
+        return;
+      }
+
+      if (event.type === 'resolveWikilinks') {
+        webviewPanel.webview.postMessage({
+          type: 'wikilinksResolved',
+          requestId: event.requestId,
+          results: await resolveWikilinkNames(document, event.targets)
+        });
+        return;
+      }
+
+      if (event.type === 'requestWikilinkCompletions') {
+        webviewPanel.webview.postMessage({
+          type: 'wikilinkCompletions',
+          requestId: event.requestId,
+          items: await collectWikilinkCompletionItems(document, event.target)
         });
         return;
       }
@@ -1794,6 +1834,107 @@ async function collectMarkdownLinkCompletionPaths(document) {
       return depthA - depthB || a.localeCompare(b);
     });
     return paths.slice(0, 400);
+  } catch (error) {
+    return [];
+  }
+}
+
+// Workspace files for resolving wikilink names, rebuilt after files are
+// created or deleted. Open Richdown editors are told so they ask again.
+let wikilinkFileIndex;
+
+function registerWikilinkFileIndex(context) {
+  const watcher = vscode.workspace.createFileSystemWatcher('**/*', false, true, false);
+  const invalidate = () => {
+    if (!wikilinkFileIndex) {
+      return;
+    }
+    wikilinkFileIndex = undefined;
+    for (const session of richEditorSessions.values()) {
+      session.postMessage({ type: 'wikilinksChanged' });
+    }
+  };
+  context.subscriptions.push(
+    watcher,
+    watcher.onDidCreate(invalidate),
+    watcher.onDidDelete(invalidate),
+    vscode.workspace.onDidChangeWorkspaceFolders(invalidate)
+  );
+}
+
+function getWikilinkFiles() {
+  if (!wikilinkFileIndex) {
+    // Passing undefined as the exclude pattern keeps files.exclude and
+    // search.exclude in effect, like the link path completions.
+    wikilinkFileIndex = Promise.resolve(vscode.workspace.findFiles('**/*', undefined, 20000))
+      .then(uris => uris.filter(uri => uri.scheme === 'file').map(uri => uri.fsPath))
+      .catch(() => []);
+  }
+  return wikilinkFileIndex;
+}
+
+async function findWikilinkFile(document, target) {
+  if (!target) {
+    return null;
+  }
+  const fromPath = document.uri.scheme === 'file' ? document.uri.fsPath : '';
+  return resolveWikilinkTarget(target, fromPath, await getWikilinkFiles());
+}
+
+async function resolveWikilinkNames(document, targets) {
+  const results = {};
+  if (!Array.isArray(targets)) {
+    return results;
+  }
+  for (const target of targets.slice(0, 500)) {
+    if (typeof target === 'string') {
+      results[target] = Boolean(await findWikilinkFile(document, target));
+    }
+  }
+  return results;
+}
+
+async function openWikilink(document, href, options = {}) {
+  const { target, heading } = splitWikilinkHref(href);
+  const fragment = heading ? `#${encodeURIComponent(heading)}` : '';
+  if (!target) {
+    await openMarkdownLink(document, fragment, options);
+    return;
+  }
+  const file = await findWikilinkFile(document, target);
+  if (!file) {
+    vscode.window.setStatusBarMessage(`Richdown: no file named "${target}" in the workspace.`, 4000);
+    return;
+  }
+  const relative = path.relative(path.dirname(document.uri.fsPath), file).split(path.sep).join('/');
+  await openMarkdownLink(document, `${encodeURI(relative)}${fragment}`, options);
+}
+
+async function resolveWikilinkImageUri(document, webview, target) {
+  const file = await findWikilinkFile(document, target);
+  if (!file || !isPathWithinAllowedScope(file, document.uri)) {
+    return undefined;
+  }
+  return webview.asWebviewUri(vscode.Uri.file(file)).toString();
+}
+
+// File names for "[[", or the headings of the named note for "[[note#" (the
+// rich editor lists its own headings for "[[#").
+async function collectWikilinkCompletionItems(document, target) {
+  try {
+    if (typeof target === 'string') {
+      const file = await findWikilinkFile(document, target);
+      if (!file || !/\.(?:md|markdown)$/i.test(file)) {
+        return [];
+      }
+      const text = Buffer.from(await vscode.workspace.fs.readFile(vscode.Uri.file(file))).toString('utf8');
+      return scanMarkdown(normalizeToLf(text)).headings
+        .filter(heading => heading.text)
+        .map(heading => ({ label: heading.text, detail: `h${heading.level}` }));
+    }
+    const folder = vscode.workspace.getWorkspaceFolder(document.uri) || vscode.workspace.workspaceFolders?.[0];
+    const fromPath = document.uri.scheme === 'file' ? document.uri.fsPath : '';
+    return wikilinkCompletionItems(await getWikilinkFiles(), fromPath, folder?.uri.fsPath);
   } catch (error) {
     return [];
   }

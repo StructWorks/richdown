@@ -13,6 +13,9 @@ import { findFrontmatterBlock } from "../../domain/markdownBlocks.js";
 import { codeLanguages } from "./language.js";
 
 const LINK_TARGET_PATTERN = /!?\[[^\]]*\]\([^)\s]*$/;
+// "[[name" and "[[name#heading" while typing a wikilink.
+const WIKILINK_NAME_PATTERN = /\[\[([^[\]|#\n]*)$/;
+const WIKILINK_HEADING_PATTERN = /\[\[([^[\]|#\n]*)#([^[\]|\n]*)$/;
 const FENCE_PATTERN = /^\s{0,3}(`{3,}|~{3,}|:{3,})([\w+#-]*)$/;
 const WORDISH_PATTERN = /[\w#/.-]+$/;
 
@@ -45,6 +48,7 @@ export function createMarkdownCompletion({ postMessage }) {
   let requestSequence = 0;
   const pendingHostRequests = new Map();
   const pendingLinkRequests = new Map();
+  const pendingWikilinkRequests = new Map();
   // null = unknown, false = a request timed out (standalone/export preview),
   // true = the extension host answered at least once.
   let hostAvailable = null;
@@ -66,6 +70,15 @@ export function createMarkdownCompletion({ postMessage }) {
     }
     pendingLinkRequests.delete(message.requestId);
     pending(Array.isArray(message.paths) ? message.paths : []);
+  }
+
+  function handleWikilinkCompletions(message) {
+    const pending = pendingWikilinkRequests.get(message.requestId);
+    if (!pending) {
+      return;
+    }
+    pendingWikilinkRequests.delete(message.requestId);
+    pending(Array.isArray(message.items) ? message.items : []);
   }
 
   function requestWithTimeout(pendingMap, message, timeoutMs) {
@@ -111,6 +124,54 @@ export function createMarkdownCompletion({ postMessage }) {
       { type: "requestLinkCompletions" },
       2000,
     );
+  }
+
+  // File names after "[[" and headings after "[[name#", from the host like
+  // link paths. "[[#" lists this document's own headings.
+  async function wikilinkSource(context) {
+    const line = context.state.doc.lineAt(context.pos);
+    const before = line.text.slice(0, context.pos - line.from);
+    const after = line.text.slice(context.pos - line.from);
+    const closing = after.startsWith("]]") ? "" : "]]";
+    const heading = before.match(WIKILINK_HEADING_PATTERN);
+    if (heading) {
+      const items = heading[1].trim()
+        ? await requestWithTimeout(
+            pendingWikilinkRequests,
+            { type: "requestWikilinkCompletions", target: heading[1].trim() },
+            2000,
+          )
+        : collectHeadingAnchors(context.state.doc)
+            .filter((anchor) => !anchor.title.startsWith("<"))
+            .map((anchor) => ({ label: anchor.title }));
+      return buildWikilinkResult(context, context.pos - heading[2].length, items, closing, /^[^[\]|\n]*$/);
+    }
+    const name = before.match(WIKILINK_NAME_PATTERN);
+    if (!name) {
+      return null;
+    }
+    const items = await requestWithTimeout(
+      pendingWikilinkRequests,
+      { type: "requestWikilinkCompletions" },
+      2000,
+    );
+    return buildWikilinkResult(context, context.pos - name[1].length, items, closing, /^[^[\]|#\n]*$/);
+  }
+
+  function buildWikilinkResult(context, from, items, closing, validFor) {
+    if (context.aborted || items.length === 0) {
+      return null;
+    }
+    return {
+      from,
+      options: items.map((item) => ({
+        label: item.label,
+        detail: item.detail,
+        type: "text",
+        apply: `${item.label}${closing}`,
+      })),
+      validFor,
+    };
   }
 
   function fenceLanguageSource(context) {
@@ -240,11 +301,12 @@ export function createMarkdownCompletion({ postMessage }) {
 
   return {
     extension: autocompletion({
-      override: [fenceLanguageSource, hostCompletionSource],
+      override: [fenceLanguageSource, wikilinkSource, hostCompletionSource],
       icons: false,
     }),
     handleHostCompletions,
     handleLinkCompletions,
+    handleWikilinkCompletions,
   };
 }
 

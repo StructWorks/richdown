@@ -1,3 +1,5 @@
+import { findWikilinks, isImageTarget, wikilinkHref } from "../../../markdown/wikilinks.js";
+
 export function isMarkdownMarker(nodeName) {
   return [
     "HeaderMark",
@@ -51,6 +53,7 @@ export function findLinkAtClick(view, event) {
     return {
       href: link.href,
       position,
+      ...(link.wikilink ? { wikilink: true } : {}),
     };
   }
 
@@ -77,6 +80,22 @@ function collectLineLinks(text) {
       sourceTo: sourceFrom + match[0].length,
       visibleFrom: labelFrom,
       visibleTo: labelTo,
+    });
+  }
+
+  // Wikilinks carry the name for the host to resolve rather than a path.
+  // Image embeds are drawn as images and open from the image itself.
+  for (const link of findWikilinks(text)) {
+    if (link.embed && isImageTarget(link.target)) {
+      continue;
+    }
+    links.push({
+      href: wikilinkHref(link),
+      wikilink: true,
+      sourceFrom: link.from,
+      sourceTo: link.to,
+      visibleFrom: link.labelFrom,
+      visibleTo: link.labelTo,
     });
   }
 

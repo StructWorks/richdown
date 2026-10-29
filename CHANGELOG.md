@@ -2,6 +2,12 @@
 
 All notable changes to Richdown will be documented in this file.
 
+## Unreleased
+
+- GitHub alerts (`> [!NOTE]`, `[!TIP]`, `[!IMPORTANT]`, `[!WARNING]`, `[!CAUTION]`) are drawn with GitHub's icons, colors, and titles, and Obsidian callouts with their titles, `+`/`-` folding, nesting, and types (unknown types look like `note`), in the rich editor, Richdown Diff, and HTML/PDF export, with light and dark colors. The caret's callout shows its Markdown; folding only changes the view (#32).
+- Obsidian wikilinks (`[[note]]`, `[[note|alias]]`, `[[note#heading]]`, `[[#heading]]`) render as links that open the note found by name in the workspace (the nearest one when names repeat), links to missing notes look faded, and `![[image.png|300]]` embeds images at the given width. Typing `[[` completes file names and `[[note#` headings (#33).
+- Added Japanese lint and format rules: full-width alphanumerics, spacing between Japanese and alphanumerics, `、。` / `，．` punctuation, mixed です・ます and である styles, half-width katakana, full-width spaces, and the width of `!?()`. They skip code, URLs, and front matter, can be configured in `.richdownrc.json`, and honor the lint suppression comments. Only the half-width katakana (warning) and full-width alphanumerics (info) lint rules are on by default (#34).
+
 ## 0.10.1 - 2026-10-27
 
 - Flowcharts can now be grouped into subgraphs from the Mermaid editor. **+ Subgraph** wraps the selected node in a new subgraph (inside the node's current one), nests a new subgraph in the selected subgraph, or adds one with a first node. The **Subgraph** dropdown moves the selected node into another subgraph or out to the top level, rewriting the source so the node really is drawn there. Click a subgraph to jump to its `subgraph` line and select it, double-click to rename its title, and color it, connect it, add nodes inside it with **+ Node**, or remove it with **Delete** (its contents stay). **+ Node** from a node inside a subgraph adds the new node to the same subgraph.

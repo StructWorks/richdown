@@ -1,3 +1,9 @@
+import {
+  calloutColors,
+  calloutThemeCss,
+  darkThemeSelectors,
+} from "../../markdown/callouts.js";
+
 export function injectStyles() {
   const style = document.createElement("style");
   style.textContent = `
@@ -181,6 +187,30 @@ export function injectStyles() {
       border-left: 4px solid var(--rip-quote-border);
       padding-left: 0.8em;
       color: var(--rip-muted);
+    }
+    ${calloutThemeCss(darkThemeSelectors)}
+    ${calloutColors
+      .map((color) => `.rdiff-callout-${color} { --callout-color: var(--rip-callout-${color}); }`)
+      .join("\n    ")}
+    .rdiff-wikilink {
+      color: var(--rip-link);
+    }
+    .rdiff-callout {
+      border-left: 0.25em solid var(--callout-color);
+      padding-left: 0.9em;
+    }
+    .rdiff-callout-obsidian {
+      background: color-mix(in srgb, var(--callout-color) 10%, transparent);
+    }
+    .rdiff-callout-title {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--callout-color);
+      font-weight: 500;
+    }
+    .rdiff-callout-icon {
+      flex: none;
     }
     .rdiff-list {
       display: flex;

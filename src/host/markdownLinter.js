@@ -12,6 +12,7 @@
 // A directive without rule names applies to every rule.
 
 const {
+  collectSuppressions,
   displayWidth,
   isBlank,
   maskInlineCode,
@@ -19,6 +20,13 @@ const {
   scanTableRow,
   slugifyHeading,
 } = require("./markdownStructure");
+const {
+  findMixedStyle,
+  isProseLine,
+  lineRules: japaneseLineRules,
+  maskNonProse,
+  mixedStyleOptions,
+} = require("./japaneseRules");
 
 const lintRules = [
   {
@@ -147,6 +155,54 @@ const lintRules = [
     options: { max: { type: "integer", minimum: 1, default: 120 } },
     run: checkLineLength,
   },
+  // Japanese writing rules (src/host/japaneseRules.js). Code, URLs, and front
+  // matter are never checked. Rules that also fix have a format rule of the
+  // same name.
+  {
+    name: "ja-no-zenkaku-alnum",
+    description: "Japanese: write alphanumerics in half width (ＡＢＣ１２３ -> ABC123).",
+    defaultSeverity: "info",
+    run: (context) => checkJapaneseLines(context, "ja-no-zenkaku-alnum"),
+  },
+  {
+    name: "ja-space-between-half-and-full-width",
+    description: "Japanese: put no space (\"never\") or one space (\"always\") between Japanese text and half-width alphanumerics.",
+    defaultEnabled: false,
+    options: japaneseLineRules["ja-space-between-half-and-full-width"].options,
+    run: (context) => checkJapaneseLines(context, "ja-space-between-half-and-full-width"),
+  },
+  {
+    name: "ja-punctuation",
+    description: "Japanese: use one pair of punctuation marks, 、。 or ，．.",
+    defaultEnabled: false,
+    options: japaneseLineRules["ja-punctuation"].options,
+    run: (context) => checkJapaneseLines(context, "ja-punctuation"),
+  },
+  {
+    name: "ja-no-mixed-style",
+    description: "Japanese: do not mix sentences ending in the です・ます style and the である style. Only paragraph text is checked; headings, list items, tables, block quotes, and text in brackets are skipped.",
+    defaultEnabled: false,
+    options: mixedStyleOptions,
+    run: checkJapaneseMixedStyle,
+  },
+  {
+    name: "ja-no-halfwidth-kana",
+    description: "Japanese: do not use half-width katakana (ｶﾀｶﾅ -> カタカナ).",
+    run: (context) => checkJapaneseLines(context, "ja-no-halfwidth-kana"),
+  },
+  {
+    name: "ja-no-zenkaku-space",
+    description: "Japanese: do not use full-width spaces (U+3000).",
+    defaultEnabled: false,
+    run: (context) => checkJapaneseLines(context, "ja-no-zenkaku-space"),
+  },
+  {
+    name: "ja-symbol-width",
+    description: "Japanese: write exclamation and question marks and parentheses in Japanese text in full width (！？（）) or half width (!?()).",
+    defaultEnabled: false,
+    options: japaneseLineRules["ja-symbol-width"].options,
+    run: (context) => checkJapaneseLines(context, "ja-symbol-width"),
+  },
 ];
 
 const severities = ["error", "warning", "info", "hint"];
@@ -188,47 +244,6 @@ function lintMarkdown(text, rules) {
   return diagnostics.sort(
     (left, right) => left.line - right.line || left.from - right.from,
   );
-}
-
-function collectSuppressions(structure) {
-  const directive = /<!--\s*richdown-lint-(disable-next-line|disable|enable)\b([^>]*?)-->/g;
-  const disabledByLine = [];
-  const active = new Set();
-  let allDisabled = false;
-  const nextLine = new Map();
-
-  structure.lines.forEach((info, index) => {
-    if (info.kind !== "code" && info.kind !== "front-matter") {
-      for (const match of info.text.matchAll(directive)) {
-        const names = match[2].trim().split(/[\s,]+/).filter(Boolean);
-        if (match[1] === "disable-next-line") {
-          nextLine.set(index + 1, names.length > 0 ? new Set(names) : "all");
-        } else if (match[1] === "disable") {
-          if (names.length === 0) allDisabled = true;
-          names.forEach((name) => active.add(name));
-        } else if (names.length === 0) {
-          allDisabled = false;
-          active.clear();
-        } else {
-          names.forEach((name) => active.delete(name));
-        }
-      }
-    }
-    disabledByLine[index] = allDisabled ? "all" : new Set(active);
-  });
-
-  return {
-    isSuppressed(ruleName, line) {
-      const byRange = disabledByLine[line];
-      const byNextLine = nextLine.get(line);
-      return (
-        byRange === "all" ||
-        byRange?.has(ruleName) ||
-        byNextLine === "all" ||
-        Boolean(byNextLine?.has(ruleName))
-      );
-    },
-  };
 }
 
 function checkHeadingIncrement({ structure }) {
@@ -764,6 +779,37 @@ function findColumnOffset(text, column) {
     offset += character.length;
   }
   return text.length;
+}
+
+function checkJapaneseLines({ lines, options }, name) {
+  const problems = [];
+  for (const info of lines) {
+    if (!isProseLine(info)) {
+      continue;
+    }
+    for (const problem of japaneseLineRules[name].find(maskNonProse(info.text), options)) {
+      problems.push({ line: info.index, from: problem.from, to: problem.to, message: problem.message });
+    }
+  }
+  return problems;
+}
+
+// Paragraphs are runs of plain text lines outside lists and quotes.
+function checkJapaneseMixedStyle({ lines, options }) {
+  const paragraphs = [];
+  let current = null;
+  for (const info of lines) {
+    if (info.kind !== "text" || info.inList) {
+      current = null;
+      continue;
+    }
+    if (!current) {
+      current = [];
+      paragraphs.push(current);
+    }
+    current.push({ line: info.index, text: maskNonProse(info.text) });
+  }
+  return findMixedStyle(paragraphs, options);
 }
 
 function headingProblem(heading, message) {

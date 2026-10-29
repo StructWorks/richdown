@@ -35,7 +35,7 @@ function createHtmlExport({
   <title>${safeTitle}</title>
   <style>${getExportShellCss(colorThemeKind)}</style>
 </head>
-<body>
+<body class="${colorThemeKind === "light" ? "vscode-light" : "vscode-dark"}">
   <div id="editor" aria-label="Richdown preview"></div>
   <script type="application/json" id="initial-document">${serializeForScript(markdown || "")}</script>
   <script type="application/json" id="initial-settings">${serializeForScript(exportSettings)}</script>
@@ -49,15 +49,27 @@ function createHtmlExport({
 `;
 }
 
+// `resolveWikilinkPath(name)` finds the file an Obsidian embed (![[name]])
+// names; the editor looks embeds up under "[[name]]".
 async function createExportImageMap({
   markdown,
   sourcePath,
   allowedRoots = [],
   embedLimitBytes = maxEmbeddedImageBytes,
+  resolveWikilinkPath,
 }) {
   const imageMap = {};
   const imageSources = findMarkdownImageSources(markdown || "");
   const realAllowedRoots = await resolveAllowedRoots(allowedRoots);
+
+  for (const name of resolveWikilinkPath ? findWikilinkEmbedNames(markdown || "") : []) {
+    const filePath = await resolveWikilinkPath(name);
+    const resolvedPath = filePath ? await resolveLocalPath(filePath, sourcePath, realAllowedRoots) : null;
+    const mappedUri = resolvedPath ? await createImageUri(resolvedPath, embedLimitBytes) : null;
+    if (mappedUri) {
+      imageMap[`[[${name}]]`] = mappedUri;
+    }
+  }
 
   for (const src of imageSources) {
     if (isRemoteOrDataUri(src)) {
@@ -750,6 +762,14 @@ function findMarkdownImageSources(markdown) {
   }
 
   return [...sources];
+}
+
+function findWikilinkEmbedNames(markdown) {
+  const names = new Set();
+  for (const match of String(markdown || "").matchAll(/!\[\[([^[\]\n|#]+)(?:[#|][^[\]\n]*)?\]\]/g)) {
+    names.add(match[1].trim());
+  }
+  return [...names];
 }
 
 async function resolveAllowedRoots(allowedRoots) {

@@ -536,9 +536,10 @@ function hasClosingRun(text, start, runLength, end) {
   return false;
 }
 
-// Replaces the content of inline code spans with spaces, so inline rules
-// (links, images, URLs) do not match inside code while columns stay intact.
-function maskInlineCode(lineText) {
+// Replaces the content of inline code spans with spaces (or `fill`), so inline
+// rules (links, images, URLs) do not match inside code while columns stay
+// intact.
+function maskInlineCode(lineText, fill = " ") {
   let result = "";
   let index = 0;
   while (index < lineText.length) {
@@ -547,7 +548,7 @@ function maskInlineCode(lineText) {
       const runLength = countRun(lineText, index, "`");
       const closeAt = findClosingRun(lineText, index + runLength, runLength);
       if (closeAt >= 0) {
-        result += " ".repeat(closeAt + runLength - index);
+        result += fill.repeat(closeAt + runLength - index);
         index = closeAt + runLength;
         continue;
       }
@@ -630,6 +631,50 @@ function isBlank(text) {
   return /^\s*$/.test(text);
 }
 
+// The lint suppression comments in a document (see src/host/markdownLinter.js).
+// The formatter honors them too for rules that both lint and fix, so a line a
+// rule is silenced on is also left as written.
+function collectSuppressions(structure) {
+  const directive = /<!--\s*richdown-lint-(disable-next-line|disable|enable)\b([^>]*?)-->/g;
+  const disabledByLine = [];
+  const active = new Set();
+  let allDisabled = false;
+  const nextLine = new Map();
+
+  structure.lines.forEach((info, index) => {
+    if (info.kind !== "code" && info.kind !== "front-matter") {
+      for (const match of info.text.matchAll(directive)) {
+        const names = match[2].trim().split(/[\s,]+/).filter(Boolean);
+        if (match[1] === "disable-next-line") {
+          nextLine.set(index + 1, names.length > 0 ? new Set(names) : "all");
+        } else if (match[1] === "disable") {
+          if (names.length === 0) allDisabled = true;
+          names.forEach((name) => active.add(name));
+        } else if (names.length === 0) {
+          allDisabled = false;
+          active.clear();
+        } else {
+          names.forEach((name) => active.delete(name));
+        }
+      }
+    }
+    disabledByLine[index] = allDisabled ? "all" : new Set(active);
+  });
+
+  return {
+    isSuppressed(ruleName, line) {
+      const byRange = disabledByLine[line];
+      const byNextLine = nextLine.get(line);
+      return (
+        byRange === "all" ||
+        byRange?.has(ruleName) ||
+        byNextLine === "all" ||
+        Boolean(byNextLine?.has(ruleName))
+      );
+    },
+  };
+}
+
 // GitHub's heading anchor rules (github-slugger), matching slugifyHeading in
 // the webview's completions module: lowercase, drop everything but letters,
 // marks, numbers, connector punctuation, spaces and dashes, then turn each
@@ -643,6 +688,7 @@ function slugifyHeading(title) {
 }
 
 module.exports = {
+  collectSuppressions,
   displayWidth,
   isBlank,
   isTableDelimiter,

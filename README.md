@@ -29,6 +29,8 @@ Richdown Diff gives Markdown changes a rendered side-by-side review view while k
 - Open a Richdown Diff view for Markdown changes, including rendered headings, lists, tables, images, links, and highlighted code blocks.
 - Export local Markdown files to Richdown-styled HTML or PDF from the editor title button or the command palette.
 - Preview headings, emphasis, inline code, links, images, blockquotes, task checkboxes, thematic breaks, code blocks, tables, details blocks, Mermaid diagrams, and Gherkin scenarios while editing.
+- Render GitHub alerts (`> [!NOTE]`, `[!TIP]`, `[!IMPORTANT]`, `[!WARNING]`, `[!CAUTION]`) with GitHub's icons, colors, and titles, and Obsidian callouts (`> [!faq]- Title`) with custom titles, `+`/`-` folding, nesting, and Obsidian's types and aliases (unknown types look like `note`), in the editor, Richdown Diff, and HTML/PDF export. Click a callout to edit its Markdown; folding only changes the view.
+- Read and write Obsidian vaults: `[[note]]`, `[[note|alias]]`, `[[note#heading]]`, and `[[#heading]]` render as links that open the note by name (the nearest file wins when names repeat, `.md` can be left off), links to missing notes look faded, and `![[image.png]]` / `![[image.png|300]]` embed images. Typing `[[` completes workspace file names and `[[note#` the note's headings.
 - Render YAML front matter (`---` fenced headers) as a clean metadata card with keys, values, and tag chips; click the card to edit the YAML source.
 - Suggest completions while typing, matching the standard VS Code editor: VS Code's registered completion providers (including ones from other extensions, such as model names in agent files), plus code fence language ids.
 - Show a color swatch after inline code color values such as `#ff0066`, and mark added, changed, and deleted Git lines beside the line numbers.
@@ -96,6 +98,8 @@ Rules are turned on or off in a `.richdownrc.json` file. Richdown uses the neare
 
 The formatter never changes fenced code, front matter, HTML blocks, or block quotes, and leaves a construct alone when rewriting it would change how it renders.
 
+Japanese writing rules (`ja-*`) check prose only: code blocks, inline code, URLs, link destinations, HTML tags, and front matter are skipped. They are off in the formatter by default; a rule that both lints and formats has the same name in both sections, and a lint suppression comment for it also keeps the formatter off those lines.
+
 | Formatter rule | Default | What it does |
 | --- | --- | --- |
 | `heading-style` | on | Converts single-line setext headings (`===` / `---` underlines) to `#` headings. |
@@ -111,6 +115,11 @@ The formatter never changes fenced code, front matter, HTML blocks, or block quo
 | `trailing-whitespace` | on | Removes trailing whitespace, keeping two-space hard line breaks. |
 | `consecutive-blank-lines` | on | Collapses repeated blank lines and removes leading ones. |
 | `final-newline` | on | Ends the file with exactly one newline. |
+| `ja-no-zenkaku-alnum` | off | Converts full-width alphanumerics to half width (`ＡＢＣ１２３` → `ABC123`). |
+| `ja-space-between-half-and-full-width` | off (`"never"`) | Removes (`"never"`) or adds (`"always"`) the space between Japanese text and half-width alphanumerics. |
+| `ja-punctuation` | off (`"、。"`) | Converts punctuation to `"、。"` or `"，．"`; marks between digits (`３．５`) are kept. |
+| `ja-no-halfwidth-kana` | off | Converts half-width katakana to full width (`ｶﾀｶﾅ` → `カタカナ`). |
+| `ja-symbol-width` | off (`"fullwidth"`) | Writes `!` `?` after Japanese text and parentheses around Japanese text in full width (`！？（）`), or every `！？（）` in half width (`"halfwidth"`). |
 
 | Lint rule | Default | What it reports |
 | --- | --- | --- |
@@ -138,6 +147,13 @@ The formatter never changes fenced code, front matter, HTML blocks, or block quo
 | `final-newline` | warning | A missing final newline, or trailing blank lines. |
 | `no-bare-urls` | off | URLs not written as links or `<url>`. |
 | `line-length` | off (`"max": 120`) | Lines longer than `max` columns outside code and tables. |
+| `ja-no-zenkaku-alnum` | info | Full-width alphanumerics. |
+| `ja-space-between-half-and-full-width` | off (`"space": "never"`) | A space (or, with `"always"`, no space) between Japanese text and half-width alphanumerics. |
+| `ja-punctuation` | off (`"style": "、。"`) | Punctuation from the other pair (`，．` or `、。`). |
+| `ja-no-mixed-style` | off (`"style": "consistent"`) | Sentences in the minority style when です・ます and である are mixed, or every sentence not in `"desumasu"` / `"dearu"`. Only paragraph text is read; headings, list items, tables, block quotes, and text in brackets (`「」（）` and the like) are skipped. |
+| `ja-no-halfwidth-kana` | warning | Half-width katakana. |
+| `ja-no-zenkaku-space` | off | Full-width spaces (U+3000). |
+| `ja-symbol-width` | off (`"style": "fullwidth"`) | Half-width `!?()` in Japanese text, or full-width `！？（）` with `"halfwidth"`. |
 
 ## Development
 

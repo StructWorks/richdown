@@ -11,6 +11,7 @@
 // instance collapses those repeated O(n) full-document scans for a given
 // document version into a single pass. Each edit produces a new `Text`, so the
 // WeakMap holds at most the live document(s); older entries are GC'd.
+import { findCallouts } from "../../markdown/callouts.js";
 import {
   scanMarkdownTableRow,
   splitMarkdownTableCells,
@@ -21,6 +22,7 @@ const tableBlocksCache = new WeakMap();
 const mermaidBlocksCache = new WeakMap();
 const gherkinBlocksCache = new WeakMap();
 const frontmatterBlockCache = new WeakMap();
+const calloutBlocksCache = new WeakMap();
 
 function memoizeBlocks(cache, doc, compute) {
   let result = cache.get(doc);
@@ -49,6 +51,45 @@ export function findMermaidFenceBlocks(doc, options = {}) {
 
 export function findGherkinBlocks(doc) {
   return memoizeBlocks(gherkinBlocksCache, doc, computeGherkinBlocks);
+}
+
+// Top-level GitHub alerts and Obsidian callouts (see src/markdown/callouts.js).
+// Each block's `callout` counts lines from the block's first line, and
+// `lineStarts[index]` is where that line starts in the document.
+export function findCalloutBlocks(doc) {
+  return memoizeBlocks(calloutBlocksCache, doc, computeCalloutBlocks);
+}
+
+function computeCalloutBlocks(doc) {
+  const lines = [];
+  for (let lineNumber = 1; lineNumber <= doc.lines; lineNumber += 1) {
+    lines.push(doc.line(lineNumber).text);
+  }
+  return findCallouts(lines).map((callout) => {
+    const first = doc.line(callout.start + 1);
+    const last = doc.line(callout.end + 1);
+    const lineStarts = [];
+    for (let lineNumber = first.number; lineNumber <= last.number; lineNumber += 1) {
+      lineStarts.push(doc.line(lineNumber).from);
+    }
+    const signature = lines.slice(callout.start, callout.end + 1).join("\n");
+    return {
+      from: first.from,
+      to: last.to,
+      sourceTo: last.to,
+      lineStarts,
+      signature,
+      // Fold state follows the source, so an edit that changes the callout
+      // falls back to the fold sign it is written with.
+      key: signature,
+      callout: {
+        marker: callout.marker,
+        start: 0,
+        startOffset: 0,
+        body: callout.body.map((line) => ({ ...line, index: line.index - callout.start })),
+      },
+    };
+  });
 }
 
 export function findFrontmatterBlock(doc) {
