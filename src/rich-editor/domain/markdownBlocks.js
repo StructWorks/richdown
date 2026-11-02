@@ -274,6 +274,7 @@ export function createDetailsBlock(doc, openingLine, closingLine) {
   }
 
   const parsed = parseDetailsContent(lines);
+  assignDetailsBodySources(parsed.bodyLines, lines);
   const signature = lines.map((line) => line.text).join("\n");
   return {
     from: openingLine.from,
@@ -286,6 +287,31 @@ export function createDetailsBlock(doc, openingLine, closingLine) {
     bodyLines: parsed.bodyLines,
     signature,
   };
+}
+
+// parseDetailsContent rebuilds the body from the joined source, so its lines
+// no longer know where they came from. Point each one that still reads as a
+// whole document line back at that line's text, so a click on it can open the
+// source there. Lines split out of <div>/<br> markup keep sourceFrom null.
+function assignDetailsBodySources(bodyLines, docLines) {
+  const summaryEnd = docLines.findIndex((line) => /<\/summary\s*>/i.test(line.text));
+  let next = summaryEnd >= 0 ? summaryEnd + 1 : 1;
+  for (const bodyLine of bodyLines) {
+    const text = bodyLine.text.trim();
+    if (!text) {
+      continue;
+    }
+    for (let index = next; index < docLines.length; index += 1) {
+      const docLine = docLines[index];
+      if (stripHtmlTags(docLine.text).trim() !== text) {
+        continue;
+      }
+      const column = docLine.text.indexOf(bodyLine.text);
+      bodyLine.sourceFrom = docLine.from + Math.max(0, column);
+      next = index + 1;
+      break;
+    }
+  }
 }
 
 export function parseDetailsContent(lines) {

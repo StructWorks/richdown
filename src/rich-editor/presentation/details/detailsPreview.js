@@ -6,6 +6,7 @@ import { WidgetType } from "@codemirror/view";
 import { splitMarkdownTableCells } from "../../../markdown/tableCells.js";
 import { getDetailsBodyLineText } from "../../domain/markdownBlocks.js";
 import { highlightCodeElement } from "../codemirror/language.js";
+import { sourcePositionAtClick } from "../codemirror/renderedTextPosition.js";
 
 export function createDetailsPreviewWidgetClass({
   appendInlineMarkdown,
@@ -88,7 +89,7 @@ export function createDetailsPreviewWidgetClass({
               ? event.target.closest("[data-source-from]")
               : null;
           const sourceFrom = line?.dataset.sourceFrom
-            ? Number(line.dataset.sourceFrom)
+            ? sourcePositionAtClick(view.state, line, Number(line.dataset.sourceFrom), event)
             : this.detailsBlock.from;
           this.focusSource(view, sourceFrom);
         });

@@ -46818,6 +46818,7 @@
       lines.push(doc2.line(lineNumber));
     }
     const parsed = parseDetailsContent(lines);
+    assignDetailsBodySources(parsed.bodyLines, lines);
     const signature = lines.map((line) => line.text).join("\n");
     return {
       from: openingLine.from,
@@ -46830,6 +46831,26 @@
       bodyLines: parsed.bodyLines,
       signature
     };
+  }
+  function assignDetailsBodySources(bodyLines, docLines) {
+    const summaryEnd = docLines.findIndex((line) => /<\/summary\s*>/i.test(line.text));
+    let next2 = summaryEnd >= 0 ? summaryEnd + 1 : 1;
+    for (const bodyLine of bodyLines) {
+      const text2 = bodyLine.text.trim();
+      if (!text2) {
+        continue;
+      }
+      for (let index = next2; index < docLines.length; index += 1) {
+        const docLine = docLines[index];
+        if (stripHtmlTags(docLine.text).trim() !== text2) {
+          continue;
+        }
+        const column = docLine.text.indexOf(bodyLine.text);
+        bodyLine.sourceFrom = docLine.from + Math.max(0, column);
+        next2 = index + 1;
+        break;
+      }
+    }
   }
   function parseDetailsContent(lines) {
     const source = lines.map((line) => line.text).join("\n");
@@ -47548,6 +47569,66 @@
     return String(title).trim().toLowerCase().replace(/[^\p{L}\p{M}\p{N}\p{Pc}\s-]/gu, "").replace(/\s/g, "-");
   }
 
+  // src/rich-editor/presentation/codemirror/blockSelection.js
+  var selectedClass = "cm-richdown-block-selected";
+  var blockSelectionHighlight = ViewPlugin.fromClass(
+    class {
+      constructor(view2) {
+        this.marked = /* @__PURE__ */ new Set();
+        this.schedule(view2);
+      }
+      update(update) {
+        if (update.selectionSet || update.docChanged || update.viewportChanged) {
+          this.schedule(update.view);
+        }
+      }
+      // The widget DOM is only up to date once the view has redrawn.
+      schedule(view2) {
+        view2.requestMeasure({
+          key: this,
+          read: () => findSelectedWidgets(view2),
+          write: (selected) => this.apply(selected)
+        });
+      }
+      apply(selected) {
+        for (const element of this.marked) {
+          if (!selected.has(element)) {
+            element.classList.remove(selectedClass);
+          }
+        }
+        for (const element of selected) {
+          element.classList.add(selectedClass);
+        }
+        this.marked = selected;
+      }
+      destroy() {
+        this.apply(/* @__PURE__ */ new Set());
+      }
+    }
+  );
+  function findSelectedWidgets(view2) {
+    const selected = /* @__PURE__ */ new Set();
+    const ranges = view2.state.selection.ranges.filter((range) => !range.empty);
+    if (!ranges.length) {
+      return selected;
+    }
+    for (const element of view2.contentDOM.children) {
+      if (element.classList.contains("cm-line") || element.contentEditable !== "false") {
+        continue;
+      }
+      let block2;
+      try {
+        block2 = view2.lineBlockAt(view2.posAtDOM(element));
+      } catch {
+        continue;
+      }
+      if (ranges.some((range) => range.from < block2.to && range.to > block2.from)) {
+        selected.add(element);
+      }
+    }
+    return selected;
+  }
+
   // src/rich-editor/presentation/codemirror/gitDiffGutter.js
   var gitChangeTypes = /* @__PURE__ */ new Set(["added", "modified", "deleted"]);
   var gitChangeOrder = ["deleted", "modified", "added"];
@@ -47701,7 +47782,7 @@
     if (node.name !== "HeaderMark" || !/^ATXHeading/.test(node.parent?.name ?? "")) {
       return null;
     }
-    return { from: from3, to: line.from + match2[0].length };
+    return { from: from3, markTo: from3 + match2[2].length, to: line.from + match2[0].length };
   }
 
   // src/rich-editor/presentation/codemirror/lintOverviewRuler.js
@@ -48029,6 +48110,120 @@
     return link.heading ? `${link.target}#${link.heading}` : link.target;
   }
 
+  // src/rich-editor/presentation/codemirror/pointerSelectionFocus.js
+  var multiClickMs = 500;
+  var setPointerFocusSelection = StateEffect.define();
+  var pointerFocusSelectionField = StateField.define({
+    create: () => null,
+    update(value, transaction) {
+      for (const effect of transaction.effects) {
+        if (effect.is(setPointerFocusSelection)) {
+          value = effect.value;
+        }
+      }
+      return value && transaction.docChanged ? value.map(transaction.changes) : value;
+    }
+  });
+  function getFocusSelection(state) {
+    return state.field(pointerFocusSelectionField, false) ?? state.selection;
+  }
+  function focusSelectionChanged(update) {
+    return update.selectionSet || update.transactions.some(
+      (transaction) => transaction.effects.some((effect) => effect.is(setPointerFocusSelection))
+    );
+  }
+  function transactionChangesFocus(transaction) {
+    return Boolean(transaction.selection) || transaction.effects.some((effect) => effect.is(setPointerFocusSelection));
+  }
+  var focusActiveLine = ViewPlugin.fromClass(
+    class {
+      constructor(view2) {
+        this.decorations = buildActiveLineDecorations(view2);
+      }
+      update(update) {
+        if (update.docChanged || update.viewportChanged || focusSelectionChanged(update)) {
+          this.decorations = buildActiveLineDecorations(update.view);
+        }
+      }
+    },
+    { decorations: (plugin) => plugin.decorations }
+  );
+  var activeLineDecoration = Decoration.line({ class: "cm-activeLine" });
+  function buildActiveLineDecorations(view2) {
+    let lastLineStart = -1;
+    const decorations2 = [];
+    for (const range of getFocusSelection(view2.state).ranges) {
+      const line = view2.lineBlockAt(range.head);
+      if (line.from > lastLineStart) {
+        decorations2.push(activeLineDecoration.range(line.from));
+        lastLineStart = line.from;
+      }
+    }
+    return Decoration.set(decorations2, true);
+  }
+  var pointerTracking = ViewPlugin.fromClass(
+    class {
+      constructor(view2) {
+        this.view = view2;
+        this.releaseTimer = null;
+        this.lastPress = null;
+        this.onMouseUp = () => {
+          window.clearTimeout(this.releaseTimer);
+          this.releaseTimer = window.setTimeout(() => this.release(), 0);
+        };
+      }
+      press(event) {
+        const view2 = this.view;
+        window.clearTimeout(this.releaseTimer);
+        this.releaseTimer = null;
+        const { lastPress } = this;
+        const followUp = event.detail > 1 && lastPress && lastPress.doc === view2.state.doc && event.timeStamp - lastPress.time < multiClickMs;
+        const base4 = followUp ? lastPress.base : view2.state.field(pointerFocusSelectionField, false) ?? view2.state.selection;
+        if (!followUp) {
+          this.lastPress = { base: base4, doc: view2.state.doc, time: event.timeStamp };
+        }
+        if (view2.state.field(pointerFocusSelectionField, false) !== base4) {
+          view2.dispatch({ effects: setPointerFocusSelection.of(base4) });
+        }
+        view2.dom.ownerDocument.addEventListener("mouseup", this.onMouseUp, {
+          once: true
+        });
+      }
+      release() {
+        window.clearTimeout(this.releaseTimer);
+        this.releaseTimer = null;
+        if (this.view.state.field(pointerFocusSelectionField, false)) {
+          this.view.dispatch({ effects: setPointerFocusSelection.of(null) });
+        }
+      }
+      destroy() {
+        window.clearTimeout(this.releaseTimer);
+        this.view.dom.ownerDocument.removeEventListener("mouseup", this.onMouseUp);
+      }
+    },
+    {
+      eventHandlers: {
+        mousedown(event) {
+          if (event.button === 0 && !event.defaultPrevented && !this.view.state.readOnly && (event.target === this.view.contentDOM || event.target?.closest?.(".cm-line"))) {
+            this.press(event);
+          } else {
+            this.release();
+          }
+          return false;
+        },
+        keydown() {
+          this.release();
+          return false;
+        }
+      }
+    }
+  );
+  var pointerSelectionFocus = [
+    pointerFocusSelectionField,
+    focusActiveLine,
+    pointerTracking
+  ];
+
   // src/rich-editor/presentation/codemirror/links.js
   function isMarkdownMarker(nodeName) {
     return [
@@ -48124,8 +48319,8 @@
     return links;
   }
   function isLineFocused(state, line) {
-    const selection = state.selection.main;
-    return selection.from >= line.from && selection.to <= line.to;
+    const { head } = getFocusSelection(state).main;
+    return head >= line.from && head <= line.to;
   }
   function isClickInsideTextRange(view2, from3, to, event) {
     const start2 = view2.coordsAtPos(from3);
@@ -49832,6 +50027,90 @@ ${rowText}` },
     return true;
   }
 
+  // src/rich-editor/presentation/codemirror/renderedTextPosition.js
+  var generatedTextSelector = ".cm-details-list-marker";
+  var unmappedBlockSelector = ".cm-details-code, .cm-details-table";
+  function sourcePositionAtClick(state, element, sourceFrom, event) {
+    if (element.matches(unmappedBlockSelector)) {
+      return sourceFrom;
+    }
+    const prefix2 = renderedPrefixAtPoint(element, event.clientX, event.clientY);
+    return prefix2 === null ? sourceFrom : sourcePositionForRenderedPrefix(state, sourceFrom, prefix2);
+  }
+  function renderedPrefixAtPoint(element, x, y) {
+    const document2 = element.ownerDocument;
+    let node = null;
+    let offset = 0;
+    if (typeof document2.caretPositionFromPoint === "function") {
+      const position = document2.caretPositionFromPoint(x, y);
+      node = position?.offsetNode ?? null;
+      offset = position?.offset ?? 0;
+    } else if (typeof document2.caretRangeFromPoint === "function") {
+      const range = document2.caretRangeFromPoint(x, y);
+      node = range?.startContainer ?? null;
+      offset = range?.startOffset ?? 0;
+    }
+    if (!node || !element.contains(node)) {
+      return null;
+    }
+    const caret = document2.createRange();
+    caret.setStart(node, offset);
+    const walker = document2.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+    let prefix2 = "";
+    for (let text2 = walker.nextNode(); text2; text2 = walker.nextNode()) {
+      if (text2 === node) {
+        if (!text2.parentElement?.closest(generatedTextSelector)) {
+          prefix2 += text2.data.slice(0, offset);
+        }
+        break;
+      }
+      if (caret.comparePoint(text2, text2.length) > 0) {
+        break;
+      }
+      if (!text2.parentElement?.closest(generatedTextSelector)) {
+        prefix2 += text2.data;
+      }
+    }
+    return prefix2;
+  }
+  function sourcePositionForRenderedPrefix(state, from3, renderedPrefix) {
+    const line = state.doc.lineAt(from3);
+    const hidden = collectHiddenRanges(state, from3, line);
+    let position = from3;
+    let matched = 0;
+    while (matched < renderedPrefix.length && position < line.to) {
+      const range = hidden.find((candidate) => candidate.from <= position && position < candidate.to);
+      if (range) {
+        position = range.to;
+        continue;
+      }
+      if (state.doc.sliceString(position, position + 1) === renderedPrefix[matched]) {
+        matched += 1;
+      }
+      position += 1;
+    }
+    return position;
+  }
+  function collectHiddenRanges(state, from3, line) {
+    const ranges = [];
+    syntaxTree(state).iterate({
+      from: from3,
+      to: line.to,
+      enter(node) {
+        if (isMarkdownMarker(node.name) || node.name === "ListMark" || node.name === "LinkTitle" || node.name === "URL" && /^(Link|Image)$/.test(node.node.parent?.name ?? "")) {
+          ranges.push({ from: node.from, to: node.to });
+        }
+      }
+    });
+    for (const link of findWikilinks(line.text)) {
+      ranges.push(
+        { from: line.from + link.from, to: line.from + link.labelFrom },
+        { from: line.from + link.labelTo, to: line.from + link.to }
+      );
+    }
+    return ranges;
+  }
+
   // src/rich-editor/presentation/details/detailsPreview.js
   function createDetailsPreviewWidgetClass({
     appendInlineMarkdown: appendInlineMarkdown2,
@@ -49896,7 +50175,7 @@ ${rowText}` },
             event.preventDefault();
             event.stopPropagation();
             const line = event.target instanceof Element ? event.target.closest("[data-source-from]") : null;
-            const sourceFrom = line?.dataset.sourceFrom ? Number(line.dataset.sourceFrom) : this.detailsBlock.from;
+            const sourceFrom = line?.dataset.sourceFrom ? sourcePositionAtClick(view2.state, line, Number(line.dataset.sourceFrom), event) : this.detailsBlock.from;
             this.focusSource(view2, sourceFrom);
           });
           wrapper.appendChild(body2);
@@ -50150,7 +50429,10 @@ ${rowText}` },
           foldStates,
           onImageReady: () => requestEditorMeasure2(view2),
           onToggle: () => requestEditorMeasure2(view2),
-          onFocusSource: (position) => this.focusSource(view2, position)
+          onFocusSource: (position, click) => this.focusSource(
+            view2,
+            click ? sourcePositionAtClick(view2.state, click.element, position, click.event) : position
+          )
         });
         element.addEventListener("mousedown", (event) => {
           event.preventDefault();
@@ -50245,9 +50527,11 @@ ${rowText}` },
       event.preventDefault();
       event.stopPropagation();
       const line = event.target instanceof Element ? event.target.closest("[data-source-from]") : null;
-      options.onFocusSource?.(
-        line?.dataset.sourceFrom ? Number(line.dataset.sourceFrom) : lineFrom(callout.start) + (callout.startOffset || 0)
-      );
+      if (line?.dataset.sourceFrom) {
+        options.onFocusSource?.(Number(line.dataset.sourceFrom), { element: line, event });
+      } else {
+        options.onFocusSource?.(lineFrom(callout.start) + (callout.startOffset || 0));
+      }
     });
     return element;
   }
@@ -54813,14 +55097,14 @@ ${rowText}` },
     return ref && ref !== "[*]" ? ref : null;
   }
   function classToolkit(api) {
-    const selectedClass = () => targetKey(api.getSelection(), "node:");
+    const selectedClass2 = () => targetKey(api.getSelection(), "node:");
     const relationLine = () => targetKey(api.getSelection(), "rel:") !== null ? api.selectionLine() : null;
     const addButton = api.createButton("+ Class", "Add a class", () => {
       const result = addClass(api.getCode());
       api.apply(result.code, { select: { keys: [`node:${result.id}`] }, rename: true });
     });
     const addMember = api.createButton("+ Member", "Add a member to the selected class", () => {
-      const id3 = selectedClass();
+      const id3 = selectedClass2();
       if (!id3) return;
       const result = addClassMember(api.getCode(), id3, "+field");
       api.apply(result.code, { select: { keys: [`member:${id3}:+field`, `node:${id3}`] }, rename: true });
@@ -54837,7 +55121,7 @@ ${rowText}` },
       element: group(addButton, addMember, relation),
       connectHint: "Drag from one class to another to add a relation.",
       sync() {
-        addMember.disabled = !selectedClass();
+        addMember.disabled = !selectedClass2();
         const line = relationLine();
         const current = line === null ? null : getClassRelation(api.getCode(), line);
         relation.disabled = !current;
@@ -56186,13 +56470,13 @@ ${rowText}` },
     });
     const diagramTools = document.createElement("div");
     diagramTools.className = "cm-mermaid-surface-group is-diagram";
-    const connectButton = createButton(
+    const connectButton = createButton2(
       "Connect",
       "Connect: drag from one element to another",
       () => toggleConnectMode()
     );
-    const deleteButton = createButton("Delete", "Delete the selected element", deleteSelected);
-    const tableButton = createButton("Table", "Show or hide the data table", () => {
+    const deleteButton = createButton2("Delete", "Delete the selected element", deleteSelected);
+    const tableButton = createButton2("Table", "Show or hide the data table", () => {
       state.tableOpen = !state.tableOpen;
       syncTable();
       syncToolbar();
@@ -56212,26 +56496,26 @@ ${rowText}` },
       },
       entryOf: (target) => findMermaidSourceEntry(buildMermaidSourceIndex(state.code, state.type), target),
       apply: applyEdit,
-      createButton,
+      createButton: createButton2,
       createSelect
     };
     const viewTools = document.createElement("div");
     viewTools.className = "cm-mermaid-surface-group is-view";
     viewTools.append(
-      createButton("-", "Zoom out", () => zoom(0.82)),
-      createButton("+", "Zoom in", () => zoom(1.22)),
-      createButton("Fit", "Fit diagram", () => {
+      createButton2("-", "Zoom out", () => zoom(0.82)),
+      createButton2("+", "Zoom in", () => zoom(1.22)),
+      createButton2("Fit", "Fit diagram", () => {
         state.userZoomed = false;
         controller.fit();
       }),
       ...actions2.map((action) => {
-        const button = createButton(action.label, action.title, action.run);
+        const button = createButton2(action.label, action.title, action.run);
         if (action.className) button.classList.add(action.className);
         return button;
       })
     );
     toolbar.append(diagramTools, viewTools);
-    function createButton(label, title, run) {
+    function createButton2(label, title, run) {
       const button = document.createElement("button");
       button.type = "button";
       button.className = "cm-mermaid-surface-button";
@@ -56416,7 +56700,7 @@ ${rowText}` },
       title.textContent = "Start from a template";
       templates.appendChild(title);
       for (const template of MERMAID_TEMPLATES) {
-        const button = createButton(
+        const button = createButton2(
           template.label,
           `Insert a ${template.label} diagram`,
           () => apply(template.code)
@@ -57706,7 +57990,7 @@ ${rowText}` },
           );
         }
         update(update) {
-          if (update.docChanged || update.viewportChanged || update.selectionSet) {
+          if (update.docChanged || update.viewportChanged || focusSelectionChanged(update)) {
             this.decorations = safeBuildDecorations(
               "block-line-decorations",
               () => buildBlockLineDecorations(update.view)
@@ -57727,7 +58011,7 @@ ${rowText}` },
           );
         }
         update(update) {
-          if (update.docChanged || update.viewportChanged || update.selectionSet || update.transactions.some(
+          if (update.docChanged || update.viewportChanged || focusSelectionChanged(update) || update.transactions.some(
             (transaction) => transaction.effects.some((effect) => effect.is(refreshPreviewDecorations))
           )) {
             this.decorations = safeBuildDecorations(
@@ -57750,7 +58034,7 @@ ${rowText}` },
           );
         }
         update(update) {
-          if (update.docChanged || update.viewportChanged || update.selectionSet) {
+          if (update.docChanged || update.viewportChanged || focusSelectionChanged(update)) {
             this.decorations = safeBuildDecorations(
               "task-checkboxes",
               () => buildTaskCheckboxes(update.view)
@@ -58052,7 +58336,7 @@ ${rowText}` },
       if (state.readOnly) {
         return false;
       }
-      return state.selection.ranges.some(
+      return getFocusSelection(state).ranges.some(
         (range) => range.from <= block2.to && range.to >= block2.from
       );
     }
@@ -58159,6 +58443,17 @@ ${rowText}` },
         `--cm-code-indent-guides: repeating-linear-gradient(to right, var(--cm-code-indent-guide) 0 1px, transparent 1px ${normalizedIndentUnit}ch)`
       ].join("; ");
     }
+    const markdownMarker = Decoration.mark({ class: "cm-markdown-marker" });
+    const codeFenceMarker = Decoration.mark({
+      class: "cm-markdown-marker cm-code-fence-marker"
+    });
+    function isCodeFenceMarker(nodeRef) {
+      return (nodeRef.name === "CodeMark" || nodeRef.name === "CodeInfo") && nodeRef.node.parent?.name === "FencedCode";
+    }
+    function isCalloutMarkerLink(doc2, node) {
+      const line = doc2.lineAt(node.from);
+      return /^\[![\w-]+\]$/.test(doc2.sliceString(node.from, node.to)) && /^(?:\s*>)+\s*$/.test(line.text.slice(0, node.from - line.from));
+    }
     function hasAncestor(nodeRef, name2) {
       let node = nodeRef.node.parent;
       while (node) {
@@ -58183,11 +58478,11 @@ ${rowText}` },
             continue;
           }
           const lineFocused = isLineFocused2(view2.state, line);
-          const heading2 = line.text.match(/^(\s{0,3})(#{1,6})(\s+)/);
-          if (heading2) {
+          const headingPrefix = findHiddenHeadingPrefix(view2.state, line);
+          if (headingPrefix && headingPrefix.markTo < headingPrefix.to) {
             ranges.push({
-              from: line.from + heading2[1].length + heading2[2].length,
-              to: line.from + heading2[1].length + heading2[2].length + heading2[3].length,
+              from: headingPrefix.markTo,
+              to: headingPrefix.to,
               decoration: Decoration.mark({ class: "cm-markdown-marker" })
             });
           }
@@ -58232,11 +58527,19 @@ ${rowText}` },
               return;
             }
             const nodeName = node.name;
+            if (nodeName === "Link" && isCalloutMarkerLink(view2.state.doc, node)) {
+              ranges.push({
+                from: node.from,
+                to: node.to,
+                decoration: Decoration.mark({ class: "cm-callout-marker" })
+              });
+              return false;
+            }
             if (isMarkdownMarker(nodeName)) {
               ranges.push({
                 from: node.from,
                 to: node.to,
-                decoration: Decoration.mark({ class: "cm-markdown-marker" })
+                decoration: isCodeFenceMarker(node) ? codeFenceMarker : markdownMarker
               });
             }
             if (nodeName === "URL") {
@@ -58549,7 +58852,7 @@ ${rowText}` },
         return safeBuildDecorations("callout-preview", () => buildCalloutDecorations(state));
       },
       update(value, transaction) {
-        if (!transaction.docChanged && !transaction.selection && !transaction.effects.some(
+        if (!transaction.docChanged && !transactionChangesFocus(transaction) && !transaction.effects.some(
           (effect) => effect.is(toggleDetailsPreview) || effect.is(setActiveDetailsEdit)
         )) {
           return value;
@@ -58943,8 +59246,8 @@ ${rowText}` },
     function getPreviewedCalloutBlocks(state) {
       const detailsRanges = getPreviewedDetailsRanges(state);
       return findCalloutBlocks(state.doc).filter(
-        (block2) => !rangeIntersectsRanges(block2.from, block2.to, detailsRanges) && (state.readOnly || !state.selection.ranges.some(
-          (range) => range.from <= block2.to && range.to >= block2.from
+        (block2) => !rangeIntersectsRanges(block2.from, block2.to, detailsRanges) && (state.readOnly || !getFocusSelection(state).ranges.some(
+          (range) => range.head >= block2.from && range.head <= block2.to
         ))
       );
     }
@@ -59239,9 +59542,97 @@ ${rowText}` },
       if (state.readOnly) {
         return false;
       }
-      return state.selection.ranges.some(
-        (range) => range.from <= line.to && range.to >= line.from
+      return getFocusSelection(state).ranges.some(
+        (range) => range.head >= line.from && range.head <= line.to
       );
+    }
+    const blockPreviewEntryKeymap = [
+      { key: "ArrowDown", run: (view2) => enterBlockPreview(view2, true) },
+      { key: "ArrowUp", run: (view2) => enterBlockPreview(view2, false) }
+    ];
+    function enterBlockPreview(view2, forward) {
+      const { state } = view2;
+      const range = state.selection.main;
+      if (state.readOnly || state.selection.ranges.length > 1 || !range.empty) {
+        return false;
+      }
+      const line = state.doc.lineAt(range.head);
+      const neighborNumber = line.number + (forward ? 1 : -1);
+      if (neighborNumber < 1 || neighborNumber > state.doc.lines) {
+        return false;
+      }
+      const entry = findPreviewedBlockEntry(state, state.doc.line(neighborNumber), forward);
+      if (!entry || !isOnEdgeVisualLine(view2, range, line, forward)) {
+        return false;
+      }
+      const target = state.doc.line(entry.lineNumber);
+      view2.dispatch({
+        effects: entry.effects,
+        selection: { anchor: Math.min(target.from + (range.head - line.from), target.to) },
+        scrollIntoView: true
+      });
+      return true;
+    }
+    function findPreviewedBlockEntry(state, neighbor, forward) {
+      const touches = (block2) => forward ? block2.from === neighbor.from : state.doc.lineAt(block2.sourceTo).number === neighbor.number;
+      const contentEntry = (block2, effects) => {
+        const first = state.doc.lineAt(block2.from).number;
+        const last2 = state.doc.lineAt(block2.sourceTo).number;
+        const lineNumber = forward ? Math.min(first + 1, last2) : Math.max(last2 - 1, first);
+        return { lineNumber, effects };
+      };
+      const sourceEntry = (block2, effects = []) => ({
+        lineNumber: state.doc.lineAt(forward ? block2.from : block2.sourceTo).number,
+        effects
+      });
+      const callout = getPreviewedCalloutBlocks(state).find(touches);
+      if (callout) {
+        return sourceEntry(callout);
+      }
+      const detailsEdit = getActiveDetailsEdit(state);
+      const details = findDetailsBlocks(state.doc).find(
+        (block2) => touches(block2) && detailsEdit?.from !== block2.from
+      );
+      if (details) {
+        return sourceEntry(
+          details,
+          setActiveDetailsEdit.of({ from: details.from, to: details.sourceTo })
+        );
+      }
+      const frontmatter = findFrontmatterBlock(state.doc);
+      if (frontmatter && touches(frontmatter) && !state.field(frontmatterDecorationField).activeEdit) {
+        return contentEntry(
+          frontmatter,
+          setActiveFrontmatterEdit.of({ from: frontmatter.from, to: frontmatter.sourceTo })
+        );
+      }
+      const previewedRanges = getPreviewedBlockRanges(state);
+      const outsidePreviews = (block2) => !rangeIntersectsRanges(block2.from, block2.sourceTo, previewedRanges);
+      if (getSettings().mermaidPreview) {
+        const activeEdit = state.field(mermaidDecorationField).activeEdit;
+        const mermaid = findMermaidBlocks(state.doc).find(
+          (block2) => touches(block2) && outsidePreviews(block2) && activeEdit?.from !== block2.from
+        );
+        if (mermaid) {
+          return contentEntry(
+            mermaid,
+            setActiveMermaidEdit.of({ from: mermaid.from, to: mermaid.sourceTo })
+          );
+        }
+      }
+      if (getSettings().gherkinPreview) {
+        const activeEdit = state.field(gherkinDecorationField).activeEdit;
+        const gherkin = findGherkinBlocks(state.doc).find(
+          (block2) => touches(block2) && outsidePreviews(block2) && activeEdit?.from !== block2.from
+        );
+        if (gherkin) {
+          return contentEntry(
+            gherkin,
+            setActiveGherkinEdit.of({ from: gherkin.from, to: gherkin.sourceTo })
+          );
+        }
+      }
+      return null;
     }
     function refreshInline(view2) {
       if (view2) {
@@ -59275,6 +59666,7 @@ ${rowText}` },
         inlineDecorations,
         taskCheckboxes
       ],
+      blockPreviewEntryKeymap,
       refresh,
       refreshInline,
       openMermaidEditor,
@@ -61021,9 +61413,10 @@ ${rowText}` },
   ];
 
   // src/rich-editor/presentation/search/searchExtensions.js
+  var maxCountedMatches = 999;
   function createSearchExtensions() {
     return [
-      search({ top: true }),
+      search({ top: true, createPanel: (view2) => new RichSearchPanel(view2) }),
       createRichSearchHighlightExtension(),
       highlightSelectionMatches({
         highlightWordAroundCursor: true,
@@ -61074,6 +61467,202 @@ ${rowText}` },
       }
     }
     return builder.finish();
+  }
+  var RichSearchPanel = class {
+    constructor(view2) {
+      this.view = view2;
+      this.query = getSearchQuery(view2.state);
+      const readOnly2 = view2.state.readOnly;
+      this.searchField = createField("search", "Find", this.query.search);
+      this.searchField.setAttribute("main-field", "true");
+      this.replaceField = createField("replace", "Replace", this.query.replace);
+      this.caseToggle = createToggle("case", "Aa", "Match Case", this.query.caseSensitive);
+      this.wordToggle = createToggle("word", "ab", "Match Whole Word", this.query.wholeWord);
+      this.regexpToggle = createToggle("re", ".*", "Use Regular Expression", this.query.regexp);
+      this.count = document.createElement("span");
+      this.count.className = "cm-richdown-search-count";
+      this.count.setAttribute("aria-live", "polite");
+      this.replaceToggle = createButton(
+        "toggle-replace",
+        "\u203A",
+        "Toggle Replace",
+        () => this.setReplaceOpen(!this.replaceOpen)
+      );
+      const findRow = createRow("cm-richdown-search-find-row", [
+        wrapField(this.searchField, [this.caseToggle, this.wordToggle, this.regexpToggle]),
+        this.count,
+        createButton("prev", "\u2191", "Previous Match (Shift+Enter)", () => findPrevious(view2)),
+        createButton("next", "\u2193", "Next Match (Enter)", () => findNext(view2)),
+        createButton("close", "\xD7", "Close (Escape)", () => closeSearchPanel(view2))
+      ]);
+      this.replaceRow = createRow("cm-richdown-search-replace-row", [
+        wrapField(this.replaceField, []),
+        createButton("replace", "Replace", "Replace (Enter)", () => replaceNext(view2)),
+        createButton("replaceAll", "All", "Replace All", () => replaceAll(view2))
+      ]);
+      this.dom = document.createElement("div");
+      this.dom.className = "cm-search cm-richdown-search";
+      this.dom.append(
+        ...readOnly2 ? [] : [this.replaceToggle],
+        createRow("cm-richdown-search-rows", readOnly2 ? [findRow] : [findRow, this.replaceRow])
+      );
+      this.dom.addEventListener("keydown", (event) => this.keydown(event));
+      for (const field2 of [this.searchField, this.replaceField]) {
+        field2.addEventListener("input", () => this.commit());
+      }
+      for (const toggle of [this.caseToggle, this.wordToggle, this.regexpToggle]) {
+        toggle.addEventListener("click", () => {
+          toggle.setAttribute("aria-pressed", String(toggle.getAttribute("aria-pressed") !== "true"));
+          this.commit();
+        });
+      }
+      this.setReplaceOpen(Boolean(this.query.replace));
+      this.updateCount();
+    }
+    get top() {
+      return true;
+    }
+    mount() {
+      this.searchField.select();
+    }
+    setReplaceOpen(open) {
+      this.replaceOpen = open;
+      this.dom.classList.toggle("is-replace-open", open);
+      this.replaceToggle.setAttribute("aria-expanded", String(open));
+    }
+    commit() {
+      const query = new SearchQuery({
+        search: this.searchField.value,
+        replace: this.replaceField.value,
+        caseSensitive: isPressed(this.caseToggle),
+        wholeWord: isPressed(this.wordToggle),
+        regexp: isPressed(this.regexpToggle)
+      });
+      if (!query.eq(this.query)) {
+        this.query = query;
+        this.view.dispatch({ effects: setSearchQuery.of(query) });
+      }
+    }
+    keydown(event) {
+      if (runScopeHandlers(this.view, event, "search-panel")) {
+        event.preventDefault();
+        return;
+      }
+      if (event.key !== "Enter" || event.isComposing) {
+        return;
+      }
+      if (event.target === this.searchField) {
+        event.preventDefault();
+        if (event.altKey) {
+          selectMatches(this.view);
+          this.view.focus();
+        } else {
+          (event.shiftKey ? findPrevious : findNext)(this.view);
+        }
+      } else if (event.target === this.replaceField) {
+        event.preventDefault();
+        (event.metaKey || event.ctrlKey ? replaceAll : replaceNext)(this.view);
+      }
+    }
+    update(update) {
+      for (const transaction of update.transactions) {
+        for (const effect of transaction.effects) {
+          if (effect.is(setSearchQuery) && !effect.value.eq(this.query)) {
+            this.setQuery(effect.value);
+          }
+        }
+      }
+      if (update.docChanged || update.selectionSet || update.transactions.some(
+        (transaction) => transaction.effects.some((effect) => effect.is(setSearchQuery))
+      )) {
+        this.updateCount();
+      }
+    }
+    setQuery(query) {
+      this.query = query;
+      this.searchField.value = query.search;
+      this.replaceField.value = query.replace;
+      this.caseToggle.setAttribute("aria-pressed", String(query.caseSensitive));
+      this.wordToggle.setAttribute("aria-pressed", String(query.wholeWord));
+      this.regexpToggle.setAttribute("aria-pressed", String(query.regexp));
+    }
+    // "3 of 12": which match the selection is on, VS Code style.
+    updateCount() {
+      const { query, view: view2 } = this;
+      this.dom.classList.toggle("has-no-results", false);
+      if (!query.search) {
+        this.count.textContent = "";
+        return;
+      }
+      if (!query.valid) {
+        this.count.textContent = "Invalid";
+        this.dom.classList.toggle("has-no-results", true);
+        return;
+      }
+      const selection = view2.state.selection.main;
+      let total = 0;
+      let current = 0;
+      const cursor = query.getCursor(view2.state);
+      for (let result = cursor.next(); !result.done; result = cursor.next()) {
+        total += 1;
+        if (result.value.from === selection.from && result.value.to === selection.to) {
+          current = total;
+        }
+        if (total > maxCountedMatches) {
+          break;
+        }
+      }
+      const totalText = total > maxCountedMatches ? `${maxCountedMatches}+` : String(total);
+      this.count.textContent = total === 0 ? "No results" : `${current || "?"} of ${totalText}`;
+      this.dom.classList.toggle("has-no-results", total === 0);
+    }
+  };
+  function createField(name2, label, value) {
+    const field2 = document.createElement("input");
+    field2.className = "cm-textfield";
+    field2.name = name2;
+    field2.value = value;
+    field2.placeholder = label;
+    field2.setAttribute("aria-label", label);
+    field2.setAttribute("form", "");
+    field2.spellcheck = false;
+    return field2;
+  }
+  function wrapField(field2, toggles) {
+    const wrapper = document.createElement("div");
+    wrapper.className = "cm-richdown-search-field";
+    wrapper.append(field2);
+    if (toggles.length) {
+      wrapper.append(createRow("cm-richdown-search-toggles", toggles));
+    }
+    return wrapper;
+  }
+  function createToggle(name2, text2, label, pressed) {
+    const toggle = createButton(name2, text2, label);
+    toggle.classList.add("cm-richdown-search-toggle");
+    toggle.setAttribute("aria-pressed", String(pressed));
+    return toggle;
+  }
+  function createButton(name2, text2, label, onClick) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.name = name2;
+    button.textContent = text2;
+    button.title = label;
+    button.setAttribute("aria-label", label);
+    if (onClick) {
+      button.addEventListener("click", onClick);
+    }
+    return button;
+  }
+  function createRow(className2, children) {
+    const row = document.createElement("div");
+    row.className = className2;
+    row.append(...children);
+    return row;
+  }
+  function isPressed(toggle) {
+    return toggle.getAttribute("aria-pressed") === "true";
   }
   function getSearchKeymap() {
     return searchKeymap;
@@ -61159,6 +61748,7 @@ ${rowText}` },
         codeBg: "var(--vscode-textCodeBlock-background)",
         hover: "color-mix(in srgb, var(--vscode-editor-selectionBackground) 16%, transparent)",
         focus: "var(--vscode-focusBorder)",
+        selection: "var(--vscode-editor-selectionBackground)",
         caret: "var(--vscode-editorCursor-foreground)",
         accent: "var(--vscode-button-background)",
         buttonFg: "var(--vscode-button-foreground)",
@@ -61182,6 +61772,7 @@ ${rowText}` },
         codeBg: "#070b16",
         hover: "rgba(93, 144, 255, 0.14)",
         focus: "#7aa2ff",
+        selection: "color-mix(in srgb, #7aa2ff 34%, #0b1020)",
         caret: "#ffffff",
         accent: "#6f9cff",
         buttonFg: "#081120",
@@ -61205,6 +61796,7 @@ ${rowText}` },
         codeBg: "#101112",
         hover: "rgba(229, 225, 216, 0.08)",
         focus: "#d0a85c",
+        selection: "color-mix(in srgb, #d0a85c 34%, #151617)",
         caret: "#f5f0e6",
         accent: "#d0a85c",
         buttonFg: "#171717",
@@ -61228,6 +61820,7 @@ ${rowText}` },
         codeBg: "#0a100c",
         hover: "rgba(121, 184, 136, 0.12)",
         focus: "#79b888",
+        selection: "color-mix(in srgb, #79b888 34%, #0f1712)",
         caret: "#effff0",
         accent: "#79b888",
         buttonFg: "#071008",
@@ -61251,6 +61844,7 @@ ${rowText}` },
         codeBg: "#f2eadc",
         hover: "rgba(107, 78, 42, 0.09)",
         focus: "#a46c28",
+        selection: "color-mix(in srgb, #a46c28 24%, #fbf5e8)",
         caret: "#2f2b25",
         accent: "#a46c28",
         buttonFg: "#fff8ee",
@@ -61274,6 +61868,7 @@ ${rowText}` },
         codeBg: "#f5f7fa",
         hover: "rgba(31, 111, 235, 0.08)",
         focus: "#1f6feb",
+        selection: "color-mix(in srgb, #1f6feb 24%, #ffffff)",
         caret: "#202124",
         accent: "#1f6feb",
         buttonFg: "#ffffff",
@@ -61297,6 +61892,7 @@ ${rowText}` },
         codeBg: "#f4edcf",
         hover: "rgba(181, 137, 0, 0.1)",
         focus: "#b58900",
+        selection: "color-mix(in srgb, #b58900 24%, #fdf6e3)",
         caret: "#3b3a32",
         accent: "#b58900",
         buttonFg: "#fff8df",
@@ -61592,85 +62188,148 @@ ${rowText}` },
       },
       ".cm-panels": {
         color: "var(--rip-fg)",
-        backgroundColor: "var(--rip-panel)",
-        borderColor: "var(--rip-border)",
         fontFamily: "var(--vscode-font-family)"
       },
-      ".cm-panel.cm-search": {
-        display: "flex",
-        flexWrap: "wrap",
-        alignItems: "center",
-        gap: "6px",
-        padding: "8px 34px 8px 10px",
-        borderBottom: "1px solid var(--rip-border)"
+      // The find widget floats over the top right of the document like VS Code's
+      // instead of pushing the text down as a full-width bar.
+      ".cm-panels.cm-panels-top": {
+        position: "absolute",
+        top: "0",
+        left: "auto",
+        right: "22px",
+        zIndex: "400",
+        border: "0",
+        backgroundColor: "transparent"
       },
-      ".cm-panel.cm-search input.cm-textfield": {
-        minWidth: "180px",
-        height: "28px",
+      ".cm-richdown-search": {
+        display: "flex",
+        alignItems: "stretch",
+        gap: "3px",
+        padding: "4px 6px 4px 3px",
+        border: "1px solid var(--vscode-editorWidget-border, var(--rip-border))",
+        borderTop: "0",
+        borderRadius: "0 0 6px 6px",
+        backgroundColor: "var(--rip-panel)",
+        boxShadow: "0 2px 8px var(--vscode-widget-shadow, rgba(0, 0, 0, 0.36))",
+        font: "13px var(--vscode-font-family)"
+      },
+      ".cm-richdown-search-rows": {
+        display: "grid",
+        gap: "4px"
+      },
+      ".cm-richdown-search-find-row, .cm-richdown-search-replace-row": {
+        display: "flex",
+        alignItems: "center",
+        gap: "2px"
+      },
+      ".cm-richdown-search-replace-row": {
+        display: "none"
+      },
+      ".cm-richdown-search.is-replace-open .cm-richdown-search-replace-row": {
+        display: "flex"
+      },
+      ".cm-richdown-search-field": {
+        position: "relative",
+        width: "250px",
+        marginRight: "4px"
+      },
+      ".cm-richdown-search input.cm-textfield": {
+        width: "100%",
+        height: "26px",
+        margin: "0",
         boxSizing: "border-box",
-        border: "1px solid var(--rip-border)",
-        borderRadius: "5px",
-        padding: "3px 7px",
-        color: "var(--rip-fg)",
+        border: "1px solid var(--vscode-input-border, var(--rip-border))",
+        borderRadius: "4px",
+        padding: "3px 6px",
+        color: "var(--vscode-input-foreground, var(--rip-fg))",
         backgroundColor: "var(--rip-input-bg)",
         font: "13px var(--vscode-font-family)",
         outline: "none"
       },
-      ".cm-panel.cm-search input.cm-textfield:focus": {
+      ".cm-richdown-search input.cm-textfield[name=search]": {
+        paddingRight: "78px"
+      },
+      ".cm-richdown-search input.cm-textfield:focus": {
         borderColor: "var(--rip-focus)"
       },
-      ".cm-panel.cm-search button": {
-        minHeight: "26px",
-        appearance: "none",
-        border: "1px solid var(--rip-border)",
-        borderRadius: "5px",
-        padding: "2px 8px",
-        color: "var(--rip-fg)",
-        backgroundColor: "var(--rip-input-bg)",
-        backgroundImage: "none",
-        boxShadow: "none",
-        font: "12px var(--vscode-font-family)",
-        cursor: "pointer"
+      ".cm-richdown-search.has-no-results input.cm-textfield[name=search]": {
+        borderColor: "var(--vscode-inputValidation-errorBorder, var(--rip-danger))"
       },
-      ".cm-panel.cm-search button[name=next], .cm-panel.cm-search button[name=prev]": {
-        color: "var(--rip-button-fg)",
-        borderColor: "var(--rip-accent)",
-        backgroundColor: "var(--rip-accent)"
+      ".cm-richdown-search-toggles": {
+        position: "absolute",
+        top: "2px",
+        right: "3px",
+        display: "flex",
+        gap: "1px"
       },
-      ".cm-panel.cm-search button:hover": {
-        borderColor: "var(--rip-focus)",
-        backgroundColor: "var(--rip-hover)",
-        color: "var(--rip-fg)"
-      },
-      ".cm-panel.cm-search button[name=next]:hover, .cm-panel.cm-search button[name=prev]:hover": {
-        color: "var(--rip-button-fg)",
-        borderColor: "var(--rip-focus)",
-        backgroundColor: "color-mix(in srgb, var(--rip-accent) 86%, var(--rip-bg))"
-      },
-      ".cm-panel.cm-search input[type=checkbox]": {
-        accentColor: "var(--rip-accent)"
-      },
-      ".cm-panel.cm-search [name=close]": {
-        top: "8px",
-        right: "9px",
-        width: "24px",
+      ".cm-richdown-search button": {
+        minWidth: "24px",
         height: "24px",
-        border: "0",
-        color: "var(--rip-muted)",
+        margin: "0",
+        appearance: "none",
+        border: "1px solid transparent",
+        borderRadius: "4px",
+        padding: "0 4px",
+        color: "var(--rip-fg)",
         backgroundColor: "transparent",
         backgroundImage: "none",
-        fontSize: "17px"
+        boxShadow: "none",
+        font: "14px var(--vscode-font-family)",
+        lineHeight: "1",
+        cursor: "pointer"
       },
-      ".cm-panel.cm-search [name=close]:hover": {
-        color: "var(--rip-heading)",
-        backgroundColor: "var(--rip-hover)"
+      // CodeMirror's own panel pins its close button to the corner.
+      ".cm-panel.cm-richdown-search button[name=close]": {
+        position: "static",
+        fontSize: "16px"
       },
-      ".cm-panel.cm-search label": {
-        display: "inline-flex",
-        alignItems: "center",
-        gap: "3px",
+      ".cm-richdown-search button:hover": {
+        backgroundColor: "var(--vscode-toolbar-hoverBackground, var(--rip-hover))"
+      },
+      ".cm-richdown-search button:focus-visible": {
+        outline: "1px solid var(--rip-focus)",
+        outlineOffset: "-1px"
+      },
+      ".cm-richdown-search .cm-richdown-search-toggle": {
+        minWidth: "22px",
+        height: "20px",
+        padding: "0 3px",
+        font: "12px var(--vscode-editor-font-family, monospace)",
+        color: "var(--rip-muted)"
+      },
+      ".cm-richdown-search .cm-richdown-search-toggle[name=word]": {
+        textDecoration: "underline",
+        textUnderlineOffset: "2px"
+      },
+      ".cm-richdown-search .cm-richdown-search-toggle[aria-pressed=true]": {
+        color: "var(--vscode-inputOption-activeForeground, var(--rip-fg))",
+        borderColor: "var(--vscode-inputOption-activeBorder, var(--rip-focus))",
+        backgroundColor: "var(--vscode-inputOption-activeBackground, color-mix(in srgb, var(--rip-focus) 30%, transparent))"
+      },
+      ".cm-richdown-search button[name=toggle-replace]": {
+        minWidth: "16px",
+        width: "16px",
+        height: "auto",
+        padding: "0",
         color: "var(--rip-muted)",
+        fontSize: "16px"
+      },
+      ".cm-richdown-search.is-replace-open button[name=toggle-replace]": {
+        transform: "rotate(90deg)"
+      },
+      ".cm-richdown-search button[name=replace], .cm-richdown-search button[name=replaceAll]": {
+        padding: "0 7px",
         fontSize: "12px"
+      },
+      ".cm-richdown-search-count": {
+        minWidth: "72px",
+        padding: "0 6px",
+        color: "var(--rip-muted)",
+        fontSize: "12px",
+        whiteSpace: "nowrap"
+      },
+      ".cm-richdown-search.has-no-results .cm-richdown-search-count": {
+        color: "var(--vscode-errorForeground, var(--rip-danger))"
       },
       ".cm-searchMatch": {
         backgroundColor: "color-mix(in srgb, var(--rip-syntax-orange) 38%, transparent)",
@@ -61692,8 +62351,26 @@ ${rowText}` },
       ".cm-selectionMatch": {
         backgroundColor: "color-mix(in srgb, var(--rip-link) 24%, transparent)"
       },
+      // VS Code's own selection color where the theme follows VS Code. A tint of
+      // the link color reads poorly on headings, links and table headers, which
+      // are drawn in that same color.
       ".cm-content ::selection": {
-        backgroundColor: "color-mix(in srgb, var(--rip-link) 42%, transparent)"
+        backgroundColor: "var(--rip-selection)"
+      },
+      ".cm-content > .cm-richdown-block-selected": {
+        position: "relative",
+        userSelect: "none"
+      },
+      ".cm-content > .cm-richdown-block-selected::after": {
+        content: '""',
+        position: "absolute",
+        inset: "0",
+        zIndex: "4",
+        borderRadius: "6px",
+        backgroundColor: "var(--rip-selection)",
+        boxShadow: "inset 0 0 0 1px var(--rip-focus)",
+        opacity: "0.7",
+        pointerEvents: "none"
       },
       ".cm-heading-line": {
         fontWeight: "780",
@@ -61722,13 +62399,24 @@ ${rowText}` },
         fontSize: "0.96rem",
         fontStyle: "italic"
       },
+      // Hidden markers collapse to zero width but keep the full line height.
+      // CodeMirror maps a pointer to a position by a binary search over the
+      // line's boxes, and a zero-height box (as font-size: 0 gives) sits on the
+      // baseline below the pointer, sending the search left: a click or drag past
+      // "*italic*" then landed before the "*".
       ".cm-markdown-marker": {
         color: "var(--rip-muted)",
-        fontSize: "0",
+        display: "inline-block",
+        width: "0",
+        overflow: "hidden",
+        verticalAlign: "top",
+        whiteSpace: "pre",
         opacity: "0"
       },
       ".cm-line.cm-activeLine .cm-markdown-marker": {
-        fontSize: "inherit",
+        display: "inline",
+        width: "auto",
+        overflow: "visible",
         opacity: "0.9"
       },
       ".cm-quote-line": {
@@ -62271,7 +62959,23 @@ ${rowText}` },
       ".cm-line.cm-activeLine.cm-codeblock-line .cm-markdown-marker": {
         opacity: "0.9"
       },
+      // A fence is alone on its line, so it keeps its width and is hidden by
+      // color: a selection running over it then still shows (opacity or a
+      // collapsed box would hide that too).
+      ".cm-codeblock-line .cm-code-fence-marker": {
+        display: "inline",
+        width: "auto",
+        overflow: "visible",
+        opacity: "1"
+      },
+      ".cm-codeblock-line:not(.cm-activeLine) .cm-code-fence-marker, .cm-codeblock-line:not(.cm-activeLine) .cm-code-fence-marker *": {
+        color: "transparent"
+      },
+      ".cm-line.cm-activeLine.cm-codeblock-line .cm-code-fence-marker": {
+        opacity: "0.9"
+      },
       ".cm-code-copy-widget": {
+        userSelect: "none",
         position: "absolute",
         top: "3px",
         right: "7px",
@@ -64216,6 +64920,12 @@ ${rowText}` },
       color: var(--callout-color);
       font-weight: 500;
     }
+    .cm-editor .cm-callout-marker,
+    .cm-editor .cm-callout-marker * {
+      color: var(--callout-color);
+      font-weight: 600;
+      text-decoration: none;
+    }
   `;
     document.head.appendChild(style2);
   }
@@ -64363,7 +65073,10 @@ ${rowText}` },
               lintDecorations.extension,
               lineNumbers(),
               history(),
-              highlightActiveLine(),
+              // Stands in for highlightActiveLine(): the active line
+              // reveals Markdown markers, and must not change mid-drag.
+              pointerSelectionFocus,
+              blockSelectionHighlight,
               highlightActiveLineGutter(),
               markdownCompletion.extension,
               createHeadingCursorFilter({
@@ -64449,6 +65162,7 @@ ${rowText}` },
                 ...slashCommands2.keymap,
                 // After the slash menu, which owns Up/Down while it is open.
                 ...tablePreviewEntryKeymap,
+                ...previewExtensions.blockPreviewEntryKeymap,
                 ...getSearchKeymap(),
                 ...defaultKeymap,
                 ...historyKeymap

@@ -2,6 +2,17 @@
 
 All notable changes to Richdown will be documented in this file.
 
+## 0.11.1 - 2026-11-02
+
+- Selecting with the mouse now selects what is under the pointer. Clicks and drags past hidden Markdown (such as the `*` around italic text) used to land before it, and pressing on a line revealed its `**`, `[](...)`, and list markers at once, sliding the text sideways mid-drag. Lines keep their look while the button is down and show their Markdown as soon as it is released; double-clicking still selects the word you aimed at.
+- Selections are easier to see. They use VS Code's selection color (each built-in theme has its own), so headings, links, and table headers stay readable inside them. A table, diagram, callout, or details block a selection runs over is tinted as a whole, and the fences of code blocks show the selection too.
+- Lines a selection runs over stay rendered; only the caret's line shows its Markdown. Callouts a selection runs over stay drawn as callouts.
+- Up and Down from the line next to a callout, details block, Mermaid diagram, Gherkin board, or front matter now step into its source instead of jumping over it.
+- Clicking text in a callout or details body puts the caret on the clicked character instead of the start of the line. Clicks in a details body used to go to the `<details>` line.
+- The find panel is now a compact VS Code-style find widget at the top right, with match case, whole word, and regular expression toggles, a "3 of 12" match count, and a fold-out replace row. `Alt+Enter` selects every match and `Cmd+Enter` / `Ctrl+Enter` in the replace field replaces all.
+- Fixed the space after `#` disappearing in code blocks, for example in `# comment` lines of a `bash` block.
+- An open callout's `[!NOTE]` line shows the type in the callout's color instead of as an underlined link.
+
 ## 0.11.0 - 2026-10-29
 
 - GitHub alerts (`> [!NOTE]`, `[!TIP]`, `[!IMPORTANT]`, `[!WARNING]`, `[!CAUTION]`) are drawn with GitHub's icons, colors, and titles, and Obsidian callouts with their titles, `+`/`-` folding, nesting, and types (unknown types look like `note`), in the rich editor, Richdown Diff, and HTML/PDF export, with light and dark colors. The caret's callout shows its Markdown; folding only changes the view (#32).

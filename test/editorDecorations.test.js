@@ -426,6 +426,53 @@ describe("inline and line decorations", () => {
     expect(classes).toContain("cm-heading-line cm-heading-1");
   });
 
+  it("hides the space after a heading's # but not after a code comment's #", () => {
+    // "# Heading": the space is at 1. In the fence, "# comment" starts at 8.
+    harness = createPreviewHarness({
+      doc: "# Heading\n```bash\n# comment\n```\n",
+      selection: { anchor: 0 },
+    });
+    const hidesPosition = (position) =>
+      harness
+        .entries()
+        .some(
+          (entry) =>
+            entry.className === "cm-markdown-marker" &&
+            entry.from <= position &&
+            entry.to > position,
+        );
+    const commentStart = harness.view.state.doc.line(3).from;
+    expect(hidesPosition(1)).toBe(true);
+    expect(hidesPosition(commentStart)).toBe(false);
+    expect(hidesPosition(commentStart + 1)).toBe(false);
+  });
+
+  it("marks code fences apart from inline code backticks", () => {
+    harness = createPreviewHarness({
+      doc: "text with `code`\n\n```bash\necho\n```\n",
+      selection: { anchor: 0 },
+    });
+    const fenceMarks = harness
+      .entries()
+      .filter((entry) => entry.className === "cm-markdown-marker cm-code-fence-marker")
+      .map((entry) => harness.view.state.sliceDoc(entry.from, entry.to));
+    expect(fenceMarks).toEqual(["```", "bash", "```"]);
+  });
+
+  it("keeps lines a selection runs over rendered, revealing only the caret's line", () => {
+    const doc = "- one\n- two\n- three\n";
+    harness = createPreviewHarness({
+      doc,
+      selection: { anchor: 0, head: doc.indexOf("three") },
+    });
+    const { view, preview } = harness;
+    const focused = [1, 2, 3].filter((number) =>
+      preview.isLineFocused(view.state, view.state.doc.line(number)),
+    );
+    expect(focused).toEqual([3]);
+    expect(harness.widgetNames().filter((name) => name === "ListMarkerWidget")).toHaveLength(2);
+  });
+
   it("adds a heading class per level", () => {
     expect(classesFor("## Second level\n\nbody")).toContain(
       "cm-heading-line cm-heading-2",

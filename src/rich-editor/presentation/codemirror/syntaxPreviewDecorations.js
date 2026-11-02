@@ -14,7 +14,9 @@ import {
   rangeIntersectsRanges,
 } from "../../domain/markdownBlocks.js";
 import { findWikilinks, isImageTarget } from "../../../markdown/wikilinks.js";
+import { findHiddenHeadingPrefix } from "./headingCursor.js";
 import { isMarkdownMarker } from "./links.js";
+import { focusSelectionChanged, getFocusSelection } from "./pointerSelectionFocus.js";
 import {
   CheckboxWidget,
   CodeCopyButtonWidget,
@@ -43,7 +45,7 @@ export function createSyntaxPreviewDecorations({
       }
   
       update(update) {
-        if (update.docChanged || update.viewportChanged || update.selectionSet) {
+        if (update.docChanged || update.viewportChanged || focusSelectionChanged(update)) {
           this.decorations = safeBuildDecorations("block-line-decorations", () =>
             buildBlockLineDecorations(update.view),
           );
@@ -69,7 +71,7 @@ export function createSyntaxPreviewDecorations({
         if (
           update.docChanged ||
           update.viewportChanged ||
-          update.selectionSet ||
+          focusSelectionChanged(update) ||
           update.transactions.some((transaction) =>
             transaction.effects.some((effect) => effect.is(refreshPreviewDecorations)),
           )
@@ -94,7 +96,7 @@ export function createSyntaxPreviewDecorations({
       }
   
       update(update) {
-        if (update.docChanged || update.viewportChanged || update.selectionSet) {
+        if (update.docChanged || update.viewportChanged || focusSelectionChanged(update)) {
           this.decorations = safeBuildDecorations("task-checkboxes", () =>
             buildTaskCheckboxes(update.view),
           );
@@ -474,7 +476,7 @@ export function createSyntaxPreviewDecorations({
     if (state.readOnly) {
       return false;
     }
-    return state.selection.ranges.some(
+    return getFocusSelection(state).ranges.some(
       (range) => range.from <= block.to && range.to >= block.from,
     );
   }
@@ -618,6 +620,28 @@ export function createSyntaxPreviewDecorations({
     ].join("; ");
   }
 
+  const markdownMarker = Decoration.mark({ class: "cm-markdown-marker" });
+  // The "```lang" and "```" of a fenced code block, which sit alone on their
+  // lines and are styled apart from inline markers.
+  const codeFenceMarker = Decoration.mark({
+    class: "cm-markdown-marker cm-code-fence-marker",
+  });
+
+  function isCodeFenceMarker(nodeRef) {
+    return (
+      (nodeRef.name === "CodeMark" || nodeRef.name === "CodeInfo") &&
+      nodeRef.node.parent?.name === "FencedCode"
+    );
+  }
+
+  function isCalloutMarkerLink(doc, node) {
+    const line = doc.lineAt(node.from);
+    return (
+      /^\[![\w-]+\]$/.test(doc.sliceString(node.from, node.to)) &&
+      /^(?:\s*>)+\s*$/.test(line.text.slice(0, node.from - line.from))
+    );
+  }
+
   function hasAncestor(nodeRef, name) {
     let node = nodeRef.node.parent;
     while (node) {
@@ -646,15 +670,13 @@ export function createSyntaxPreviewDecorations({
           continue;
         }
         const lineFocused = isLineFocused(view.state, line);
-        const heading = line.text.match(/^(\s{0,3})(#{1,6})(\s+)/);
-        if (heading) {
+        // The parser already marks the "#" run; this hides the space after
+        // it. A "# comment" inside a code block is not a heading.
+        const headingPrefix = findHiddenHeadingPrefix(view.state, line);
+        if (headingPrefix && headingPrefix.markTo < headingPrefix.to) {
           ranges.push({
-            from: line.from + heading[1].length + heading[2].length,
-            to:
-              line.from +
-              heading[1].length +
-              heading[2].length +
-              heading[3].length,
+            from: headingPrefix.markTo,
+            to: headingPrefix.to,
             decoration: Decoration.mark({ class: "cm-markdown-marker" }),
           });
         }
@@ -708,11 +730,21 @@ export function createSyntaxPreviewDecorations({
           }
   
           const nodeName = node.name;
+          // "> [!NOTE]" parses as a link with no target; shown as source,
+          // it is the callout's type, not a link.
+          if (nodeName === "Link" && isCalloutMarkerLink(view.state.doc, node)) {
+            ranges.push({
+              from: node.from,
+              to: node.to,
+              decoration: Decoration.mark({ class: "cm-callout-marker" }),
+            });
+            return false;
+          }
           if (isMarkdownMarker(nodeName)) {
             ranges.push({
               from: node.from,
               to: node.to,
-              decoration: Decoration.mark({ class: "cm-markdown-marker" }),
+              decoration: isCodeFenceMarker(node) ? codeFenceMarker : markdownMarker,
             });
           }
           if (nodeName === "URL") {

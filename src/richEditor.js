@@ -16,7 +16,6 @@ import { syntaxHighlighting } from "@codemirror/language";
 import { EditorState } from "@codemirror/state";
 import {
   EditorView,
-  highlightActiveLine,
   highlightActiveLineGutter,
   keymap,
   lineNumbers,
@@ -35,10 +34,12 @@ import {
   markdownHighlightStyle,
 } from "./rich-editor/presentation/codemirror/language.js";
 import { createMarkdownCompletion } from "./rich-editor/presentation/codemirror/completions.js";
+import { blockSelectionHighlight } from "./rich-editor/presentation/codemirror/blockSelection.js";
 import { createGitDiffGutter } from "./rich-editor/presentation/codemirror/gitDiffGutter.js";
 import { createHeadingCursorFilter } from "./rich-editor/presentation/codemirror/headingCursor.js";
 import { createLintDecorations } from "./rich-editor/presentation/codemirror/lintDecorations.js";
 import { findLinkAtClick } from "./rich-editor/presentation/codemirror/links.js";
+import { pointerSelectionFocus } from "./rich-editor/presentation/codemirror/pointerSelectionFocus.js";
 import { createWikilinkResolver } from "./rich-editor/presentation/markdown/wikilinkResolver.js";
 import { createSlashCommandController } from "./rich-editor/presentation/codemirror/slashCommands.js";
 import {
@@ -233,7 +234,10 @@ queueMicrotask(() => {
                 lintDecorations.extension,
                 lineNumbers(),
                 history(),
-                highlightActiveLine(),
+                // Stands in for highlightActiveLine(): the active line
+                // reveals Markdown markers, and must not change mid-drag.
+                pointerSelectionFocus,
+                blockSelectionHighlight,
                 highlightActiveLineGutter(),
                 markdownCompletion.extension,
                 createHeadingCursorFilter({
@@ -325,6 +329,7 @@ queueMicrotask(() => {
                   ...slashCommands.keymap,
                   // After the slash menu, which owns Up/Down while it is open.
                   ...tablePreviewEntryKeymap,
+                  ...previewExtensions.blockPreviewEntryKeymap,
                   ...getSearchKeymap(),
                   ...defaultKeymap,
                   ...historyKeymap,

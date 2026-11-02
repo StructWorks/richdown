@@ -173,6 +173,27 @@ describe("callout preview in the rich editor", () => {
     expect(harness.view.state.selection.main.head).toBe(DOC.indexOf("Mind"));
   });
 
+  it("keeps drawing a callout that a selection only runs over", () => {
+    // From "intro" to the empty line after the first callout.
+    harness = createPreviewHarness({
+      doc: DOC,
+      selection: { anchor: 0, head: DOC.indexOf("> [!faq]") - 1 },
+    });
+    expect(harness.widgetNames().filter((name) => name === "CalloutPreviewWidget")).toHaveLength(2);
+  });
+
+  it("shows the type of an open callout as the callout's type, not a link", () => {
+    harness = createPreviewHarness({ doc: DOC, selection: { anchor: DOC.indexOf("Mind") } });
+    const marker = DOC.indexOf("[!WARNING]");
+    const classesAt = harness
+      .entries()
+      .filter((entry) => entry.from <= marker && entry.to > marker)
+      .map((entry) => entry.className);
+    expect(classesAt).toContain("cm-callout-marker");
+    expect(classesAt).not.toContain("cm-link");
+    expect(classesAt).not.toContain("cm-markdown-marker");
+  });
+
   it("always draws callouts in read-only views", () => {
     harness = createPreviewHarness({ doc: DOC, readOnly: true, selection: { anchor: DOC.indexOf("Mind") } });
     expect(harness.widgetNames().filter((name) => name === "CalloutPreviewWidget")).toHaveLength(2);

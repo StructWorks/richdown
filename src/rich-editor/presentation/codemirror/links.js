@@ -1,4 +1,5 @@
 import { findWikilinks, isImageTarget, wikilinkHref } from "../../../markdown/wikilinks.js";
+import { getFocusSelection } from "./pointerSelectionFocus.js";
 
 export function isMarkdownMarker(nodeName) {
   return [
@@ -112,9 +113,10 @@ function collectLineLinks(text) {
   return links;
 }
 
+// Matches the preview's notion of a focused line: the caret is on it.
 function isLineFocused(state, line) {
-  const selection = state.selection.main;
-  return selection.from >= line.from && selection.to <= line.to;
+  const { head } = getFocusSelection(state).main;
+  return head >= line.from && head <= line.to;
 }
 
 function isClickInsideTextRange(view, from, to, event) {

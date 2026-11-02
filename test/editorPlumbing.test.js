@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { setSearchQuery, SearchQuery } from "@codemirror/search";
+import { getSearchQuery, openSearchPanel, setSearchQuery, SearchQuery } from "@codemirror/search";
 import { EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 
@@ -263,6 +263,44 @@ describe("search extensions", () => {
     expect(closeSlashCommandMenu).toHaveBeenCalled();
     expect(closeTableContextMenu).toHaveBeenCalled();
     expect(view.dom.querySelector(".cm-search")).toBeTruthy();
+  });
+
+  it("finds through a compact find widget with a match count", () => {
+    const view = mountView("alpha beta alpha Alpha\n", createSearchExtensions());
+    openSearchPanel(view);
+    const panel = view.dom.querySelector(".cm-richdown-search");
+    const field = panel.querySelector("input[name=search]");
+    field.value = "alpha";
+    field.dispatchEvent(new Event("input"));
+    expect(panel.querySelector(".cm-richdown-search-count").textContent).toBe("? of 3");
+
+    field.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+    expect(panel.querySelector(".cm-richdown-search-count").textContent).toBe("1 of 3");
+
+    panel.querySelector("button[name=case]").click();
+    expect(getSearchQuery(view.state).caseSensitive).toBe(true);
+    expect(panel.querySelector(".cm-richdown-search-count").textContent).toBe("1 of 2");
+
+    field.value = "zzz";
+    field.dispatchEvent(new Event("input"));
+    expect(panel.querySelector(".cm-richdown-search-count").textContent).toBe("No results");
+    expect(panel.classList).toContain("has-no-results");
+  });
+
+  it("folds the replace row away until it is asked for", () => {
+    const view = mountView("one two one\n", createSearchExtensions());
+    openSearchPanel(view);
+    const panel = view.dom.querySelector(".cm-richdown-search");
+    expect(panel.classList).not.toContain("is-replace-open");
+    panel.querySelector("button[name=toggle-replace]").click();
+    expect(panel.classList).toContain("is-replace-open");
+
+    panel.querySelector("input[name=search]").value = "one";
+    const replace = panel.querySelector("input[name=replace]");
+    replace.value = "1";
+    replace.dispatchEvent(new Event("input"));
+    panel.querySelector("button[name=replaceAll]").click();
+    expect(view.state.doc.toString()).toBe("1 two 1\n");
   });
 
   it("ignores the shortcut with extra modifiers or without a view", () => {
