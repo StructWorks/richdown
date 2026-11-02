@@ -34,7 +34,7 @@ Richdown Diff gives Markdown changes a rendered side-by-side review view while k
 - Render YAML front matter (`---` fenced headers) as a clean metadata card with keys, values, and tag chips; click the card to edit the YAML source.
 - Suggest completions while typing, matching the standard VS Code editor: VS Code's registered completion providers (including ones from other extensions, such as model names in agent files), plus code fence language ids.
 - Show a color swatch after inline code color values such as `#ff0066`, and mark added, changed, and deleted Git lines beside the line numbers.
-- Highlight matches for the active Richdown search query using VS Code find-match colors.
+- Find and replace with a VS Code-style find widget (`Cmd+F` / `Ctrl+F`) at the top right: match case, whole word, and regular expression toggles, a match count, and a fold-out replace row. Matches are highlighted with VS Code find-match colors.
 - Edit Markdown tables as rich tables, including cell editing, row/column insertion, and row/column deletion. `<br>` inside a cell renders as a line break.
 - Write a new table from the keyboard: type a header such as `| Name | Age |` and press `Enter` to add the delimiter row and a first row. In table source, `Tab` / `Shift+Tab` move between cells (`Tab` on the last cell adds a row), `Enter` adds a row below, and `Enter` on an empty last row leaves the table.
 - Move through rich tables with the arrow keys: Up and Down from the lines around a table step into its cells, move between rows, and leave it again from the top or bottom row. Left and Right continue into the neighboring cell at a cell's edge. In a cell, `Enter` moves down and adds a row from the last row (an empty last row ends the table), and `Escape` leaves the table. `Shift+F10` → **Edit as Markdown** shows the table's source.
@@ -43,6 +43,7 @@ Richdown Diff gives Markdown changes a rendered side-by-side review view while k
 - Render `gherkin`, `feature`, and `cucumber` fenced code blocks as switchable BDD boards with highlighted source view.
 - Format Markdown with configurable rules — heading style, list markers and numbering, aligned tables (East Asian wide characters count as two columns), blank lines around blocks, and whitespace — from the command palette, `Shift+Alt+F`, or on save.
 - Check Markdown with lint rules and show the problems in the Problems panel and as squiggles with hover messages in the Richdown editor. An overview ruler at the right edge marks where the problems are in the whole document; click a mark to scroll there, or press F8 / Shift+F8 to move to the next or previous problem. Each formatter and lint rule can be turned on or off in a `.richdownrc.json` file.
+- Move into callouts, details blocks, Mermaid diagrams, Gherkin boards, and front matter with Up and Down from the line next to them, and click a callout or details body to put the caret on the clicked character.
 - Choose the preview width and theme from the in-editor settings button.
 - Switch between the default VS Code theme and several built-in dark/light themes.
 
