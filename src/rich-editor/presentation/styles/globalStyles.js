@@ -1080,6 +1080,12 @@ export function injectStyles() {
       color: var(--callout-color);
       font-weight: 500;
     }
+    .cm-editor .cm-callout-marker,
+    .cm-editor .cm-callout-marker * {
+      color: var(--callout-color);
+      font-weight: 600;
+      text-decoration: none;
+    }
   `;
   document.head.appendChild(style);
 }

@@ -83,88 +83,151 @@ export function createEditorThemeExtension() {
   },
   ".cm-panels": {
     color: "var(--rip-fg)",
-    backgroundColor: "var(--rip-panel)",
-    borderColor: "var(--rip-border)",
     fontFamily: "var(--vscode-font-family)",
   },
-  ".cm-panel.cm-search": {
-    display: "flex",
-    flexWrap: "wrap",
-    alignItems: "center",
-    gap: "6px",
-    padding: "8px 34px 8px 10px",
-    borderBottom: "1px solid var(--rip-border)",
+  // The find widget floats over the top right of the document like VS Code's
+  // instead of pushing the text down as a full-width bar.
+  ".cm-panels.cm-panels-top": {
+    position: "absolute",
+    top: "0",
+    left: "auto",
+    right: "22px",
+    zIndex: "400",
+    border: "0",
+    backgroundColor: "transparent",
   },
-  ".cm-panel.cm-search input.cm-textfield": {
-    minWidth: "180px",
-    height: "28px",
+  ".cm-richdown-search": {
+    display: "flex",
+    alignItems: "stretch",
+    gap: "3px",
+    padding: "4px 6px 4px 3px",
+    border: "1px solid var(--vscode-editorWidget-border, var(--rip-border))",
+    borderTop: "0",
+    borderRadius: "0 0 6px 6px",
+    backgroundColor: "var(--rip-panel)",
+    boxShadow: "0 2px 8px var(--vscode-widget-shadow, rgba(0, 0, 0, 0.36))",
+    font: "13px var(--vscode-font-family)",
+  },
+  ".cm-richdown-search-rows": {
+    display: "grid",
+    gap: "4px",
+  },
+  ".cm-richdown-search-find-row, .cm-richdown-search-replace-row": {
+    display: "flex",
+    alignItems: "center",
+    gap: "2px",
+  },
+  ".cm-richdown-search-replace-row": {
+    display: "none",
+  },
+  ".cm-richdown-search.is-replace-open .cm-richdown-search-replace-row": {
+    display: "flex",
+  },
+  ".cm-richdown-search-field": {
+    position: "relative",
+    width: "250px",
+    marginRight: "4px",
+  },
+  ".cm-richdown-search input.cm-textfield": {
+    width: "100%",
+    height: "26px",
+    margin: "0",
     boxSizing: "border-box",
-    border: "1px solid var(--rip-border)",
-    borderRadius: "5px",
-    padding: "3px 7px",
-    color: "var(--rip-fg)",
+    border: "1px solid var(--vscode-input-border, var(--rip-border))",
+    borderRadius: "4px",
+    padding: "3px 6px",
+    color: "var(--vscode-input-foreground, var(--rip-fg))",
     backgroundColor: "var(--rip-input-bg)",
     font: "13px var(--vscode-font-family)",
     outline: "none",
   },
-  ".cm-panel.cm-search input.cm-textfield:focus": {
+  ".cm-richdown-search input.cm-textfield[name=search]": {
+    paddingRight: "78px",
+  },
+  ".cm-richdown-search input.cm-textfield:focus": {
     borderColor: "var(--rip-focus)",
   },
-  ".cm-panel.cm-search button": {
-    minHeight: "26px",
-    appearance: "none",
-    border: "1px solid var(--rip-border)",
-    borderRadius: "5px",
-    padding: "2px 8px",
-    color: "var(--rip-fg)",
-    backgroundColor: "var(--rip-input-bg)",
-    backgroundImage: "none",
-    boxShadow: "none",
-    font: "12px var(--vscode-font-family)",
-    cursor: "pointer",
+  ".cm-richdown-search.has-no-results input.cm-textfield[name=search]": {
+    borderColor: "var(--vscode-inputValidation-errorBorder, var(--rip-danger))",
   },
-  ".cm-panel.cm-search button[name=next], .cm-panel.cm-search button[name=prev]":
-    {
-      color: "var(--rip-button-fg)",
-      borderColor: "var(--rip-accent)",
-      backgroundColor: "var(--rip-accent)",
-    },
-  ".cm-panel.cm-search button:hover": {
-    borderColor: "var(--rip-focus)",
-    backgroundColor: "var(--rip-hover)",
-    color: "var(--rip-fg)",
+  ".cm-richdown-search-toggles": {
+    position: "absolute",
+    top: "2px",
+    right: "3px",
+    display: "flex",
+    gap: "1px",
   },
-  ".cm-panel.cm-search button[name=next]:hover, .cm-panel.cm-search button[name=prev]:hover":
-    {
-      color: "var(--rip-button-fg)",
-      borderColor: "var(--rip-focus)",
-      backgroundColor:
-        "color-mix(in srgb, var(--rip-accent) 86%, var(--rip-bg))",
-    },
-  ".cm-panel.cm-search input[type=checkbox]": {
-    accentColor: "var(--rip-accent)",
-  },
-  ".cm-panel.cm-search [name=close]": {
-    top: "8px",
-    right: "9px",
-    width: "24px",
+  ".cm-richdown-search button": {
+    minWidth: "24px",
     height: "24px",
-    border: "0",
-    color: "var(--rip-muted)",
+    margin: "0",
+    appearance: "none",
+    border: "1px solid transparent",
+    borderRadius: "4px",
+    padding: "0 4px",
+    color: "var(--rip-fg)",
     backgroundColor: "transparent",
     backgroundImage: "none",
-    fontSize: "17px",
+    boxShadow: "none",
+    font: "14px var(--vscode-font-family)",
+    lineHeight: "1",
+    cursor: "pointer",
   },
-  ".cm-panel.cm-search [name=close]:hover": {
-    color: "var(--rip-heading)",
-    backgroundColor: "var(--rip-hover)",
+  // CodeMirror's own panel pins its close button to the corner.
+  ".cm-panel.cm-richdown-search button[name=close]": {
+    position: "static",
+    fontSize: "16px",
   },
-  ".cm-panel.cm-search label": {
-    display: "inline-flex",
-    alignItems: "center",
-    gap: "3px",
+  ".cm-richdown-search button:hover": {
+    backgroundColor:
+      "var(--vscode-toolbar-hoverBackground, var(--rip-hover))",
+  },
+  ".cm-richdown-search button:focus-visible": {
+    outline: "1px solid var(--rip-focus)",
+    outlineOffset: "-1px",
+  },
+  ".cm-richdown-search .cm-richdown-search-toggle": {
+    minWidth: "22px",
+    height: "20px",
+    padding: "0 3px",
+    font: "12px var(--vscode-editor-font-family, monospace)",
+    color: "var(--rip-muted)",
+  },
+  ".cm-richdown-search .cm-richdown-search-toggle[name=word]": {
+    textDecoration: "underline",
+    textUnderlineOffset: "2px",
+  },
+  ".cm-richdown-search .cm-richdown-search-toggle[aria-pressed=true]": {
+    color: "var(--vscode-inputOption-activeForeground, var(--rip-fg))",
+    borderColor: "var(--vscode-inputOption-activeBorder, var(--rip-focus))",
+    backgroundColor:
+      "var(--vscode-inputOption-activeBackground, color-mix(in srgb, var(--rip-focus) 30%, transparent))",
+  },
+  ".cm-richdown-search button[name=toggle-replace]": {
+    minWidth: "16px",
+    width: "16px",
+    height: "auto",
+    padding: "0",
+    color: "var(--rip-muted)",
+    fontSize: "16px",
+  },
+  ".cm-richdown-search.is-replace-open button[name=toggle-replace]": {
+    transform: "rotate(90deg)",
+  },
+  ".cm-richdown-search button[name=replace], .cm-richdown-search button[name=replaceAll]":
+    {
+      padding: "0 7px",
+      fontSize: "12px",
+    },
+  ".cm-richdown-search-count": {
+    minWidth: "72px",
+    padding: "0 6px",
     color: "var(--rip-muted)",
     fontSize: "12px",
+    whiteSpace: "nowrap",
+  },
+  ".cm-richdown-search.has-no-results .cm-richdown-search-count": {
+    color: "var(--vscode-errorForeground, var(--rip-danger))",
   },
   ".cm-searchMatch": {
     backgroundColor:
@@ -193,9 +256,26 @@ export function createEditorThemeExtension() {
     backgroundColor:
       "color-mix(in srgb, var(--rip-link) 24%, transparent)",
   },
+  // VS Code's own selection color where the theme follows VS Code. A tint of
+  // the link color reads poorly on headings, links and table headers, which
+  // are drawn in that same color.
   ".cm-content ::selection": {
-    backgroundColor:
-      "color-mix(in srgb, var(--rip-link) 42%, transparent)",
+    backgroundColor: "var(--rip-selection)",
+  },
+  ".cm-content > .cm-richdown-block-selected": {
+    position: "relative",
+    userSelect: "none",
+  },
+  ".cm-content > .cm-richdown-block-selected::after": {
+    content: '""',
+    position: "absolute",
+    inset: "0",
+    zIndex: "4",
+    borderRadius: "6px",
+    backgroundColor: "var(--rip-selection)",
+    boxShadow: "inset 0 0 0 1px var(--rip-focus)",
+    opacity: "0.7",
+    pointerEvents: "none",
   },
   ".cm-heading-line": {
     fontWeight: "780",
@@ -224,13 +304,24 @@ export function createEditorThemeExtension() {
     fontSize: "0.96rem",
     fontStyle: "italic",
   },
+  // Hidden markers collapse to zero width but keep the full line height.
+  // CodeMirror maps a pointer to a position by a binary search over the
+  // line's boxes, and a zero-height box (as font-size: 0 gives) sits on the
+  // baseline below the pointer, sending the search left: a click or drag past
+  // "*italic*" then landed before the "*".
   ".cm-markdown-marker": {
     color: "var(--rip-muted)",
-    fontSize: "0",
+    display: "inline-block",
+    width: "0",
+    overflow: "hidden",
+    verticalAlign: "top",
+    whiteSpace: "pre",
     opacity: "0",
   },
   ".cm-line.cm-activeLine .cm-markdown-marker": {
-    fontSize: "inherit",
+    display: "inline",
+    width: "auto",
+    overflow: "visible",
     opacity: "0.9",
   },
   ".cm-quote-line": {
@@ -800,7 +891,24 @@ export function createEditorThemeExtension() {
   ".cm-line.cm-activeLine.cm-codeblock-line .cm-markdown-marker": {
     opacity: "0.9",
   },
+  // A fence is alone on its line, so it keeps its width and is hidden by
+  // color: a selection running over it then still shows (opacity or a
+  // collapsed box would hide that too).
+  ".cm-codeblock-line .cm-code-fence-marker": {
+    display: "inline",
+    width: "auto",
+    overflow: "visible",
+    opacity: "1",
+  },
+  ".cm-codeblock-line:not(.cm-activeLine) .cm-code-fence-marker, .cm-codeblock-line:not(.cm-activeLine) .cm-code-fence-marker *":
+    {
+      color: "transparent",
+    },
+  ".cm-line.cm-activeLine.cm-codeblock-line .cm-code-fence-marker": {
+    opacity: "0.9",
+  },
   ".cm-code-copy-widget": {
+    userSelect: "none",
     position: "absolute",
     top: "3px",
     right: "7px",

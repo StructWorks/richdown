@@ -101,7 +101,9 @@ export function enterTablePreview(view, direction) {
 
 // A wrapped line only hands the caret to the table from its last (Down) or
 // first (Up) visual line.
-function isOnEdgeVisualLine(view, range, line, forward) {
+// Whether a vertical move from `range` would leave `line`, i.e. the caret is
+// on its first (backward) or last (forward) visual line.
+export function isOnEdgeVisualLine(view, range, line, forward) {
   try {
     const moved = view.moveVertically(range, forward);
     return forward ? moved.head > line.to : moved.head < line.from;

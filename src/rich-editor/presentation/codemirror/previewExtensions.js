@@ -28,8 +28,10 @@ import { openMermaidEditorModal } from "../mermaid/mermaidEditorModal.js";
 import { createMermaidLiveEditorWidgetClass } from "../mermaid/mermaidLiveEditor.js";
 import { createMermaidPreviewWidgetClass } from "../mermaid/mermaidPreview.js";
 import { createMermaidRenderer } from "../mermaid/mermaidRenderer.js";
+import { getFocusSelection, transactionChangesFocus } from "./pointerSelectionFocus.js";
 import { createSyntaxPreviewDecorations } from "./syntaxPreviewDecorations.js";
 import { createTablePreviewWidgetClass } from "../table/tablePreview.js";
+import { isOnEdgeVisualLine } from "./tableKeymap.js";
 
 export function createPreviewExtensions({
   appendInlineMarkdown,
@@ -218,7 +220,7 @@ export function createPreviewExtensions({
     update(value, transaction) {
       if (
         !transaction.docChanged &&
-        !transaction.selection &&
+        !transactionChangesFocus(transaction) &&
         !transaction.effects.some(
           (effect) => effect.is(toggleDetailsPreview) || effect.is(setActiveDetailsEdit),
         )
@@ -703,15 +705,17 @@ export function createPreviewExtensions({
   }
   
   // Callouts the caret is not in are drawn as widgets; the one it is in shows
-  // its Markdown. Read-only views always draw them.
+  // its Markdown. A selection only opens the callout its moving end is in, so
+  // one that runs over a callout leaves it drawn. Read-only views always draw
+  // them.
   function getPreviewedCalloutBlocks(state) {
     const detailsRanges = getPreviewedDetailsRanges(state);
     return findCalloutBlocks(state.doc).filter(
       (block) =>
         !rangeIntersectsRanges(block.from, block.to, detailsRanges) &&
         (state.readOnly ||
-          !state.selection.ranges.some(
-            (range) => range.from <= block.to && range.to >= block.from,
+          !getFocusSelection(state).ranges.some(
+            (range) => range.head >= block.from && range.head <= block.to,
           )),
     );
   }
@@ -1089,15 +1093,130 @@ export function createPreviewExtensions({
     }
   }
   
+  // A line shows its Markdown while a caret, or the moving end of a
+  // selection, is on it: the same lines .cm-activeLine marks, which reveals the
+  // markers styled away by CSS. Other lines a selection runs over stay
+  // rendered, so selecting does not reflow them.
   function isLineFocused(state, line) {
     // In read-only (viewer) mode no line is ever "focused", so all Markdown
     // syntax stays concealed and the document reads as rendered output.
     if (state.readOnly) {
       return false;
     }
-    return state.selection.ranges.some(
-      (range) => range.from <= line.to && range.to >= line.from,
+    return getFocusSelection(state).ranges.some(
+      (range) => range.head >= line.from && range.head <= line.to,
     );
+  }
+
+  // Up/Down from the line next to a block drawn as a widget (callout,
+  // <details>, Mermaid, Gherkin, front matter) step into its source, the way
+  // they step into a rendered table's cells. CodeMirror would otherwise move
+  // straight past the widget, leaving the block reachable only by mouse.
+  const blockPreviewEntryKeymap = [
+    { key: "ArrowDown", run: (view) => enterBlockPreview(view, true) },
+    { key: "ArrowUp", run: (view) => enterBlockPreview(view, false) },
+  ];
+
+  function enterBlockPreview(view, forward) {
+    const { state } = view;
+    const range = state.selection.main;
+    if (state.readOnly || state.selection.ranges.length > 1 || !range.empty) {
+      return false;
+    }
+    const line = state.doc.lineAt(range.head);
+    const neighborNumber = line.number + (forward ? 1 : -1);
+    if (neighborNumber < 1 || neighborNumber > state.doc.lines) {
+      return false;
+    }
+    const entry = findPreviewedBlockEntry(state, state.doc.line(neighborNumber), forward);
+    if (!entry || !isOnEdgeVisualLine(view, range, line, forward)) {
+      return false;
+    }
+    const target = state.doc.line(entry.lineNumber);
+    view.dispatch({
+      effects: entry.effects,
+      selection: { anchor: Math.min(target.from + (range.head - line.from), target.to) },
+      scrollIntoView: true,
+    });
+    return true;
+  }
+
+  // The widget-drawn block that starts (forward) or ends (backward) on
+  // `neighbor`, with the line to put the caret on and the effects that open
+  // its source.
+  function findPreviewedBlockEntry(state, neighbor, forward) {
+    const touches = (block) =>
+      forward
+        ? block.from === neighbor.from
+        : state.doc.lineAt(block.sourceTo).number === neighbor.number;
+    // Fenced blocks open on their first or last content line rather than on
+    // a fence.
+    const contentEntry = (block, effects) => {
+      const first = state.doc.lineAt(block.from).number;
+      const last = state.doc.lineAt(block.sourceTo).number;
+      const lineNumber = forward
+        ? Math.min(first + 1, last)
+        : Math.max(last - 1, first);
+      return { lineNumber, effects };
+    };
+    const sourceEntry = (block, effects = []) => ({
+      lineNumber: state.doc.lineAt(forward ? block.from : block.sourceTo).number,
+      effects,
+    });
+
+    const callout = getPreviewedCalloutBlocks(state).find(touches);
+    if (callout) {
+      return sourceEntry(callout);
+    }
+    const detailsEdit = getActiveDetailsEdit(state);
+    const details = findDetailsBlocks(state.doc).find(
+      (block) => touches(block) && detailsEdit?.from !== block.from,
+    );
+    if (details) {
+      return sourceEntry(
+        details,
+        setActiveDetailsEdit.of({ from: details.from, to: details.sourceTo }),
+      );
+    }
+    const frontmatter = findFrontmatterBlock(state.doc);
+    if (
+      frontmatter &&
+      touches(frontmatter) &&
+      !state.field(frontmatterDecorationField).activeEdit
+    ) {
+      return contentEntry(
+        frontmatter,
+        setActiveFrontmatterEdit.of({ from: frontmatter.from, to: frontmatter.sourceTo }),
+      );
+    }
+    const previewedRanges = getPreviewedBlockRanges(state);
+    const outsidePreviews = (block) =>
+      !rangeIntersectsRanges(block.from, block.sourceTo, previewedRanges);
+    if (getSettings().mermaidPreview) {
+      const activeEdit = state.field(mermaidDecorationField).activeEdit;
+      const mermaid = findMermaidBlocks(state.doc).find(
+        (block) => touches(block) && outsidePreviews(block) && activeEdit?.from !== block.from,
+      );
+      if (mermaid) {
+        return contentEntry(
+          mermaid,
+          setActiveMermaidEdit.of({ from: mermaid.from, to: mermaid.sourceTo }),
+        );
+      }
+    }
+    if (getSettings().gherkinPreview) {
+      const activeEdit = state.field(gherkinDecorationField).activeEdit;
+      const gherkin = findGherkinBlocks(state.doc).find(
+        (block) => touches(block) && outsidePreviews(block) && activeEdit?.from !== block.from,
+      );
+      if (gherkin) {
+        return contentEntry(
+          gherkin,
+          setActiveGherkinEdit.of({ from: gherkin.from, to: gherkin.sourceTo }),
+        );
+      }
+    }
+    return null;
   }
 
   // Redraws inline decorations only, for example when the host has answered
@@ -1138,6 +1257,7 @@ export function createPreviewExtensions({
       inlineDecorations,
       taskCheckboxes,
     ],
+    blockPreviewEntryKeymap,
     refresh,
     refreshInline,
     openMermaidEditor,

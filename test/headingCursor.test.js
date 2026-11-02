@@ -72,7 +72,7 @@ describe("heading cursor filter", () => {
 
   it("covers an empty heading", () => {
     const state = createState("##\nbody", 3);
-    expect(findHiddenHeadingPrefix(state, state.doc.line(1))).toEqual({ from: 0, to: 2 });
+    expect(findHiddenHeadingPrefix(state, state.doc.line(1))).toEqual({ from: 0, markTo: 2, to: 2 });
     expect(moveTo(state, 1).head).toBe(2);
   });
 });

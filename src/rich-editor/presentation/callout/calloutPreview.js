@@ -7,6 +7,7 @@
 // caret on that source line, which shows the Markdown for editing.
 import { WidgetType } from "@codemirror/view";
 import { calloutIconSvg, findCallouts } from "../../../markdown/callouts.js";
+import { sourcePositionAtClick } from "../codemirror/renderedTextPosition.js";
 import { appendDetailsBody } from "../details/detailsPreview.js";
 
 export function createCalloutPreviewWidgetClass({
@@ -43,7 +44,13 @@ export function createCalloutPreviewWidgetClass({
         foldStates,
         onImageReady: () => requestEditorMeasure(view),
         onToggle: () => requestEditorMeasure(view),
-        onFocusSource: (position) => this.focusSource(view, position),
+        onFocusSource: (position, click) =>
+          this.focusSource(
+            view,
+            click
+              ? sourcePositionAtClick(view.state, click.element, position, click.event)
+              : position,
+          ),
       });
       element.addEventListener("mousedown", (event) => {
         event.preventDefault();
@@ -153,11 +160,12 @@ export function renderCallout(callout, options) {
     event.stopPropagation();
     const line =
       event.target instanceof Element ? event.target.closest("[data-source-from]") : null;
-    options.onFocusSource?.(
-      line?.dataset.sourceFrom
-        ? Number(line.dataset.sourceFrom)
-        : lineFrom(callout.start) + (callout.startOffset || 0),
-    );
+    if (line?.dataset.sourceFrom) {
+      // The caret goes to the clicked character, not just the clicked line.
+      options.onFocusSource?.(Number(line.dataset.sourceFrom), { element: line, event });
+    } else {
+      options.onFocusSource?.(lineFrom(callout.start) + (callout.startOffset || 0));
+    }
   });
 
   return element;

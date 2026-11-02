@@ -48,7 +48,8 @@ export function createHeadingCursorFilter({ isLineFocused }) {
 }
 
 // The "##" plus the whitespace after it on an ATX heading line, which the
-// inline decorations hide while the line is not focused.
+// inline decorations hide while the line is not focused. markTo is where the
+// "#" run ends. Lines inside code blocks are not headings and give null.
 export function findHiddenHeadingPrefix(state, line) {
   const match = headingPrefixPattern.exec(line.text);
   if (!match) {
@@ -59,5 +60,5 @@ export function findHiddenHeadingPrefix(state, line) {
   if (node.name !== "HeaderMark" || !/^ATXHeading/.test(node.parent?.name ?? "")) {
     return null;
   }
-  return { from, to: line.from + match[0].length };
+  return { from, markTo: from + match[2].length, to: line.from + match[0].length };
 }
