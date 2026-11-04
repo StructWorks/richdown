@@ -14,6 +14,9 @@ const { createMarkdownEditorRouter, createTabKey } = require('./src/host/markdow
 const { createSelectionRevealTarget, parseLinkFragment } = require('./src/host/revealTarget');
 const { createMarkdownQuality } = require('./src/host/markdownQuality');
 const { createWebviewDocumentSync } = require('./src/host/webviewDocumentSync');
+const { getMinimalTextEdit } = require('./src/host/minimalTextEdit');
+const { createGitHeadTextCache } = require('./src/host/gitHeadTextCache');
+const { createWikilinkFileIndex } = require('./src/host/wikilinkFileIndex');
 const {
   resolveWikilinkTarget,
   splitWikilinkHref,
@@ -1027,12 +1030,15 @@ class RichdownEditorProvider {
       getText: () => document.getText(),
       getLineEnding: () => getDocumentLineEnding(document),
       replaceText: nextText => {
+        // Only the changed span: a full-document replacement per keystroke
+        // piles whole copies of the text onto the window's undo stack.
+        const change = getMinimalTextEdit(document.getText(), nextText);
         const edit = new vscode.WorkspaceEdit();
-        const fullRange = new vscode.Range(
-          document.positionAt(0),
-          document.positionAt(document.getText().length)
+        edit.replace(
+          document.uri,
+          new vscode.Range(document.positionAt(change.from), document.positionAt(change.to)),
+          change.insert
         );
-        edit.replace(document.uri, fullRange, nextText);
         return vscode.workspace.applyEdit(edit);
       },
       postMessage: message => webviewPanel.webview.postMessage(message)
@@ -1210,6 +1216,7 @@ class RichdownEditorProvider {
     webviewPanel.onDidDispose(() => {
       if (richEditorSessions.get(documentKey) === session) {
         richEditorSessions.delete(documentKey);
+        gitHeadTexts.forget(document.uri);
       }
       if (gitDiffUpdateTimer) {
         clearTimeout(gitDiffUpdateTimer);
@@ -1425,6 +1432,11 @@ function getRichEditorSettings() {
   };
 }
 
+// HEAD copies for the Git change markers; see src/host/gitHeadTextCache.js.
+const gitHeadTexts = createGitHeadTextCache({
+  readHeadText: uri => readUriText(createGitHeadUri(uri))
+});
+
 async function getGitDiffLineChanges(document, text) {
   if (!document || document.uri.scheme !== 'file') {
     return [];
@@ -1437,7 +1449,7 @@ async function getGitDiffLineChanges(document, text) {
 
   let headText;
   try {
-    headText = await readUriText(createGitHeadUri(document.uri));
+    headText = await gitHeadTexts.read(document.uri, repository.state?.HEAD?.commit);
   } catch (error) {
     if (!repositoryHasResourceChange(repository, document.uri)) {
       return [];
@@ -1839,38 +1851,46 @@ async function collectMarkdownLinkCompletionPaths(document) {
   }
 }
 
-// Workspace files for resolving wikilink names, rebuilt after files are
-// created or deleted. Open Richdown editors are told so they ask again.
-let wikilinkFileIndex;
-
-function registerWikilinkFileIndex(context) {
-  const watcher = vscode.workspace.createFileSystemWatcher('**/*', false, true, false);
-  const invalidate = () => {
-    if (!wikilinkFileIndex) {
-      return;
-    }
-    wikilinkFileIndex = undefined;
+// Workspace files for resolving wikilink names; see
+// src/host/wikilinkFileIndex.js. Open Richdown editors are told when the list
+// changes so they ask again.
+const wikilinkFileIndex = createWikilinkFileIndex({
+  // Passing undefined as the exclude pattern keeps files.exclude and
+  // search.exclude in effect, like the link path completions.
+  listFiles: async () => {
+    const uris = await vscode.workspace.findFiles('**/*', undefined, 20000);
+    return uris.filter(uri => uri.scheme === 'file').map(uri => uri.fsPath);
+  },
+  watchFiles: onFileEvent => {
+    const watcher = vscode.workspace.createFileSystemWatcher('**/*', false, true, false);
+    const subscriptions = [
+      watcher.onDidCreate(uri => onFileEvent(uri.fsPath)),
+      watcher.onDidDelete(uri => onFileEvent(uri.fsPath))
+    ];
+    return {
+      dispose() {
+        subscriptions.forEach(subscription => subscription.dispose());
+        watcher.dispose();
+      }
+    };
+  },
+  hasListeners: () => richEditorSessions.size > 0,
+  onChange: () => {
     for (const session of richEditorSessions.values()) {
       session.postMessage({ type: 'wikilinksChanged' });
     }
-  };
+  }
+});
+
+function registerWikilinkFileIndex(context) {
   context.subscriptions.push(
-    watcher,
-    watcher.onDidCreate(invalidate),
-    watcher.onDidDelete(invalidate),
-    vscode.workspace.onDidChangeWorkspaceFolders(invalidate)
+    { dispose: () => wikilinkFileIndex.dispose() },
+    vscode.workspace.onDidChangeWorkspaceFolders(() => wikilinkFileIndex.reset())
   );
 }
 
 function getWikilinkFiles() {
-  if (!wikilinkFileIndex) {
-    // Passing undefined as the exclude pattern keeps files.exclude and
-    // search.exclude in effect, like the link path completions.
-    wikilinkFileIndex = Promise.resolve(vscode.workspace.findFiles('**/*', undefined, 20000))
-      .then(uris => uris.filter(uri => uri.scheme === 'file').map(uri => uri.fsPath))
-      .catch(() => []);
-  }
-  return wikilinkFileIndex;
+  return wikilinkFileIndex.get();
 }
 
 async function findWikilinkFile(document, target) {
