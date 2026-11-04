@@ -2,6 +2,12 @@
 
 All notable changes to Richdown will be documented in this file.
 
+## 0.11.2 - 2026-11-04
+
+- Fixed VS Code windows crashing with `oom` (code `-536870904`) after long editing sessions in the rich editor. Every keystroke replaced the whole document, so the window's undo history kept a full copy of the text per edit and other extensions received the whole document each time; only the changed text is replaced now.
+- The Git change markers no longer read the file's HEAD version through Git after every edit; it is read again only when HEAD moves (a commit, checkout, or reset).
+- The workspace file list behind wikilinks is built and watched only once a wikilink needs it. A burst of file creations or deletions (a build, `npm install`) now rebuilds it once instead of once per file, and open editors re-check their wikilinks only when the list really changed.
+
 ## 0.11.1 - 2026-11-02
 
 - Selecting with the mouse now selects what is under the pointer. Clicks and drags past hidden Markdown (such as the `*` around italic text) used to land before it, and pressing on a line revealed its `**`, `[](...)`, and list markers at once, sliding the text sideways mid-drag. Lines keep their look while the button is down and show their Markdown as soon as it is released; double-clicking still selects the word you aimed at.
