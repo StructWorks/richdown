@@ -2,6 +2,14 @@
 
 All notable changes to Richdown will be documented in this file.
 
+## 0.12.0 - 2026-11-18
+
+- Added a Markdown commit diff for reviewing Markdown changes that are already committed, for example when Claude Code or Codex commits during a session and Source Control has no changes left to show. The new **Markdown Commits** view in Source Control lists the recent commits that changed Markdown files. Expand a commit to see the files it changed with their line counts, and select a file (or the commit itself) to compare it side by side in a Richdown Diff. The view updates when new commits are made.
+- **Compare Through HEAD** on a commit includes every later commit up to `HEAD`, so a session that made several commits can be reviewed at once. Merge commits are compared with their first parent.
+- Added and deleted files are shown as a single rendered pane, and renamed files are compared with their old path.
+- The commit diff lists the changed files beside the diff. Up and Down move through them, **Open File** opens the working-tree file, and **Select Commit…** switches to another commit.
+- A commit can also be opened from a file's Timeline (right-click a Git commit), the Source Control title bar, or `Richdown: Open Markdown Commit Diff` in the command palette. The commit diff works with local repositories.
+
 ## 0.11.2 - 2026-11-04
 
 - Fixed VS Code windows crashing with `oom` (code `-536870904`) after long editing sessions in the rich editor. Every keystroke replaced the whole document, so the window's undo history kept a full copy of the text per edit and other extensions received the whole document each time; only the changed text is replaced now.
