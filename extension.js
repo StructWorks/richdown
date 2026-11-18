@@ -2,6 +2,7 @@ const vscode = require('vscode');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
+const { execFile } = require('child_process');
 const {
   containsMermaidBlocks,
   createExportImageMap,
@@ -16,6 +17,13 @@ const { createMarkdownQuality } = require('./src/host/markdownQuality');
 const { createWebviewDocumentSync } = require('./src/host/webviewDocumentSync');
 const { getMinimalTextEdit } = require('./src/host/minimalTextEdit');
 const { createGitHeadTextCache } = require('./src/host/gitHeadTextCache');
+const {
+  createCommitComparison,
+  createGitCommitDiffSource,
+  formatRelativeTime,
+  loadMarkdownFileDiff
+} = require('./src/host/gitCommitDiff');
+const { createCommitDiffTree } = require('./src/host/commitDiffTree');
 const { createWikilinkFileIndex } = require('./src/host/wikilinkFileIndex');
 const {
   resolveWikilinkTarget,
@@ -76,6 +84,7 @@ function activate(context) {
   context.subscriptions.push(vscode.commands.registerCommand('richdown.toggle', toggleMarkdownOpenMode));
   context.subscriptions.push(vscode.commands.registerCommand('richdown.openGitDiff', openGitDiff));
   context.subscriptions.push(vscode.commands.registerCommand('richdown.openRichDiff', resource => openRichDiff(context, resource)));
+  context.subscriptions.push(vscode.commands.registerCommand('richdown.openCommitDiff', resource => openCommitDiff(context, resource)));
   context.subscriptions.push(vscode.commands.registerCommand('richdown.exportHtml', resource => exportMarkdown(context, resource, 'html')));
   context.subscriptions.push(vscode.commands.registerCommand('richdown.exportPdf', resource => exportMarkdown(context, resource, 'pdf')));
   context.subscriptions.push(vscode.window.registerCustomEditorProvider(
@@ -102,6 +111,7 @@ function activate(context) {
   registerMarkdownEditorRouting(context);
   registerChatEditTracking(context);
   registerWikilinkFileIndex(context);
+  registerCommitDiffView(context);
   markdownQuality.register(context);
   void syncMarkdownEditorAssociations();
 }
@@ -741,12 +751,6 @@ function createRichDiffPanel(context, documentUri, diffData) {
     }
   );
 
-  const postSettings = () => {
-    panel.webview.postMessage({
-      type: 'settings',
-      settings: getRichEditorSettings()
-    });
-  };
   const postWorkingTree = async () => {
     try {
       panel.webview.postMessage({
@@ -769,53 +773,655 @@ function createRichDiffPanel(context, documentUri, diffData) {
       void postWorkingTree();
     }
   });
-  const changeConfigurationSubscription = vscode.workspace.onDidChangeConfiguration(event => {
-    if (
-      event.affectsConfiguration('richdown.richTheme') ||
-      event.affectsConfiguration('richdown.mermaidPreview') ||
-      event.affectsConfiguration('richdown.mermaidColorized') ||
-      event.affectsConfiguration('richdown.mermaidPreviewSize') ||
-      event.affectsConfiguration('richdown.gherkinPreview') ||
-      event.affectsConfiguration('richdown.previewWidth')
-    ) {
-      postSettings();
-    }
-  });
+  const changeConfigurationSubscription = watchDiffSettings(panel);
 
   panel.onDidDispose(() => {
     changeDocumentSubscription.dispose();
     changeConfigurationSubscription.dispose();
   });
 
-  panel.webview.onDidReceiveMessage(async event => {
-    if (event.type === 'openLink') {
-      await openMarkdownLink({ uri: documentUri }, event.href);
-      return;
-    }
+  panel.webview.onDidReceiveMessage(event =>
+    handleDiffWebviewMessage(panel.webview, documentUri, event)
+  );
+}
 
-    if (event.type === 'openWikilink') {
-      await openWikilink({ uri: documentUri }, event.href);
-      return;
-    }
+const diffSettingKeys = [
+  'richdown.richTheme',
+  'richdown.mermaidPreview',
+  'richdown.mermaidColorized',
+  'richdown.mermaidPreviewSize',
+  'richdown.gherkinPreview',
+  'richdown.previewWidth'
+];
 
-    if (event.type === 'resolveImage') {
-      const uri = event.wikilink
-        ? await resolveWikilinkImageUri({ uri: documentUri }, panel.webview, event.src)
-        : resolveMarkdownImageUri({ uri: documentUri }, panel.webview, event.src);
+function watchDiffSettings(panel) {
+  return vscode.workspace.onDidChangeConfiguration(event => {
+    if (diffSettingKeys.some(key => event.affectsConfiguration(key))) {
       panel.webview.postMessage({
-        type: 'resolvedImage',
-        requestId: event.requestId,
-        uri
+        type: 'settings',
+        settings: getRichEditorSettings()
       });
-      return;
-    }
-
-    if (event.type === 'copyText') {
-      if (typeof event.text === 'string') {
-        await vscode.env.clipboard.writeText(event.text);
-      }
     }
   });
+}
+
+// Links, images, and code copies in a diff webview. Relative paths resolve
+// against `documentUri`, the working tree location of the file shown.
+async function handleDiffWebviewMessage(webview, documentUri, event) {
+  if (!event || !documentUri) {
+    return;
+  }
+
+  if (event.type === 'openLink') {
+    await openMarkdownLink({ uri: documentUri }, event.href);
+    return;
+  }
+
+  if (event.type === 'openWikilink') {
+    await openWikilink({ uri: documentUri }, event.href);
+    return;
+  }
+
+  if (event.type === 'resolveImage') {
+    const uri = event.wikilink
+      ? await resolveWikilinkImageUri({ uri: documentUri }, webview, event.src)
+      : resolveMarkdownImageUri({ uri: documentUri }, webview, event.src);
+    webview.postMessage({
+      type: 'resolvedImage',
+      requestId: event.requestId,
+      uri
+    });
+    return;
+  }
+
+  if (event.type === 'copyText') {
+    if (typeof event.text === 'string') {
+      await vscode.env.clipboard.writeText(event.text);
+    }
+  }
+}
+
+// Commit diff: the Markdown files changed by a commit, or by a commit and the
+// ones after it up to HEAD, rendered side by side. Coding agents often commit
+// their work during a session, which leaves Source Control with nothing to
+// review; this reads the history instead. Git runs locally, like the rest of
+// the Git features here.
+let commitDiffPanel;
+// gitPath + rootPath -> repository, so the view and the panel share one Git
+// source (and its cached empty tree) per repository.
+const commitDiffRepositories = new Map();
+
+// The Markdown Commits view in Source Control (src/host/commitDiffTree.js),
+// and the Timeline entry for a file's Git commits.
+function registerCommitDiffView(context) {
+  const tree = createCommitDiffTree({
+    vscode,
+    listRepositories: listCommitDiffRepositories,
+    getErrorMessage: getGitErrorMessage,
+    formatDate: timeMs => new Date(timeMs).toLocaleString(vscode.env.language)
+  });
+  const treeView = vscode.window.createTreeView('richdown.markdownCommits', {
+    treeDataProvider: tree,
+    showCollapseAll: true
+  });
+  const register = (command, callback) => vscode.commands.registerCommand(command, callback);
+  context.subscriptions.push(
+    tree,
+    treeView,
+    register('richdown.commitDiff.refresh', () => tree.refresh()),
+    register('richdown.commitDiff.showMore', rootPath => tree.showMore(rootPath)),
+    register('richdown.commitDiff.open', node => openCommitDiffNode(context, node)),
+    register('richdown.commitDiff.openThroughHead', node => openCommitDiffNode(context, node, { throughHead: true })),
+    register('richdown.commitDiff.openWorkingFile', node => openCommitDiffWorkingFile(node?.repository, node?.file)),
+    register('richdown.commitDiff.openTimelineItem', (item, uri) => openCommitDiffForTimelineItem(context, item, uri))
+  );
+  void watchCommitDiffHistory(context, tree);
+}
+
+// New commits (an agent committing, a pull, a checkout) move HEAD; the view
+// reads that repository's history again.
+async function watchCommitDiffHistory(context, tree) {
+  const gitApi = await getGitApi();
+  if (!gitApi?.onDidOpenRepository) {
+    return;
+  }
+  const watchers = new Map();
+  const watch = repository => {
+    if (repository.rootUri?.scheme !== 'file' || watchers.has(repository)) {
+      return;
+    }
+    let head = repository.state?.HEAD?.commit;
+    const subscription = repository.state?.onDidChange?.(() => {
+      const nextHead = repository.state.HEAD?.commit;
+      if (nextHead !== head) {
+        head = nextHead;
+        tree.refresh(repository.rootUri.fsPath);
+      }
+    });
+    if (subscription) {
+      watchers.set(repository, subscription);
+    }
+  };
+  gitApi.repositories.forEach(watch);
+  context.subscriptions.push(
+    gitApi.onDidOpenRepository(repository => {
+      watch(repository);
+      tree.refresh();
+    }),
+    gitApi.onDidCloseRepository(repository => {
+      watchers.get(repository)?.dispose();
+      watchers.delete(repository);
+      tree.refresh();
+    }),
+    { dispose: () => watchers.forEach(subscription => subscription.dispose()) }
+  );
+}
+
+async function openCommitDiff(context, resource) {
+  const repository = await pickCommitDiffRepository(resource);
+  if (!repository) {
+    return;
+  }
+  const comparison = await pickCommitComparison(repository);
+  if (!comparison) {
+    return;
+  }
+  const content = await loadCommitDiffContent(repository, comparison);
+  if (content) {
+    showCommitDiffPanel(context, repository, content);
+  }
+}
+
+// A commit or a file row of the Markdown Commits view.
+async function openCommitDiffNode(context, node, { throughHead = false } = {}) {
+  if (!node?.repository || !node.commit) {
+    return;
+  }
+  await showCommitDiff(context, node.repository, node.commit, {
+    throughHead,
+    filePath: node.file?.path,
+    // Focus stays in the view, so the next row is a click or a key away.
+    preserveFocus: true
+  });
+}
+
+// A Git commit in the Timeline: the Git extension passes its timeline item
+// (whose ref is the commit hash) and the file the Timeline is showing.
+async function openCommitDiffForTimelineItem(context, item, uri) {
+  const hash = [item?.ref, item?.id].find(value => typeof value === 'string' && /^[0-9a-f]{7,64}$/i.test(value));
+  if (!hash || !(uri instanceof vscode.Uri)) {
+    vscode.window.showWarningMessage('Richdown could not tell which commit this Timeline entry is.');
+    return;
+  }
+  const repository = findCommitDiffRepository(await listCommitDiffRepositories(), uri);
+  if (!repository) {
+    vscode.window.showWarningMessage('Richdown could not find a local Git repository for this file.');
+    return;
+  }
+  let commit;
+  try {
+    commit = await repository.source.readCommit(hash);
+  } catch (error) {
+    vscode.window.showWarningMessage(`Richdown could not read this commit: ${getGitErrorMessage(error)}`);
+    return;
+  }
+  await showCommitDiff(context, repository, commit, {
+    filePath: path.relative(repository.rootPath, uri.fsPath).split(path.sep).join('/')
+  });
+}
+
+async function showCommitDiff(context, repository, commit, { throughHead = false, filePath, preserveFocus = false } = {}) {
+  let comparison;
+  try {
+    comparison = await createCommitComparison(repository.source, commit, { throughHead });
+  } catch (error) {
+    vscode.window.showWarningMessage(`Richdown could not compare this commit: ${getGitErrorMessage(error)}`);
+    return;
+  }
+  // The panel already shows this comparison: only the file changes.
+  if (
+    commitDiffPanel?.repository.rootPath === repository.rootPath &&
+    commitDiffPanel.select(comparison.key, filePath)
+  ) {
+    commitDiffPanel.panel.reveal(undefined, preserveFocus);
+    return;
+  }
+  const content = await loadCommitDiffContent(repository, comparison, filePath);
+  if (content) {
+    showCommitDiffPanel(context, repository, content, { preserveFocus });
+  }
+}
+
+function showCommitDiffPanel(context, repository, content, { preserveFocus = false } = {}) {
+  if (commitDiffPanel && commitDiffPanel.repository.rootPath !== repository.rootPath) {
+    // localResourceRoots are fixed when a panel is created, and images resolve
+    // inside the repository, so another repository gets a fresh panel.
+    commitDiffPanel.panel.dispose();
+    commitDiffPanel = undefined;
+  }
+  if (!commitDiffPanel) {
+    commitDiffPanel = createCommitDiffPanel(context, repository, content, { preserveFocus });
+    return;
+  }
+  commitDiffPanel.show(content);
+  commitDiffPanel.panel.reveal(undefined, preserveFocus);
+}
+
+async function openCommitDiffWorkingFile(repository, file) {
+  if (!repository || !file) {
+    return;
+  }
+  const uri = vscode.Uri.file(path.join(repository.rootPath, ...file.path.split('/')));
+  try {
+    await vscode.workspace.fs.stat(uri);
+  } catch (error) {
+    vscode.window.showWarningMessage(`${file.path} is not in the working tree anymore.`);
+    return;
+  }
+  await vscode.commands.executeCommand('vscode.open', uri);
+}
+
+async function listCommitDiffRepositories() {
+  const gitApi = await getGitApi();
+  const gitPath = gitApi?.git?.path || 'git';
+  let roots = (gitApi?.repositories || [])
+    .map(repository => repository.rootUri)
+    .filter(uri => uri?.scheme === 'file');
+  if (roots.length === 0) {
+    roots = await findWorkspaceGitRoots(gitPath);
+  }
+  return [...new Set(roots.map(uri => uri.fsPath))]
+    .sort((left, right) => left.localeCompare(right))
+    .map(rootPath => {
+      const key = `${gitPath}\0${rootPath}`;
+      if (!commitDiffRepositories.has(key)) {
+        commitDiffRepositories.set(key, createCommitDiffRepository(gitPath, rootPath));
+      }
+      return commitDiffRepositories.get(key);
+    });
+}
+
+// The innermost repository containing the uri (repositories can be nested).
+function findCommitDiffRepository(repositories, uri) {
+  if (!uri) {
+    return undefined;
+  }
+  return [...repositories]
+    .sort((left, right) => right.rootPath.length - left.rootPath.length)
+    .find(repository => isUriInsideRoot(uri, vscode.Uri.file(repository.rootPath)));
+}
+
+async function pickCommitDiffRepository(resource) {
+  const repositories = await listCommitDiffRepositories();
+  if (repositories.length === 0) {
+    vscode.window.showWarningMessage('Richdown could not find a local Git repository in this workspace.');
+    return undefined;
+  }
+
+  // From a repository's Source Control title bar the command receives it.
+  const requestedRoot = resource?.rootUri instanceof vscode.Uri ? resource.rootUri : undefined;
+  const activeRepository = findCommitDiffRepository(repositories, requestedRoot || getActiveResourceUri());
+  if (requestedRoot && activeRepository) {
+    return activeRepository;
+  }
+  if (repositories.length === 1) {
+    return repositories[0];
+  }
+  const items = repositories
+    .map(repository => ({
+      label: repository.name,
+      description: repository === activeRepository ? 'Active file' : repository.description,
+      detail: repository.rootPath,
+      repository
+    }))
+    .sort((left, right) =>
+      Number(right.repository === activeRepository) - Number(left.repository === activeRepository));
+  const picked = await vscode.window.showQuickPick(items, {
+    title: 'Markdown Commit Diff',
+    placeHolder: 'Select a Git repository'
+  });
+  return picked?.repository;
+}
+
+function getActiveResourceUri() {
+  const input = vscode.window.tabGroups?.activeTabGroup?.activeTab?.input;
+  return vscode.window.activeTextEditor?.document.uri || input?.uri || input?.modified;
+}
+
+async function findWorkspaceGitRoots(gitPath) {
+  const folders = (vscode.workspace.workspaceFolders || [])
+    .filter(folder => folder.uri.scheme === 'file');
+  const roots = await Promise.all(folders.map(folder =>
+    runGitCommand(gitPath, folder.uri.fsPath, ['rev-parse', '--show-toplevel'])
+      .then(output => output.trim())
+      .catch(() => '')
+  ));
+  return [...new Set(roots.filter(Boolean))].map(root => vscode.Uri.file(root));
+}
+
+function createCommitDiffRepository(gitPath, rootPath) {
+  // A repository nested in a workspace folder shows where it sits in it.
+  const folder = vscode.workspace.getWorkspaceFolder(vscode.Uri.file(rootPath));
+  const relativePath = folder ? path.relative(folder.uri.fsPath, rootPath) : '';
+  return {
+    rootPath,
+    name: path.basename(rootPath),
+    description: relativePath && !relativePath.startsWith('..') ? relativePath.split(path.sep).join('/') : '',
+    source: createGitCommitDiffSource({
+      runGit: (args, options) => runGitCommand(gitPath, rootPath, args, options)
+    })
+  };
+}
+
+function runGitCommand(gitPath, cwd, args, { input = '' } = {}) {
+  return new Promise((resolve, reject) => {
+    const child = execFile(gitPath, args, {
+      cwd,
+      encoding: 'utf8',
+      maxBuffer: 64 * 1024 * 1024,
+      windowsHide: true,
+      // Reading history must not take the index lock from a running commit.
+      env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' }
+    }, (error, stdout, stderr) => {
+      if (error) {
+        error.stderr = stderr;
+        reject(error);
+        return;
+      }
+      resolve(stdout);
+    });
+    child.stdin?.end(input);
+  });
+}
+
+function getGitErrorMessage(error) {
+  if (error?.code === 'ENOENT') {
+    return 'Git was not found. Install Git or set git.path.';
+  }
+  const stderr = typeof error?.stderr === 'string' ? error.stderr.trim().split('\n')[0] : '';
+  return stderr || error?.message || 'Unknown error';
+}
+
+async function pickCommitComparison(repository) {
+  let commits;
+  let headHash;
+  try {
+    [commits, headHash] = await vscode.window.withProgress(
+      { location: vscode.ProgressLocation.Window, title: 'Richdown: Reading Git history' },
+      () => Promise.all([
+        repository.source.listCommits(),
+        repository.source.resolveCommit('HEAD').catch(() => '')
+      ])
+    );
+  } catch (error) {
+    vscode.window.showWarningMessage(`Richdown could not read the Git history: ${getGitErrorMessage(error)}`);
+    return undefined;
+  }
+  if (commits.length === 0) {
+    vscode.window.showInformationMessage(`No commits that changed Markdown files were found in ${repository.name}.`);
+    return undefined;
+  }
+
+  const picked = await new Promise(resolve => {
+    const quickPick = vscode.window.createQuickPick();
+    const throughHeadButton = {
+      iconPath: new vscode.ThemeIcon('git-compare'),
+      tooltip: 'Compare this commit and every later commit up to HEAD'
+    };
+    quickPick.title = `Markdown Commit Diff: ${repository.name}`;
+    quickPick.placeholder = 'Select a commit to review its Markdown changes (the compare button also includes later commits up to HEAD)';
+    quickPick.matchOnDescription = true;
+    quickPick.matchOnDetail = true;
+    quickPick.items = commits.map(commit => ({
+      label: commit.subject || '(no subject)',
+      description: [commit.shortHash, commit.author, formatRelativeTime(commit.authorTime)]
+        .filter(Boolean)
+        .join(' · '),
+      detail: commit.isMerge
+        ? 'Merge commit, compared with its first parent'
+        : `${commit.markdownFileCount} Markdown file${commit.markdownFileCount === 1 ? '' : 's'}`,
+      buttons: commit.hash === headHash ? [] : [throughHeadButton],
+      commit
+    }));
+
+    let settled = false;
+    const finish = value => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      resolve(value);
+      quickPick.hide();
+    };
+    quickPick.onDidAccept(() => {
+      const item = quickPick.selectedItems[0];
+      if (item) {
+        finish({ commit: item.commit, throughHead: false });
+      }
+    });
+    quickPick.onDidTriggerItemButton(event => {
+      finish({ commit: event.item.commit, throughHead: true });
+    });
+    quickPick.onDidHide(() => {
+      finish(undefined);
+      quickPick.dispose();
+    });
+    quickPick.show();
+  });
+  if (!picked) {
+    return undefined;
+  }
+
+  try {
+    return await createCommitComparison(repository.source, picked.commit, {
+      throughHead: picked.throughHead
+    });
+  } catch (error) {
+    vscode.window.showWarningMessage(`Richdown could not compare this commit: ${getGitErrorMessage(error)}`);
+    return undefined;
+  }
+}
+
+// The file list and the selected file's diff (the given path, or the first
+// file), so the panel opens with content.
+async function loadCommitDiffContent(repository, comparison, filePath) {
+  let changes;
+  try {
+    changes = await repository.source.listMarkdownChanges(comparison.base, comparison.target);
+  } catch (error) {
+    vscode.window.showWarningMessage(`Richdown could not list the changed Markdown files: ${getGitErrorMessage(error)}`);
+    return undefined;
+  }
+  const files = changes.map((file, index) => ({ ...file, id: String(index) }));
+  const selectedFile = files.find(file => file.path === filePath) || files[0];
+  let selectedDiff = null;
+  let selectedError = '';
+  if (selectedFile) {
+    try {
+      selectedDiff = await loadMarkdownFileDiff(repository.source, comparison, selectedFile);
+    } catch (error) {
+      selectedError = getGitErrorMessage(error);
+    }
+  }
+  return { comparison, files, selectedFile, selectedDiff, selectedError };
+}
+
+function createCommitDiffView(repository, comparison, files) {
+  const { commit } = comparison;
+  const date = commit.authorTime
+    ? new Date(commit.authorTime).toLocaleString(vscode.env.language)
+    : '';
+  let note = '';
+  if (comparison.headHash) {
+    const later = Math.max(0, comparison.commitCount - 1);
+    const head = comparison.headHash.slice(0, commit.shortHash.length || 7);
+    note = `Includes ${later} later commit${later === 1 ? '' : 's'} up to HEAD (${head})`;
+  } else if (commit.isMerge) {
+    note = 'Merge commit, compared with its first parent';
+  }
+  return {
+    key: comparison.key,
+    title: commit.subject || '(no subject)',
+    meta: [commit.shortHash, commit.author, date, repository.name],
+    note,
+    files: files.map(({ id, path: filePath, oldPath, status, additions, deletions }) => ({
+      id,
+      path: filePath,
+      oldPath,
+      status,
+      additions,
+      deletions
+    }))
+  };
+}
+
+function getCommitDiffTitle(comparison) {
+  return comparison.headHash
+    ? `${comparison.commit.shortHash}…HEAD Commit Diff`
+    : `${comparison.commit.shortHash} Commit Diff`;
+}
+
+function createCommitDiffPanel(context, repository, initialContent, { preserveFocus = false } = {}) {
+  const workspaceRoots = vscode.workspace.workspaceFolders
+    ? vscode.workspace.workspaceFolders.map(folder => folder.uri)
+    : [];
+  const panel = vscode.window.createWebviewPanel(
+    'richdown.commitDiff',
+    getCommitDiffTitle(initialContent.comparison),
+    { viewColumn: vscode.ViewColumn.Active, preserveFocus },
+    {
+      enableScripts: true,
+      retainContextWhenHidden: true,
+      localResourceRoots: [
+        context.extensionUri,
+        vscode.Uri.file(repository.rootPath),
+        ...workspaceRoots
+      ]
+    }
+  );
+
+  let content = initialContent;
+  let selectedFile;
+  let disposed = false;
+  // File loads and the commit picker finish asynchronously, possibly after
+  // the panel was closed.
+  const post = message => {
+    if (!disposed) {
+      panel.webview.postMessage(message);
+    }
+  };
+  // comparison key + file id -> Promise of the file's diff data.
+  const fileDiffs = new Map();
+
+  const getFile = fileId => content.files.find(file => file.id === String(fileId));
+  const getFileUri = file => vscode.Uri.file(path.join(repository.rootPath, ...file.path.split('/')));
+  const loadFileDiff = file => {
+    const cacheKey = `${content.comparison.key}\0${file.id}`;
+    if (!fileDiffs.has(cacheKey)) {
+      const diff = loadMarkdownFileDiff(repository.source, content.comparison, file);
+      diff.catch(() => fileDiffs.delete(cacheKey));
+      fileDiffs.set(cacheKey, diff);
+    }
+    return fileDiffs.get(cacheKey);
+  };
+  // `select` makes the webview select the file itself (for a file picked
+  // in the Markdown Commits view rather than in the panel's own list).
+  const postFile = async (file, { select = false } = {}) => {
+    const key = content.comparison.key;
+    try {
+      const diff = await loadFileDiff(file);
+      post({ type: 'showFile', key, fileId: file.id, file: diff, select });
+    } catch (error) {
+      post({ type: 'fileError', key, fileId: file.id, message: getGitErrorMessage(error), select });
+    }
+  };
+  const remember = () => {
+    fileDiffs.clear();
+    selectedFile = content.selectedFile;
+    if (selectedFile && content.selectedDiff) {
+      fileDiffs.set(`${content.comparison.key}\0${selectedFile.id}`, Promise.resolve(content.selectedDiff));
+    }
+  };
+  const getInitialData = () => ({
+    commitView: createCommitDiffView(repository, content.comparison, content.files),
+    selectedFileId: selectedFile?.id ?? null,
+    file: content.selectedDiff,
+    fileError: content.selectedError
+  });
+
+  remember();
+  panel.webview.html = getRichDiffHtml(context, panel.webview, getInitialData(), getRichEditorSettings());
+
+  const changeConfigurationSubscription = watchDiffSettings(panel);
+  panel.onDidDispose(() => {
+    disposed = true;
+    changeConfigurationSubscription.dispose();
+    fileDiffs.clear();
+    if (commitDiffPanel?.panel === panel) {
+      commitDiffPanel = undefined;
+    }
+  });
+
+  const show = nextContent => {
+    if (disposed) {
+      return;
+    }
+    content = nextContent;
+    remember();
+    panel.title = getCommitDiffTitle(content.comparison);
+    post({ type: 'showCommit', ...getInitialData() });
+  };
+
+  // Selects a file when the panel already shows this comparison (a path the
+  // comparison did not change keeps the current file); false otherwise.
+  const select = (comparisonKey, filePath) => {
+    if (disposed || comparisonKey !== content.comparison.key) {
+      return false;
+    }
+    const file = content.files.find(item => item.path === filePath);
+    if (file && file !== selectedFile) {
+      selectedFile = file;
+      void postFile(file, { select: true });
+    }
+    return true;
+  };
+
+  panel.webview.onDidReceiveMessage(async event => {
+    if (!event) {
+      return;
+    }
+
+    if (event.type === 'selectFile') {
+      const file = getFile(event.fileId);
+      if (file && event.key === content.comparison.key) {
+        selectedFile = file;
+        await postFile(file);
+      }
+      return;
+    }
+
+    if (event.type === 'pickCommit') {
+      const comparison = await pickCommitComparison(repository);
+      const nextContent = comparison && await loadCommitDiffContent(repository, comparison);
+      if (nextContent) {
+        show(nextContent);
+      }
+      return;
+    }
+
+    if (event.type === 'openFile') {
+      await openCommitDiffWorkingFile(repository, getFile(event.fileId));
+      return;
+    }
+
+    await handleDiffWebviewMessage(
+      panel.webview,
+      selectedFile ? getFileUri(selectedFile) : undefined,
+      event
+    );
+  });
+
+  return { panel, repository, select, show };
 }
 
 async function syncMarkdownEditorAssociations(value) {
@@ -1461,7 +2067,7 @@ async function getGitDiffLineChanges(document, text) {
   return createLineChanges(headText, currentText);
 }
 
-async function getGitRepositoryForUri(uri) {
+async function getGitApi() {
   try {
     const gitExtension = vscode.extensions.getExtension('vscode.git');
     if (!gitExtension) {
@@ -1472,16 +2078,20 @@ async function getGitRepositoryForUri(uri) {
       ? gitExtension.exports
       : await gitExtension.activate();
     const gitApi = gitExports?.getAPI?.(1);
-    if (!gitApi || !Array.isArray(gitApi.repositories)) {
-      return undefined;
-    }
-
-    return gitApi.repositories
-      .filter(repository => isUriInsideRoot(uri, repository.rootUri))
-      .sort((left, right) => right.rootUri.fsPath.length - left.rootUri.fsPath.length)[0];
+    return gitApi && Array.isArray(gitApi.repositories) ? gitApi : undefined;
   } catch (error) {
     return undefined;
   }
+}
+
+async function getGitRepositoryForUri(uri) {
+  const gitApi = await getGitApi();
+  if (!gitApi) {
+    return undefined;
+  }
+  return gitApi.repositories
+    .filter(repository => isUriInsideRoot(uri, repository.rootUri))
+    .sort((left, right) => right.rootUri.fsPath.length - left.rootUri.fsPath.length)[0];
 }
 
 function isUriInsideRoot(uri, rootUri) {
