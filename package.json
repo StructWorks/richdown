@@ -2,7 +2,7 @@
   "name": "richdown",
   "displayName": "Richdown",
   "description": "Edit Markdown with a rich inline preview, editable tables, colored Mermaid diagrams, Gherkin boards, HTML/PDF export, Richdown diffs, and a focused writing flow in VS Code.",
-  "version": "0.11.2",
+  "version": "0.12.0",
   "publisher": "mytooyodev",
   "license": "SEE LICENSE IN LICENSE",
   "repository": {
@@ -90,6 +90,34 @@
         "icon": "$(diff)"
       },
       {
+        "command": "richdown.openCommitDiff",
+        "title": "Richdown: Open Markdown Commit Diff",
+        "shortTitle": "Markdown Commit Diff",
+        "icon": "$(history)"
+      },
+      {
+        "command": "richdown.commitDiff.refresh",
+        "title": "Refresh",
+        "category": "Richdown",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "richdown.commitDiff.openThroughHead",
+        "title": "Compare Through HEAD",
+        "category": "Richdown",
+        "icon": "$(git-compare)"
+      },
+      {
+        "command": "richdown.commitDiff.openWorkingFile",
+        "title": "Open File",
+        "category": "Richdown",
+        "icon": "$(go-to-file)"
+      },
+      {
+        "command": "richdown.commitDiff.openTimelineItem",
+        "title": "Richdown: Open Markdown Commit Diff"
+      },
+      {
         "command": "richdown.exportHtml",
         "title": "Richdown: Export HTML",
         "shortTitle": "Export HTML",
@@ -139,6 +167,23 @@
           }
         ],
         "priority": "option"
+      }
+    ],
+    "views": {
+      "scm": [
+        {
+          "id": "richdown.markdownCommits",
+          "name": "Markdown Commits",
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0",
+          "icon": "$(history)",
+          "contextualTitle": "Richdown"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "richdown.markdownCommits",
+        "contents": "No local Git repository was found in this workspace."
       }
     ],
     "configuration": {
@@ -266,11 +311,54 @@
           "group": "navigation@5"
         }
       ],
+      "scm/title": [
+        {
+          "command": "richdown.openCommitDiff",
+          "when": "scmProvider == git || !scmProvider && gitOpenRepositoryCount != 0",
+          "group": "navigation@10"
+        }
+      ],
       "scm/resourceState/context": [
         {
           "command": "richdown.openRichDiff",
           "when": "resourceExtname == .md || resourceExtname == .markdown",
           "group": "navigation@1"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "richdown.commitDiff.refresh",
+          "when": "view == richdown.markdownCommits",
+          "group": "navigation@1"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "richdown.commitDiff.openThroughHead",
+          "when": "view == richdown.markdownCommits && viewItem == richdown.commit",
+          "group": "inline@1"
+        },
+        {
+          "command": "richdown.commitDiff.openThroughHead",
+          "when": "view == richdown.markdownCommits && viewItem == richdown.commit",
+          "group": "navigation@1"
+        },
+        {
+          "command": "richdown.commitDiff.openWorkingFile",
+          "when": "view == richdown.markdownCommits && viewItem == richdown.commitFile",
+          "group": "inline@1"
+        },
+        {
+          "command": "richdown.commitDiff.openWorkingFile",
+          "when": "view == richdown.markdownCommits && viewItem == richdown.commitFile",
+          "group": "navigation@1"
+        }
+      ],
+      "timeline/item/context": [
+        {
+          "command": "richdown.commitDiff.openTimelineItem",
+          "when": "timelineItem =~ /git:file:commit\\b/",
+          "group": "richdown@1"
         }
       ],
       "commandPalette": [
@@ -279,6 +367,25 @@
         },
         {
           "command": "richdown.openGitDiff"
+        },
+        {
+          "command": "richdown.openCommitDiff"
+        },
+        {
+          "command": "richdown.commitDiff.refresh",
+          "when": "false"
+        },
+        {
+          "command": "richdown.commitDiff.openThroughHead",
+          "when": "false"
+        },
+        {
+          "command": "richdown.commitDiff.openWorkingFile",
+          "when": "false"
+        },
+        {
+          "command": "richdown.commitDiff.openTimelineItem",
+          "when": "false"
         },
         {
           "command": "richdown.exportHtml"

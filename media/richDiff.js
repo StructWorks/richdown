@@ -21096,6 +21096,114 @@
     return escapeHtml(value).replace(/`/g, "&#96;");
   }
 
+  // src/rich-diff/presentation/commitView.js
+  var statusLetters = {
+    added: "A",
+    deleted: "D",
+    modified: "M",
+    renamed: "R"
+  };
+  var statusNames = {
+    added: "Added",
+    deleted: "Deleted",
+    modified: "Modified",
+    renamed: "Renamed"
+  };
+  function normalizeCommitView(view) {
+    if (!view || typeof view !== "object") return null;
+    return {
+      key: String(view.key || ""),
+      title: String(view.title || ""),
+      meta: Array.isArray(view.meta) ? view.meta.map(String).filter(Boolean) : [],
+      note: String(view.note || ""),
+      files: Array.isArray(view.files) ? view.files.map((file, index) => ({
+        id: String(file.id ?? index),
+        path: String(file.path || ""),
+        oldPath: file.oldPath ? String(file.oldPath) : "",
+        status: statusLetters[file.status] ? file.status : "modified",
+        additions: Number.isFinite(file.additions) ? file.additions : null,
+        deletions: Number.isFinite(file.deletions) ? file.deletions : null
+      })) : []
+    };
+  }
+  function renderCommitFrame(view) {
+    const meta = view.meta.map((item) => `<span>${escapeHtml(item)}</span>`).join("");
+    return `
+    <div class="rdiff-commit">
+      <header class="rdiff-commit-header">
+        <div class="rdiff-commit-info">
+          <div class="rdiff-commit-title">${escapeHtml(view.title)}</div>
+          ${meta ? `<div class="rdiff-commit-meta">${meta}</div>` : ""}
+          ${view.note ? `<div class="rdiff-commit-note">${escapeHtml(view.note)}</div>` : ""}
+        </div>
+        <button type="button" class="rdiff-button" data-action="pick-commit">Select Commit\u2026</button>
+      </header>
+      <div class="rdiff-commit-body">
+        <nav class="rdiff-files" aria-label="Changed Markdown files">
+          <div class="rdiff-files-heading">
+            <span>Markdown files</span>
+            <span class="rdiff-files-count">${view.files.length}</span>
+          </div>
+          <ul class="rdiff-file-list">
+            ${view.files.map(renderFileItem).join("")}
+          </ul>
+        </nav>
+        <div class="rdiff-commit-main"></div>
+      </div>
+    </div>
+  `;
+  }
+  function renderFileItem(file) {
+    const slash = file.path.lastIndexOf("/");
+    const name = slash >= 0 ? file.path.slice(slash + 1) : file.path;
+    const directory = slash >= 0 ? file.path.slice(0, slash) : "";
+    const title = file.oldPath ? `${file.oldPath} \u2192 ${file.path}` : file.path;
+    return `
+    <li>
+      <button type="button" class="rdiff-file-item is-${file.status}" data-file-id="${escapeAttribute(file.id)}" title="${escapeAttribute(title)}">
+        <span class="rdiff-file-status" title="${statusNames[file.status]}">${statusLetters[file.status]}</span>
+        <span class="rdiff-file-text">
+          <span class="rdiff-file-name">${escapeHtml(name)}</span>
+          ${directory ? `<span class="rdiff-file-dir">${escapeHtml(directory)}</span>` : ""}
+        </span>
+        ${renderFileCounts(file)}
+      </button>
+    </li>
+  `;
+  }
+  function renderFileCounts(file) {
+    if (file.additions === null && file.deletions === null) return "";
+    return `
+    <span class="rdiff-file-counts">
+      ${file.additions ? `<span class="rdiff-file-add">+${file.additions}</span>` : ""}
+      ${file.deletions ? `<span class="rdiff-file-delete">-${file.deletions}</span>` : ""}
+    </span>
+  `;
+  }
+  function updateFileSelection(container, selectedFileId2) {
+    container.querySelectorAll("[data-file-id]").forEach((item) => {
+      const selected = item.dataset.fileId === selectedFileId2;
+      item.classList.toggle("is-selected", selected);
+      if (selected) {
+        item.setAttribute("aria-current", "true");
+      } else {
+        item.removeAttribute("aria-current");
+      }
+    });
+  }
+  function renderStatusBadge(status) {
+    if (!statusLetters[status]) return "";
+    return `<span class="rdiff-status-badge is-${status}">${statusNames[status]}</span>`;
+  }
+  function renderMessage(title, copy) {
+    return `
+    <div class="rdiff-empty">
+      <div class="rdiff-empty-title">${escapeHtml(title)}</div>
+      ${copy ? `<div class="rdiff-empty-copy">${escapeHtml(copy)}</div>` : ""}
+    </div>
+  `;
+  }
+
   // src/rich-diff/presentation/highlight/tomlLanguage.js
   function tomlLanguage(hljs) {
     const regex = hljs.regex;
@@ -22240,6 +22348,218 @@
       color: var(--rip-heading);
       font-weight: 760;
     }
+    .rdiff-row.is-single {
+      min-width: 380px;
+      grid-template-columns: minmax(360px, 1fr);
+    }
+    .rdiff-column-header.is-single {
+      grid-template-columns: minmax(360px, 1fr);
+    }
+    .rdiff-single.is-added-file .rdiff-marker {
+      color: var(--rip-syntax-green);
+      box-shadow: inset 3px 0 var(--rdiff-add-border);
+    }
+    .rdiff-single.is-deleted-file .rdiff-marker {
+      color: var(--rip-danger);
+      box-shadow: inset 3px 0 var(--rdiff-delete-border);
+    }
+    .rdiff-single.is-deleted-file .rdiff-content {
+      opacity: 0.86;
+    }
+    .rdiff-button {
+      flex: 0 0 auto;
+      border: 1px solid var(--rip-border);
+      border-radius: 5px;
+      padding: 3px 10px;
+      color: var(--rip-fg);
+      background: var(--rip-bg);
+      font: 12px var(--vscode-font-family);
+      cursor: pointer;
+    }
+    .rdiff-button:hover {
+      color: var(--rip-heading);
+      border-color: var(--rip-focus);
+      background: var(--rip-hover);
+    }
+    .rdiff-button:focus-visible,
+    .rdiff-file-item:focus-visible {
+      outline: 1px solid var(--rip-focus);
+      outline-offset: -1px;
+    }
+    .rdiff-commit {
+      height: 100%;
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr);
+      color: var(--rip-fg);
+      background: var(--rip-bg);
+      font-family: var(--vscode-font-family);
+      font-size: 14px;
+    }
+    .rdiff-commit-header {
+      min-width: 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      border-bottom: 1px solid var(--rip-border);
+      padding: 10px 14px;
+      background: color-mix(in srgb, var(--rip-panel) 82%, var(--rip-bg));
+    }
+    .rdiff-commit-info {
+      min-width: 0;
+      display: grid;
+      gap: 3px;
+    }
+    .rdiff-commit-title {
+      color: var(--rip-heading);
+      font-size: 15px;
+      font-weight: 760;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .rdiff-commit-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px 14px;
+      color: var(--rip-muted);
+      font-size: 12px;
+    }
+    .rdiff-commit-meta > span:first-child {
+      font-family: var(--vscode-editor-font-family, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace);
+    }
+    .rdiff-commit-note {
+      color: var(--rip-syntax-orange);
+      font-size: 12px;
+    }
+    .rdiff-commit-body {
+      min-height: 0;
+      display: grid;
+      grid-template-columns: minmax(200px, 280px) minmax(0, 1fr);
+    }
+    .rdiff-commit-main {
+      min-width: 0;
+      min-height: 0;
+      overflow: hidden;
+    }
+    /* Column labels here are commit hashes, which must keep their case. */
+    .rdiff-commit .rdiff-column-header {
+      text-transform: none;
+    }
+    .rdiff-files {
+      min-height: 0;
+      overflow: auto;
+      border-right: 1px solid var(--rip-border);
+      background: color-mix(in srgb, var(--rip-panel) 56%, var(--rip-bg));
+    }
+    .rdiff-files-heading {
+      position: sticky;
+      top: 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--rip-border);
+      padding: 7px 12px;
+      color: var(--rip-muted);
+      background: color-mix(in srgb, var(--rip-panel) 82%, var(--rip-bg));
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+    .rdiff-files-count {
+      border-radius: 999px;
+      padding: 0 7px;
+      background: var(--rip-bg);
+      font-variant-numeric: tabular-nums;
+    }
+    .rdiff-file-list {
+      margin: 0;
+      padding: 4px 0;
+      list-style: none;
+    }
+    .rdiff-file-item {
+      width: 100%;
+      display: grid;
+      grid-template-columns: 18px minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 8px;
+      border: 0;
+      border-left: 2px solid transparent;
+      padding: 5px 12px 5px 10px;
+      color: var(--rip-fg);
+      background: transparent;
+      font: 13px var(--vscode-font-family);
+      text-align: left;
+      cursor: pointer;
+    }
+    .rdiff-file-item:hover {
+      background: var(--rip-hover);
+    }
+    .rdiff-file-item.is-selected {
+      border-left-color: var(--rip-focus);
+      background: color-mix(in srgb, var(--rip-focus) 18%, transparent);
+    }
+    .rdiff-file-status {
+      font-family: var(--vscode-editor-font-family, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace);
+      font-size: 12px;
+      font-weight: 760;
+      text-align: center;
+    }
+    .rdiff-file-item.is-added .rdiff-file-status { color: var(--rip-syntax-green); }
+    .rdiff-file-item.is-deleted .rdiff-file-status { color: var(--rip-danger); }
+    .rdiff-file-item.is-modified .rdiff-file-status { color: var(--rip-syntax-orange); }
+    .rdiff-file-item.is-renamed .rdiff-file-status { color: var(--rip-syntax-blue); }
+    .rdiff-file-item.is-deleted .rdiff-file-name {
+      text-decoration: line-through;
+    }
+    .rdiff-file-text {
+      min-width: 0;
+      display: grid;
+    }
+    .rdiff-file-name,
+    .rdiff-file-dir {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .rdiff-file-dir {
+      color: var(--rip-muted);
+      font-size: 11px;
+    }
+    .rdiff-file-counts {
+      display: inline-flex;
+      gap: 5px;
+      font-size: 11px;
+      font-variant-numeric: tabular-nums;
+    }
+    .rdiff-file-add { color: var(--rip-syntax-green); }
+    .rdiff-file-delete { color: var(--rip-danger); }
+    .rdiff-status-badge {
+      margin-left: 8px;
+      border: 1px solid var(--rip-border);
+      border-radius: 999px;
+      padding: 1px 7px;
+      color: var(--rip-muted);
+      font-size: 11px;
+      font-weight: 600;
+      vertical-align: 2px;
+    }
+    .rdiff-status-badge.is-added {
+      color: var(--rip-syntax-green);
+      border-color: var(--rdiff-add-border);
+      background: var(--rdiff-add-bg);
+    }
+    .rdiff-status-badge.is-deleted {
+      color: var(--rip-danger);
+      border-color: var(--rdiff-delete-border);
+      background: var(--rdiff-delete-bg);
+    }
+    .rdiff-loading {
+      height: 100%;
+      display: grid;
+      place-content: center;
+      color: var(--rip-muted);
+    }
     .hljs-keyword,
     .hljs-built_in,
     .hljs-selector-tag {
@@ -22276,6 +22596,19 @@
         border-right: 0;
       }
       .rdiff-left {
+        border-bottom: 1px solid var(--rip-border);
+      }
+      .rdiff-commit-header {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+      .rdiff-commit-body {
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-rows: auto minmax(0, 1fr);
+      }
+      .rdiff-files {
+        max-height: 30vh;
+        border-right: 0;
         border-bottom: 1px solid var(--rip-border);
       }
     }
@@ -22551,14 +22884,10 @@
   var initialSettings = JSON.parse(
     document.querySelector("#initial-settings").textContent
   );
-  var diffData = {
-    leftText: initialDiff.leftText || "",
-    rightText: initialDiff.rightText || "",
-    leftLabel: initialDiff.leftLabel || "Base",
-    rightLabel: initialDiff.rightLabel || "Working Tree",
-    fileName: initialDiff.fileName || "Markdown",
-    filePath: initialDiff.filePath || ""
-  };
+  var commitView = normalizeCommitView(initialDiff.commitView);
+  var selectedFileId = commitView ? getInitialFileId(initialDiff) : null;
+  var diffData = commitView ? initialDiff.file ? normalizeDiffData(initialDiff.file) : null : normalizeDiffData(initialDiff);
+  var fileError = commitView ? String(initialDiff.fileError || "") : "";
   var settings = normalizeSettings(initialSettings);
   var imageRequestId = 0;
   var copyPayloadId = 0;
@@ -22570,7 +22899,11 @@
   });
   injectStyles();
   applyTheme(settings.richTheme);
-  renderDiff();
+  if (commitView) {
+    renderCommitView();
+  } else {
+    renderDiff();
+  }
   window.addEventListener("message", (event) => {
     if (!event.data) return;
     if (event.data.type === "resolvedImage") {
@@ -22596,10 +22929,36 @@
       return;
     }
     if (event.data.type === "updateRight" && typeof event.data.text === "string") {
+      if (commitView || !diffData) return;
       diffData = {
         ...diffData,
         rightText: event.data.text
       };
+      renderDiff();
+      return;
+    }
+    if (event.data.type === "showCommit") {
+      const nextView = normalizeCommitView(event.data.commitView);
+      if (!nextView) return;
+      commitView = nextView;
+      selectedFileId = getInitialFileId(event.data);
+      diffData = event.data.file ? normalizeDiffData(event.data.file) : null;
+      fileError = String(event.data.fileError || "");
+      renderCommitView();
+      return;
+    }
+    if ((event.data.type === "showFile" || event.data.type === "fileError") && event.data.select && commitView && event.data.key === commitView.key && commitView.files.some((file) => file.id === String(event.data.fileId))) {
+      selectedFileId = String(event.data.fileId);
+      [...root.querySelectorAll("[data-file-id]")].find((item) => item.dataset.fileId === selectedFileId)?.scrollIntoView?.({ block: "nearest" });
+    }
+    if ((event.data.type === "showFile" || event.data.type === "fileError") && commitView && event.data.key === commitView.key && String(event.data.fileId) === selectedFileId) {
+      if (event.data.type === "showFile" && event.data.file) {
+        diffData = normalizeDiffData(event.data.file);
+        fileError = "";
+      } else {
+        diffData = null;
+        fileError = String(event.data.message || "The file could not be read from Git.");
+      }
       renderDiff();
     }
   });
@@ -22616,6 +22975,20 @@
       }
       return;
     }
+    const fileItem = event.target.closest("[data-file-id]");
+    if (fileItem) {
+      selectFile(fileItem.dataset.fileId);
+      return;
+    }
+    const action = event.target.closest("[data-action]");
+    if (action) {
+      if (action.dataset.action === "pick-commit") {
+        vscode.postMessage({ type: "pickCommit" });
+      } else if (action.dataset.action === "open-file" && selectedFileId !== null) {
+        vscode.postMessage({ type: "openFile", fileId: selectedFileId });
+      }
+      return;
+    }
     const link = event.target.closest("a[data-href]");
     if (link) {
       event.preventDefault();
@@ -22628,48 +23001,150 @@
       vscode.postMessage({ type: "openWikilink", href: wikilink.dataset.wikilink });
     }
   });
+  root.addEventListener("keydown", (event) => {
+    const item = event.target.closest?.("[data-file-id]");
+    if (!item || !["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
+    const items = [...root.querySelectorAll("[data-file-id]")];
+    const index = items.indexOf(item);
+    const nextIndex = {
+      ArrowDown: Math.min(items.length - 1, index + 1),
+      ArrowUp: Math.max(0, index - 1),
+      Home: 0,
+      End: items.length - 1
+    }[event.key];
+    const next = items[nextIndex];
+    if (!next || next === item) return;
+    event.preventDefault();
+    next.focus();
+    selectFile(next.dataset.fileId);
+  });
+  function getInitialFileId(data) {
+    if (data.selectedFileId !== void 0 && data.selectedFileId !== null) {
+      return String(data.selectedFileId);
+    }
+    return commitView?.files[0]?.id ?? null;
+  }
+  function normalizeDiffData(data = {}) {
+    return {
+      leftText: data.leftText || "",
+      rightText: data.rightText || "",
+      leftLabel: data.leftLabel || "Base",
+      rightLabel: data.rightLabel || "Working Tree",
+      fileName: data.fileName || "Markdown",
+      filePath: data.filePath || "",
+      layout: data.layout === "single" ? "single" : "split",
+      singleSide: data.singleSide === "left" ? "left" : "right",
+      singleLabel: data.singleLabel || "",
+      status: data.status || ""
+    };
+  }
+  function selectFile(fileId) {
+    if (!commitView || fileId === selectedFileId) return;
+    selectedFileId = fileId;
+    diffData = null;
+    fileError = "";
+    renderDiff();
+    vscode.postMessage({ type: "selectFile", fileId, key: commitView.key });
+  }
+  function renderCommitView() {
+    root.innerHTML = renderCommitFrame(commitView);
+    renderDiff();
+  }
   function renderDiff() {
     copyPayloadId = 0;
     copyPayloads = /* @__PURE__ */ new Map();
     pendingImageRequests.forEach((pending) => window.clearTimeout(pending.timeout));
     pendingImageRequests.clear();
-    const leftLines = splitLines(diffData.leftText);
-    const rightLines = splitLines(diffData.rightText);
-    const rows = buildDiffRows(leftLines, rightLines);
-    const stats = summarizeRows(rows);
-    const leftMeta = analyzeMarkdownLines(leftLines);
-    const rightMeta = analyzeMarkdownLines(rightLines);
-    root.innerHTML = `
+    if (!commitView) {
+      root.innerHTML = renderDiffShell();
+      resolveImages();
+      return;
+    }
+    updateFileSelection(root, selectedFileId);
+    const main = root.querySelector(".rdiff-commit-main");
+    if (!commitView.files.length) {
+      main.innerHTML = renderMessage(
+        "No Markdown changes",
+        "This commit did not change any Markdown files."
+      );
+    } else if (fileError) {
+      main.innerHTML = renderMessage("This file could not be shown", fileError);
+    } else if (!diffData) {
+      main.innerHTML = `<div class="rdiff-loading">Loading\u2026</div>`;
+    } else {
+      main.innerHTML = renderDiffShell();
+      resolveImages();
+    }
+  }
+  function renderDiffShell() {
+    const single = diffData.layout === "single";
+    const body = single ? renderSinglePane() : renderSplitPane();
+    const columnLabels = single ? [diffData.singleLabel || (diffData.singleSide === "left" ? diffData.leftLabel : diffData.rightLabel)] : [diffData.leftLabel, diffData.rightLabel];
+    return `
     <div class="rdiff-shell">
       <header class="rdiff-header">
         <div class="rdiff-title">
-          <div class="rdiff-file">${escapeHtml(diffData.fileName)}</div>
+          <div class="rdiff-file">${escapeHtml(diffData.fileName)}${commitView ? renderStatusBadge(diffData.status) : ""}</div>
           <div class="rdiff-path">${escapeHtml(diffData.filePath)}</div>
         </div>
         <div class="rdiff-stats" aria-label="Diff summary">
-          <span class="rdiff-stat rdiff-stat-add">+${stats.added}</span>
-          <span class="rdiff-stat rdiff-stat-delete">-${stats.deleted}</span>
-          <span class="rdiff-stat">${stats.changed} changed lines</span>
+          <span class="rdiff-stat rdiff-stat-add">+${body.stats.added}</span>
+          <span class="rdiff-stat rdiff-stat-delete">-${body.stats.deleted}</span>
+          ${single ? "" : `<span class="rdiff-stat">${body.stats.changed} changed lines</span>`}
+          ${commitView && diffData.status !== "deleted" ? `<button type="button" class="rdiff-button" data-action="open-file" title="Open the working tree version of this file">Open File</button>` : ""}
         </div>
       </header>
-      <div class="rdiff-column-header" aria-hidden="true">
-        <div>${escapeHtml(diffData.leftLabel)}</div>
-        <div>${escapeHtml(diffData.rightLabel)}</div>
+      <div class="rdiff-column-header${single ? " is-single" : ""}" aria-hidden="true">
+        ${columnLabels.map((label) => `<div>${escapeHtml(label)}</div>`).join("")}
       </div>
       <main class="rdiff-body">
-        ${rows.length ? rows.map((row) => renderDiffRow(row, leftMeta, rightMeta)).join("") : renderEmptyDiff()}
+        ${body.html}
       </main>
     </div>
   `;
-    resolveImages();
+  }
+  function renderSplitPane() {
+    const leftLines = splitLines(diffData.leftText);
+    const rightLines = splitLines(diffData.rightText);
+    const rows = buildDiffRows(leftLines, rightLines);
+    const leftMeta = analyzeMarkdownLines(leftLines);
+    const rightMeta = analyzeMarkdownLines(rightLines);
+    return {
+      stats: summarizeRows(rows),
+      html: rows.length ? rows.map((row) => renderDiffRow(row, leftMeta, rightMeta)).join("") : renderEmptyDiff()
+    };
+  }
+  function renderSinglePane() {
+    const side = diffData.singleSide;
+    const lines = splitLines(side === "left" ? diffData.leftText : diffData.rightText);
+    const meta = analyzeMarkdownLines(lines);
+    const kind = side === "left" ? "deleted" : "added";
+    const marker = side === "left" ? "-" : "+";
+    const html = lines.map((text, index) => {
+      const line = createLine(text, index + 1);
+      return `
+        <div class="rdiff-row is-single">
+          <section class="rdiff-side rdiff-single is-${kind}-file">
+            <div class="rdiff-line-number">${line.number}</div>
+            <div class="rdiff-marker">${marker}</div>
+            <div class="rdiff-content">${renderMarkdownLine(line.text, meta.get(line.number))}</div>
+          </section>
+        </div>
+      `;
+    }).join("");
+    return {
+      stats: {
+        added: side === "right" ? lines.length : 0,
+        deleted: side === "left" ? lines.length : 0
+      },
+      html: html || renderMessage("Empty file", "This file has no content.")
+    };
   }
   function renderEmptyDiff() {
-    return `
-    <div class="rdiff-empty">
-      <div class="rdiff-empty-title">No changes</div>
-      <div class="rdiff-empty-copy">The Markdown content matches the selected base.</div>
-    </div>
-  `;
+    return renderMessage(
+      "No changes",
+      "The Markdown content matches the selected base."
+    );
   }
   function renderDiffRow(row, leftMeta, rightMeta) {
     const rowClass = `rdiff-row is-${row.type}`;

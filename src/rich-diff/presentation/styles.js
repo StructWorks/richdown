@@ -391,6 +391,218 @@ export function injectStyles() {
       color: var(--rip-heading);
       font-weight: 760;
     }
+    .rdiff-row.is-single {
+      min-width: 380px;
+      grid-template-columns: minmax(360px, 1fr);
+    }
+    .rdiff-column-header.is-single {
+      grid-template-columns: minmax(360px, 1fr);
+    }
+    .rdiff-single.is-added-file .rdiff-marker {
+      color: var(--rip-syntax-green);
+      box-shadow: inset 3px 0 var(--rdiff-add-border);
+    }
+    .rdiff-single.is-deleted-file .rdiff-marker {
+      color: var(--rip-danger);
+      box-shadow: inset 3px 0 var(--rdiff-delete-border);
+    }
+    .rdiff-single.is-deleted-file .rdiff-content {
+      opacity: 0.86;
+    }
+    .rdiff-button {
+      flex: 0 0 auto;
+      border: 1px solid var(--rip-border);
+      border-radius: 5px;
+      padding: 3px 10px;
+      color: var(--rip-fg);
+      background: var(--rip-bg);
+      font: 12px var(--vscode-font-family);
+      cursor: pointer;
+    }
+    .rdiff-button:hover {
+      color: var(--rip-heading);
+      border-color: var(--rip-focus);
+      background: var(--rip-hover);
+    }
+    .rdiff-button:focus-visible,
+    .rdiff-file-item:focus-visible {
+      outline: 1px solid var(--rip-focus);
+      outline-offset: -1px;
+    }
+    .rdiff-commit {
+      height: 100%;
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr);
+      color: var(--rip-fg);
+      background: var(--rip-bg);
+      font-family: var(--vscode-font-family);
+      font-size: 14px;
+    }
+    .rdiff-commit-header {
+      min-width: 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      border-bottom: 1px solid var(--rip-border);
+      padding: 10px 14px;
+      background: color-mix(in srgb, var(--rip-panel) 82%, var(--rip-bg));
+    }
+    .rdiff-commit-info {
+      min-width: 0;
+      display: grid;
+      gap: 3px;
+    }
+    .rdiff-commit-title {
+      color: var(--rip-heading);
+      font-size: 15px;
+      font-weight: 760;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .rdiff-commit-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px 14px;
+      color: var(--rip-muted);
+      font-size: 12px;
+    }
+    .rdiff-commit-meta > span:first-child {
+      font-family: var(--vscode-editor-font-family, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace);
+    }
+    .rdiff-commit-note {
+      color: var(--rip-syntax-orange);
+      font-size: 12px;
+    }
+    .rdiff-commit-body {
+      min-height: 0;
+      display: grid;
+      grid-template-columns: minmax(200px, 280px) minmax(0, 1fr);
+    }
+    .rdiff-commit-main {
+      min-width: 0;
+      min-height: 0;
+      overflow: hidden;
+    }
+    /* Column labels here are commit hashes, which must keep their case. */
+    .rdiff-commit .rdiff-column-header {
+      text-transform: none;
+    }
+    .rdiff-files {
+      min-height: 0;
+      overflow: auto;
+      border-right: 1px solid var(--rip-border);
+      background: color-mix(in srgb, var(--rip-panel) 56%, var(--rip-bg));
+    }
+    .rdiff-files-heading {
+      position: sticky;
+      top: 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--rip-border);
+      padding: 7px 12px;
+      color: var(--rip-muted);
+      background: color-mix(in srgb, var(--rip-panel) 82%, var(--rip-bg));
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+    .rdiff-files-count {
+      border-radius: 999px;
+      padding: 0 7px;
+      background: var(--rip-bg);
+      font-variant-numeric: tabular-nums;
+    }
+    .rdiff-file-list {
+      margin: 0;
+      padding: 4px 0;
+      list-style: none;
+    }
+    .rdiff-file-item {
+      width: 100%;
+      display: grid;
+      grid-template-columns: 18px minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 8px;
+      border: 0;
+      border-left: 2px solid transparent;
+      padding: 5px 12px 5px 10px;
+      color: var(--rip-fg);
+      background: transparent;
+      font: 13px var(--vscode-font-family);
+      text-align: left;
+      cursor: pointer;
+    }
+    .rdiff-file-item:hover {
+      background: var(--rip-hover);
+    }
+    .rdiff-file-item.is-selected {
+      border-left-color: var(--rip-focus);
+      background: color-mix(in srgb, var(--rip-focus) 18%, transparent);
+    }
+    .rdiff-file-status {
+      font-family: var(--vscode-editor-font-family, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace);
+      font-size: 12px;
+      font-weight: 760;
+      text-align: center;
+    }
+    .rdiff-file-item.is-added .rdiff-file-status { color: var(--rip-syntax-green); }
+    .rdiff-file-item.is-deleted .rdiff-file-status { color: var(--rip-danger); }
+    .rdiff-file-item.is-modified .rdiff-file-status { color: var(--rip-syntax-orange); }
+    .rdiff-file-item.is-renamed .rdiff-file-status { color: var(--rip-syntax-blue); }
+    .rdiff-file-item.is-deleted .rdiff-file-name {
+      text-decoration: line-through;
+    }
+    .rdiff-file-text {
+      min-width: 0;
+      display: grid;
+    }
+    .rdiff-file-name,
+    .rdiff-file-dir {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .rdiff-file-dir {
+      color: var(--rip-muted);
+      font-size: 11px;
+    }
+    .rdiff-file-counts {
+      display: inline-flex;
+      gap: 5px;
+      font-size: 11px;
+      font-variant-numeric: tabular-nums;
+    }
+    .rdiff-file-add { color: var(--rip-syntax-green); }
+    .rdiff-file-delete { color: var(--rip-danger); }
+    .rdiff-status-badge {
+      margin-left: 8px;
+      border: 1px solid var(--rip-border);
+      border-radius: 999px;
+      padding: 1px 7px;
+      color: var(--rip-muted);
+      font-size: 11px;
+      font-weight: 600;
+      vertical-align: 2px;
+    }
+    .rdiff-status-badge.is-added {
+      color: var(--rip-syntax-green);
+      border-color: var(--rdiff-add-border);
+      background: var(--rdiff-add-bg);
+    }
+    .rdiff-status-badge.is-deleted {
+      color: var(--rip-danger);
+      border-color: var(--rdiff-delete-border);
+      background: var(--rdiff-delete-bg);
+    }
+    .rdiff-loading {
+      height: 100%;
+      display: grid;
+      place-content: center;
+      color: var(--rip-muted);
+    }
     .hljs-keyword,
     .hljs-built_in,
     .hljs-selector-tag {
@@ -427,6 +639,19 @@ export function injectStyles() {
         border-right: 0;
       }
       .rdiff-left {
+        border-bottom: 1px solid var(--rip-border);
+      }
+      .rdiff-commit-header {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+      .rdiff-commit-body {
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-rows: auto minmax(0, 1fr);
+      }
+      .rdiff-files {
+        max-height: 30vh;
+        border-right: 0;
         border-bottom: 1px solid var(--rip-border);
       }
     }

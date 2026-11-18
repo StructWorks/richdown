@@ -27,6 +27,7 @@ Richdown Diff gives Markdown changes a rendered side-by-side review view while k
 - Toggle between Richdown and the standard VS Code text editor from the editor title button or the command palette.
 - Open the VS Code Git diff for the current Markdown file from the editor title button or the command palette.
 - Open a Richdown Diff view for Markdown changes, including rendered headings, lists, tables, images, links, and highlighted code blocks.
+- Review Markdown changes that are already committed, for example by a coding agent such as Claude Code or Codex that committed during its session. The **Markdown Commits** view in Source Control lists the recent commits that changed Markdown files; expand one and select a file to see it in a Richdown Diff, or select the commit to step through all of its files. The compare button on a commit also includes every later commit up to `HEAD`, and new commits appear as they are made. Added and deleted files are shown as a single rendered pane. You can also open a commit from a file's Timeline (right-click a Git commit), the Source Control title bar, or the command palette.
 - Export local Markdown files to Richdown-styled HTML or PDF from the editor title button or the command palette.
 - Preview headings, emphasis, inline code, links, images, blockquotes, task checkboxes, thematic breaks, code blocks, tables, details blocks, Mermaid diagrams, and Gherkin scenarios while editing.
 - Render GitHub alerts (`> [!NOTE]`, `[!TIP]`, `[!IMPORTANT]`, `[!WARNING]`, `[!CAUTION]`) with GitHub's icons, colors, and titles, and Obsidian callouts (`> [!faq]- Title`) with custom titles, `+`/`-` folding, nesting, and Obsidian's types and aliases (unknown types look like `note`), in the editor, Richdown Diff, and HTML/PDF export. Click a callout to edit its Markdown; folding only changes the view.
@@ -52,6 +53,7 @@ Richdown Diff gives Markdown changes a rendered side-by-side review view while k
 - `Richdown: Toggle Markdown Open Mode`: Switch whether Markdown files open with Richdown or the standard VS Code text editor.
 - `Richdown: Open Rich Diff`: Open a Richdown-rendered Markdown diff against `HEAD`.
 - `Richdown: Open Git Diff`: Open the VS Code Git diff for the current Markdown file.
+- `Richdown: Open Markdown Commit Diff`: Pick a commit that changed Markdown files (or a commit and every later commit up to `HEAD`) and review each changed Markdown file in a Richdown Diff. The same commits are listed in the Markdown Commits view in Source Control. Local repositories only.
 - `Richdown: Export HTML`: Export the current local Markdown file as a standalone Richdown preview. The HTML uses the same rich table, Mermaid, Gherkin, image, task, code, and theme UI as the editor.
 - `Richdown: Export PDF`: Export the current local Markdown file by printing the standalone Richdown preview through an installed Chromium-based browser.
 - `Richdown: Format Document`: Format the current Markdown file with the rules enabled in `.richdownrc.json`. `Shift+Alt+F` runs it in the Richdown editor; in the text editor, VS Code's own Format Document uses Richdown when it is chosen as the Markdown formatter.

@@ -262,6 +262,236 @@ describe("rich diff webview", () => {
   });
 });
 
+describe("commit diff webview", () => {
+  const VIEW = {
+    key: "base..target",
+    title: "Rework docs",
+    meta: ["c200000", "Ada", "2026/11/15 12:00", "notes"],
+    note: "",
+    files: [
+      { id: "0", path: "docs/guide.md", status: "modified", additions: 2, deletions: 1 },
+      { id: "1", path: "new.md", status: "added", additions: 3, deletions: 0 },
+      { id: "2", path: "docs/old.md", status: "deleted", additions: 0, deletions: 1 },
+    ],
+  };
+  const MODIFIED = {
+    layout: "split",
+    status: "modified",
+    fileName: "guide.md",
+    filePath: "docs/guide.md",
+    leftText: "# Guide\n\nold\n",
+    rightText: "# Guide\n\nnew\nmore\n",
+    leftLabel: "p100000",
+    rightLabel: "c200000",
+  };
+  const ADDED = {
+    layout: "single",
+    singleSide: "right",
+    status: "added",
+    fileName: "new.md",
+    filePath: "new.md",
+    leftText: "",
+    rightText: "# New\n\n- one\n",
+    singleLabel: "Added in c200000",
+  };
+
+  async function boot(data = { commitView: VIEW, selectedFileId: "0", file: MODIFIED }) {
+    document.body.innerHTML = `
+      <div id="diff"></div>
+      ${jsonScript("initial-diff", data)}
+      ${jsonScript("initial-settings", { richTheme: "midnight" })}
+    `;
+    await import("../src/richDiff.js");
+    return document.querySelector("#diff");
+  }
+
+  const fileItems = (root) => [...root.querySelectorAll("[data-file-id]")];
+  const messagesOfType = (type) =>
+    postMessage.mock.calls.map(([message]) => message).filter((message) => message.type === type);
+
+  it("shows the commit, its Markdown files, and the selected file's diff", async () => {
+    const root = await boot();
+
+    expect(root.querySelector(".rdiff-commit-title").textContent).toBe("Rework docs");
+    expect(root.querySelector(".rdiff-commit-meta").textContent).toContain("c200000");
+    expect(fileItems(root).map((item) => item.querySelector(".rdiff-file-status").textContent)).toEqual([
+      "M",
+      "A",
+      "D",
+    ]);
+    expect(fileItems(root)[0].classList.contains("is-selected")).toBe(true);
+    expect(fileItems(root)[0].getAttribute("aria-current")).toBe("true");
+    expect(
+      [...root.querySelectorAll(".rdiff-column-header div")].map((label) => label.textContent),
+    ).toEqual(["p100000", "c200000"]);
+    expect(root.querySelector(".rdiff-commit-main .rdiff-row.is-replace")).toBeTruthy();
+  });
+
+  it("asks the host for a file when it is selected and shows it when it arrives", async () => {
+    const root = await boot();
+
+    fileItems(root)[1].dispatchEvent(new MouseEvent("click", { bubbles: true }));
+
+    expect(messagesOfType("selectFile")).toEqual([
+      { type: "selectFile", fileId: "1", key: "base..target" },
+    ]);
+    expect(fileItems(root)[1].classList.contains("is-selected")).toBe(true);
+    expect(root.querySelector(".rdiff-loading")).toBeTruthy();
+
+    sendMessage({ type: "showFile", key: "base..target", fileId: "1", file: ADDED });
+
+    expect(root.querySelector(".rdiff-loading")).toBeNull();
+    expect(root.querySelector(".rdiff-file").textContent).toContain("new.md");
+  });
+
+  it("selects a file the host picked, without asking for it again", async () => {
+    const root = await boot();
+    const scrolled = vi.fn();
+    fileItems(root)[1].scrollIntoView = scrolled;
+
+    sendMessage({ type: "showFile", key: "base..target", fileId: "1", file: ADDED, select: true });
+
+    expect(fileItems(root)[1].classList.contains("is-selected")).toBe(true);
+    expect(fileItems(root)[0].classList.contains("is-selected")).toBe(false);
+    expect(scrolled).toHaveBeenCalledWith({ block: "nearest" });
+    expect(root.querySelector(".rdiff-file").textContent).toContain("new.md");
+    expect(messagesOfType("selectFile")).toEqual([]);
+  });
+
+  it("ignores a host selection for another commit or an unknown file", async () => {
+    const root = await boot();
+
+    sendMessage({ type: "showFile", key: "other..commit", fileId: "1", file: ADDED, select: true });
+    sendMessage({ type: "showFile", key: "base..target", fileId: "9", file: ADDED, select: true });
+
+    expect(fileItems(root)[0].classList.contains("is-selected")).toBe(true);
+    expect(root.querySelector(".rdiff-file").textContent).toContain("guide.md");
+  });
+
+  it("renders an added file as one pane", async () => {
+    const root = await boot({ commitView: VIEW, selectedFileId: "1", file: ADDED });
+
+    const header = [...root.querySelectorAll(".rdiff-column-header div")];
+    expect(header.map((label) => label.textContent)).toEqual(["Added in c200000"]);
+    expect(root.querySelectorAll(".rdiff-row.is-single")).toHaveLength(3);
+    expect(root.querySelectorAll(".rdiff-left, .rdiff-right")).toHaveLength(0);
+    expect(root.querySelector(".rdiff-heading")).toBeTruthy();
+    expect(root.querySelector(".rdiff-stat-add").textContent).toBe("+3");
+    expect(root.querySelector(".rdiff-status-badge").textContent).toBe("Added");
+  });
+
+  it("renders a deleted file as one pane without an Open File button", async () => {
+    const root = await boot({
+      commitView: VIEW,
+      selectedFileId: "2",
+      file: {
+        layout: "single",
+        singleSide: "left",
+        status: "deleted",
+        fileName: "old.md",
+        filePath: "docs/old.md",
+        leftText: "gone\n",
+        singleLabel: "Deleted in c200000",
+      },
+    });
+
+    expect(root.querySelector(".rdiff-single.is-deleted-file .rdiff-marker").textContent).toBe("-");
+    expect(root.querySelector(".rdiff-stat-delete").textContent).toBe("-1");
+    expect(root.querySelector('[data-action="open-file"]')).toBeNull();
+  });
+
+  it("ignores file replies for another selection or commit", async () => {
+    const root = await boot();
+    fileItems(root)[1].dispatchEvent(new MouseEvent("click", { bubbles: true }));
+
+    sendMessage({ type: "showFile", key: "base..target", fileId: "0", file: MODIFIED });
+    sendMessage({ type: "showFile", key: "other", fileId: "1", file: ADDED });
+
+    expect(root.querySelector(".rdiff-loading")).toBeTruthy();
+  });
+
+  it("shows a file the host could not read", async () => {
+    const root = await boot();
+    fileItems(root)[2].dispatchEvent(new MouseEvent("click", { bubbles: true }));
+
+    sendMessage({ type: "fileError", key: "base..target", fileId: "2", message: "fatal: bad object" });
+
+    expect(root.querySelector(".rdiff-empty-copy").textContent).toBe("fatal: bad object");
+  });
+
+  it("shows an error the host sent with the first file", async () => {
+    const root = await boot({
+      commitView: VIEW,
+      selectedFileId: "0",
+      file: null,
+      fileError: "fatal: bad object",
+    });
+
+    expect(root.querySelector(".rdiff-empty-copy").textContent).toBe("fatal: bad object");
+  });
+
+  it("says so when the commit changed no Markdown", async () => {
+    const root = await boot({ commitView: { ...VIEW, files: [] }, selectedFileId: null, file: null });
+
+    expect(root.querySelector(".rdiff-empty-title").textContent).toBe("No Markdown changes");
+  });
+
+  it("forwards the commit picker and Open File buttons", async () => {
+    const root = await boot();
+
+    root.querySelector('[data-action="pick-commit"]').dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    root.querySelector('[data-action="open-file"]').dispatchEvent(new MouseEvent("click", { bubbles: true }));
+
+    expect(messagesOfType("pickCommit")).toHaveLength(1);
+    expect(messagesOfType("openFile")).toEqual([{ type: "openFile", fileId: "0" }]);
+  });
+
+  it("moves through the file list with the arrow keys", async () => {
+    const root = await boot();
+    const [first] = fileItems(root);
+
+    first.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
+    expect(messagesOfType("selectFile").at(-1)).toMatchObject({ fileId: "1" });
+
+    fileItems(root)[1].dispatchEvent(new KeyboardEvent("keydown", { key: "End", bubbles: true }));
+    expect(messagesOfType("selectFile").at(-1)).toMatchObject({ fileId: "2" });
+
+    fileItems(root)[2].dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
+    expect(messagesOfType("selectFile")).toHaveLength(2);
+  });
+
+  it("replaces the view when the host shows another commit", async () => {
+    const root = await boot();
+
+    sendMessage({
+      type: "showCommit",
+      commitView: {
+        ...VIEW,
+        key: "next",
+        title: "Later work",
+        note: "Includes 2 later commits up to HEAD (h300000)",
+        files: [VIEW.files[1]],
+      },
+      selectedFileId: "1",
+      file: ADDED,
+    });
+
+    expect(root.querySelector(".rdiff-commit-title").textContent).toBe("Later work");
+    expect(root.querySelector(".rdiff-commit-note").textContent).toContain("2 later commits");
+    expect(fileItems(root)).toHaveLength(1);
+    expect(root.querySelectorAll(".rdiff-row.is-single")).toHaveLength(3);
+  });
+
+  it("does not take working tree updates meant for the file diff", async () => {
+    const root = await boot();
+    const before = root.querySelector(".rdiff-commit-main").innerHTML;
+
+    sendMessage({ type: "updateRight", text: "replaced\n" });
+
+    expect(root.querySelector(".rdiff-commit-main").innerHTML).toBe(before);
+  });
+});
+
 describe("rich editor webview", () => {
   async function boot({
     text = "# Title\n\nbody text\n",
