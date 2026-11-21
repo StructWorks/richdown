@@ -271,9 +271,10 @@ orca plugin install StructWorks/richdown
 
 Orca opens Markdown in its own Source view first; choose **Richdown** in the view toggle beside Source. The theme, content width, rich tables, Mermaid, Gherkin, lint, and formatting settings are under the plugin in Orca's Settings, and the editor's settings menu changes the same values.
 
-An Orca editor receives the file's text but not its path, and it has no file system or network access, so some features work differently from VS Code:
+An Orca editor receives the file's text but not its path, and it has no file system or network access. Richdown therefore ships a small background worker, which is why Orca asks to let the plugin run code and read your workspaces when you install it. The worker finds the open file by matching its text against the Markdown files in the workspace and reads the images the document shows: paths relative to the document, `file:` URLs, paths from the workspace root (`/images/a.png`), `![[embeds]]`, and remote images. Image files are read only from inside your local workspaces (never through hidden folders) and only for image file types. If the file had unsaved changes when it was opened, or it is not inside a workspace, a relative image is found by the end of its path in the focused workspace.
 
-- Relative and remote images are not shown.
+Some features still work differently from VS Code:
+
 - Web links and links within the document (`#heading`, `#L12`) work; links to other files and wikilinks are drawn as plain links.
 - Lint and formatting use Richdown's default rules, because `.richdownrc.json` cannot be read. Format with `Shift+Alt+F`.
 - Git change markers, Richdown Diff, the Markdown commit diff, and HTML/PDF export are available in VS Code only.
@@ -283,7 +284,7 @@ When an agent writes the file while you are typing, Richdown combines both chang
 Develop the plugin from this repository:
 
 ```bash
-npm run build:orca        # bundles src/orcaEditor.js into media/orcaEditor.js
+npm run build:orca        # bundles the editor (media/orcaEditor.js) and worker (media/orcaWorker.mjs)
 orca plugin validate .
 orca plugin dev watch .   # loads this folder into Orca and reloads it on save
 ```

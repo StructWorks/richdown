@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { createOrcaEditorHost } from "../src/rich-editor/adapters/orcaEditorHost.js";
 import { mergeText } from "../src/rich-editor/domain/textMerge.js";
+import { fingerprintText } from "../src/rich-editor/domain/textFingerprint.js";
 import { parseLinkFragment } from "../src/host/revealTarget.js";
 
 // A stand-in for the `orca` global Orca defines in a custom editor frame:
@@ -323,7 +324,6 @@ describe("Orca editor host", () => {
   it("answers file-system requests empty, after the request returns", async () => {
     const { host, received } = await createHost(createFakeOrca());
 
-    host.postMessage({ type: "resolveImage", requestId: "1", src: "img.png" });
     host.postMessage({ type: "resolveWikilinks", requestId: "2", targets: ["Note"] });
     host.postMessage({ type: "requestWikilinkCompletions", requestId: "3", target: "N" });
     host.postMessage({ type: "requestHostCompletions", requestId: "4" });
@@ -332,12 +332,55 @@ describe("Orca editor host", () => {
     await flushMessages();
 
     expect(received).toEqual([
-      { type: "resolvedImage", requestId: "1", uri: null },
       { type: "wikilinksResolved", requestId: "2", results: {} },
       { type: "wikilinkCompletions", requestId: "3", items: [] },
       { type: "hostCompletions", requestId: "4", items: [] },
       { type: "linkCompletions", requestId: "5", paths: [] },
     ]);
+  });
+
+  it("loads images through the worker, finding the open file once", async () => {
+    const fake = createFakeOrca({ text: "# Notes\r\n" });
+    fake.orca.plugin = {
+      request: vi.fn(async (name, input) => {
+        if (name === "richdown.locateDocument") {
+          return { documentPaths: ["/ws/notes.md"], workspaceRoot: "/ws" };
+        }
+        return input.src === "a.png"
+          ? { found: true, mime: "image/png", size: 1, etag: "e", offset: 0, data: "AA==", done: true }
+          : { found: false };
+      }),
+    };
+    // jsdom has no object URLs.
+    const createObjectURL = URL.createObjectURL;
+    URL.createObjectURL = () => "blob:orca/1";
+    onTestFinished(() => {
+      URL.createObjectURL = createObjectURL;
+    });
+    const { host } = await createHost(fake);
+
+    await expect(host.resolveImageSource("a.png")).resolves.toBe("blob:orca/1");
+    await expect(host.resolveImageSource("b.png")).rejects.toThrow();
+
+    const calls = fake.orca.plugin.request.mock.calls;
+    expect(calls.filter(([name]) => name === "richdown.locateDocument")).toEqual([
+      [
+        "richdown.locateDocument",
+        { fingerprint: fingerprintText("# Notes\n"), byteLength: 9 },
+        { timeoutMs: 30_000 },
+      ],
+    ]);
+    expect(calls[1][1]).toMatchObject({
+      src: "a.png",
+      documentPaths: ["/ws/notes.md"],
+      workspaceRoot: "/ws",
+    });
+  });
+
+  it("shows no image when the worker is not available", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { host } = await createHost(createFakeOrca());
+    await expect(host.resolveImageSource("a.png")).rejects.toThrow();
   });
 
   it("copies text for the editor", async () => {

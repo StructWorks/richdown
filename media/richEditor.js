@@ -60063,11 +60063,11 @@ ${rowText}` },
       }
     }
     function resolveImageSource(src, { wikilink = false } = {}) {
-      if (!wikilink && /^(https?:|data:|blob:)/i.test(src)) {
-        return Promise.resolve(src);
-      }
       if (typeof customResolveImageSource === "function") {
         return customResolveImageSource(wikilink ? `[[${src}]]` : src);
+      }
+      if (!wikilink && /^(https?:|data:|blob:)/i.test(src)) {
+        return Promise.resolve(src);
       }
       const requestId = String(imageRequestId += 1);
       postMessage(
@@ -65013,7 +65013,7 @@ ${rowText}` },
   var inlineMarkdown = createInlineMarkdownSupport({
     postMessage: (message) => host.postMessage(message),
     requestEditorMeasure,
-    resolveImageSource: exportMode ? resolveExportImageSource : void 0,
+    resolveImageSource: exportMode ? resolveExportImageSource : host.resolveImageSource,
     getWikilinkStatus: (target) => wikilinkResolver.status(target)
   });
   var {

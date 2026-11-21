@@ -26,3 +26,4 @@ package-lock.json
 orca/**
 orca-plugin.json
 media/orcaEditor.js
+media/orcaWorker.mjs

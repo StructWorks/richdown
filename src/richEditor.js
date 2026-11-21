@@ -121,7 +121,9 @@ const wikilinkResolver = createWikilinkResolver({
 const inlineMarkdown = createInlineMarkdownSupport({
   postMessage: (message) => host.postMessage(message),
   requestEditorMeasure,
-  resolveImageSource: exportMode ? resolveExportImageSource : undefined,
+  resolveImageSource: exportMode
+    ? resolveExportImageSource
+    : host.resolveImageSource,
   getWikilinkStatus: (target) => wikilinkResolver.status(target),
 });
 const {

@@ -15,11 +15,15 @@
   "engines": {
     "orca": ">=1.4.248"
   },
-  "execution": "sandboxed-ui",
+  "execution": "trusted-worker",
+  "main": "media/orcaWorker.mjs",
   "pluginApi": 1,
   "capabilities": [
     {
       "kind": "settings:own"
+    },
+    {
+      "kind": "workspace:read"
     }
   ],
   "contributes": {

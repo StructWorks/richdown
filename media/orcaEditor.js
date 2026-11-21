@@ -63234,11 +63234,11 @@ ${rowText}` },
       }
     }
     function resolveImageSource(src, { wikilink = false } = {}) {
-      if (!wikilink && /^(https?:|data:|blob:)/i.test(src)) {
-        return Promise.resolve(src);
-      }
       if (typeof customResolveImageSource === "function") {
         return customResolveImageSource(wikilink ? `[[${src}]]` : src);
+      }
+      if (!wikilink && /^(https?:|data:|blob:)/i.test(src)) {
+        return Promise.resolve(src);
       }
       const requestId = String(imageRequestId += 1);
       postMessage(
@@ -68372,7 +68372,7 @@ ${rowText}` },
       inlineMarkdown = createInlineMarkdownSupport({
         postMessage: (message) => host.postMessage(message),
         requestEditorMeasure,
-        resolveImageSource: exportMode ? resolveExportImageSource : void 0,
+        resolveImageSource: exportMode ? resolveExportImageSource : host.resolveImageSource,
         getWikilinkStatus: (target) => wikilinkResolver.status(target)
       });
       ({
@@ -68924,6 +68924,121 @@ ${rowText}` },
     return left.length === right.length && left.every((line, index) => line === right[index]);
   }
 
+  // src/rich-editor/domain/textFingerprint.js
+  function normalizeFingerprintText(text2) {
+    return String(text2 ?? "").replace(/^\uFEFF/, "").replace(/\r\n?/g, "\n");
+  }
+  function fingerprintText(text2) {
+    const normalized = normalizeFingerprintText(text2);
+    let h1 = 3735928559;
+    let h2 = 1103547991;
+    for (let index = 0; index < normalized.length; index += 1) {
+      const code3 = normalized.charCodeAt(index);
+      h1 = Math.imul(h1 ^ code3, 2654435761);
+      h2 = Math.imul(h2 ^ code3, 1597334677);
+    }
+    h1 = Math.imul(h1 ^ h1 >>> 16, 2246822507);
+    h1 ^= Math.imul(h2 ^ h2 >>> 13, 3266489909);
+    h2 = Math.imul(h2 ^ h2 >>> 16, 2246822507);
+    h2 ^= Math.imul(h1 ^ h1 >>> 13, 3266489909);
+    return {
+      length: normalized.length,
+      hash: toHex(h2) + toHex(h1)
+    };
+  }
+  function toHex(value) {
+    return (value >>> 0).toString(16).padStart(8, "0");
+  }
+
+  // src/rich-editor/adapters/orcaImageLoader.js
+  var RECHECK_MS = 4e3;
+  var REVOKE_DELAY_MS = 3e4;
+  function createOrcaImageLoader({
+    request,
+    locateDocument,
+    now = Date.now,
+    createObjectUrl = (blob) => URL.createObjectURL(blob),
+    revokeObjectUrl = (url) => URL.revokeObjectURL(url)
+  }) {
+    const entries = /* @__PURE__ */ new Map();
+    function resolve(source) {
+      if (typeof source !== "string" || source.length === 0) {
+        return Promise.reject(new Error("Image could not be resolved."));
+      }
+      if (/^(data:|blob:)/i.test(source)) {
+        return Promise.resolve(source);
+      }
+      const entry = entries.get(source);
+      if (entry?.pending) {
+        return entry.pending;
+      }
+      if (entry?.url && now() - entry.checkedAt < RECHECK_MS) {
+        return Promise.resolve(entry.url);
+      }
+      const pending = load(source, entry).finally(() => {
+        const current = entries.get(source);
+        if (current?.pending === pending) {
+          current.pending = null;
+        }
+      });
+      entries.set(source, { ...entry, pending });
+      return pending;
+    }
+    async function load(source, previous) {
+      const embed = /^\[\[(.*)\]\]$/.exec(source);
+      const base4 = {
+        src: embed ? embed[1] : source,
+        wikilink: Boolean(embed),
+        ...await locateDocument()
+      };
+      const first = await request("richdown.readImage", {
+        ...base4,
+        offset: 0,
+        etag: previous?.url ? previous.etag : null
+      });
+      if (first?.found && first.notModified && previous?.url) {
+        entries.set(source, { ...previous, checkedAt: now(), pending: null });
+        return previous.url;
+      }
+      if (!first?.found || typeof first.data !== "string") {
+        entries.delete(source);
+        throw new Error("Image not found.");
+      }
+      const chunks = [decodeBase64(first.data)];
+      let received = chunks[0].length;
+      let done = first.done === true;
+      while (!done && received < first.size) {
+        const next2 = await request("richdown.readImage", { ...base4, offset: received });
+        if (!next2?.found || next2.etag !== first.etag || typeof next2.data !== "string") {
+          entries.delete(source);
+          throw new Error("Image changed while loading.");
+        }
+        const chunk = decodeBase64(next2.data);
+        if (chunk.length === 0) {
+          break;
+        }
+        chunks.push(chunk);
+        received += chunk.length;
+        done = next2.done === true;
+      }
+      const url = createObjectUrl(new Blob(chunks, { type: first.mime }));
+      if (previous?.url) {
+        setTimeout(() => revokeObjectUrl(previous.url), REVOKE_DELAY_MS);
+      }
+      entries.set(source, { url, etag: first.etag, checkedAt: now(), pending: null });
+      return url;
+    }
+    return { resolve };
+  }
+  function decodeBase64(data2) {
+    const binary2 = atob(data2);
+    const bytes = new Uint8Array(binary2.length);
+    for (let index = 0; index < binary2.length; index += 1) {
+      bytes[index] = binary2.charCodeAt(index);
+    }
+    return bytes;
+  }
+
   // src/rich-editor/adapters/orcaEditorHost.js
   var CRLF = "\r\n";
   var LF = "\n";
@@ -68954,7 +69069,8 @@ ${rowText}` },
     mermaidScriptUri: mermaidScriptUri2,
     lintDelayMs = 300,
     sessionDebounceMs = 150,
-    copyText = copyToClipboard
+    copyText = copyToClipboard,
+    requestTimeoutMs = 3e4
   }) {
     if (!orca?.document) {
       throw new Error("Richdown must run as an Orca custom editor.");
@@ -68971,6 +69087,34 @@ ${rowText}` },
     let lintTimer = null;
     syncColorSchemeClass();
     orca.on?.("theme", () => syncColorSchemeClass());
+    const openedText = session.value;
+    let documentLocation = null;
+    const requestWorker = (name2, input) => {
+      if (typeof orca.plugin?.request !== "function") {
+        return Promise.reject(new Error("The Richdown worker is not available."));
+      }
+      return orca.plugin.request(name2, input, { timeoutMs: requestTimeoutMs });
+    };
+    const imageLoader = createOrcaImageLoader({
+      request: requestWorker,
+      locateDocument: () => {
+        documentLocation ??= requestWorker("richdown.locateDocument", {
+          fingerprint: fingerprintText(openedText),
+          byteLength: new TextEncoder().encode(openedText).length
+        }).then(
+          (location) => ({
+            documentPaths: location?.documentPaths ?? [],
+            workspaceRoot: location?.workspaceRoot ?? null
+          }),
+          (error) => {
+            console.warn("[Richdown] Could not find the open file for its images", error);
+            documentLocation = null;
+            return { documentPaths: [], workspaceRoot: null };
+          }
+        );
+        return documentLocation;
+      }
+    });
     session.onReplace((value) => {
       lineEnding = detectLineEnding(value) ?? lineEnding;
       currentText = normalizeLineEndings(value);
@@ -69059,9 +69203,6 @@ ${rowText}` },
           void copyText(message.text);
         }
       },
-      resolveImage(message) {
-        deliver({ type: "resolvedImage", requestId: message.requestId, uri: null });
-      },
       resolveWikilinks(message) {
         deliver({ type: "wikilinksResolved", requestId: message.requestId, results: {} });
       },
@@ -69108,6 +69249,7 @@ ${rowText}` },
         imageMap: {},
         reveal: null
       },
+      resolveImageSource: (source) => imageLoader.resolve(source),
       postMessage,
       onMessage(nextHandler) {
         handler = nextHandler;

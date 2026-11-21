@@ -8,6 +8,8 @@
 //     readOnly: boolean,        // the file cannot be edited
 //     initial: { document, settings, mermaidScriptUri, gitDiffChanges,
 //                imageMap, reveal },
+//     resolveImageSource(src),  // optional: Promise of an image URL; without
+//                               // it the editor asks with "resolveImage"
 //     postMessage(message),     // editor -> host ("edit", "openLink", ...)
 //     onMessage(handler),       // host -> editor ("update", "settings", ...)
 //   }

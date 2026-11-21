@@ -25,7 +25,7 @@ if (manifest.version !== pkg.version) {
   );
 }
 
-const referenced = [manifest.icon];
+const referenced = [manifest.icon, manifest.main];
 for (const editor of manifest.contributes?.customEditors ?? []) {
   referenced.push(editor.entry);
   const html = await readFile(path.join(workspaceRoot, editor.entry), "utf8");

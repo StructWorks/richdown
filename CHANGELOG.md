@@ -4,7 +4,7 @@ All notable changes to Richdown will be documented in this file.
 
 ## Unreleased
 
-- Richdown is now also an Orca plugin. The rich editor opens `.md` and `.markdown` files in Orca's editor tabs with inline previews, rich tables, Mermaid diagrams, Gherkin boards, lint, and formatting; its settings live under the plugin in Orca's Settings. When an agent writes the file while you are typing, both changes are combined line by line. See the Orca section of the README for what differs from VS Code.
+- Richdown is now also an Orca plugin. The rich editor opens `.md` and `.markdown` files in Orca's editor tabs with inline previews, rich tables, Mermaid diagrams, Gherkin boards, lint, and formatting; its settings live under the plugin in Orca's Settings. Images are shown as in VS Code (relative paths, `![[embeds]]`, and remote images), read by a small plugin worker. When an agent writes the file while you are typing, both changes are combined line by line. See the Orca section of the README for what differs from VS Code.
 
 ## 0.12.0 - 2026-11-18
 

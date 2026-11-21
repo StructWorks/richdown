@@ -11,8 +11,10 @@
 // - lint and format run here, on the default rule set;
 // - settings are the plugin's own Orca settings (`settings:own`), which the
 //   person can also change under the plugin in Orca's Settings;
+// - images come from the plugin's worker (adapters/orcaImageLoader.js), which
+//   finds the open file by its text and reads the images next to it;
 // - web links open through orca.shell, and links within the document scroll to
-//   their target. Requests that need the file system (relative images, other
+//   their target. Other requests that need the file system (links to other
 //   files, wikilinks, path completions) are answered empty so the editor shows
 //   them the way it does without a host.
 import {
@@ -23,6 +25,8 @@ import {
 } from "../domain/settingsModel.js";
 import { normalizeLineEndings } from "../domain/textChange.js";
 import { mergeText } from "../domain/textMerge.js";
+import { fingerprintText } from "../domain/textFingerprint.js";
+import { createOrcaImageLoader } from "./orcaImageLoader.js";
 
 const CRLF = "\r\n";
 const LF = "\n";
@@ -57,6 +61,7 @@ export async function createOrcaEditorHost({
   lintDelayMs = 300,
   sessionDebounceMs = 150,
   copyText = copyToClipboard,
+  requestTimeoutMs = 30_000,
 }) {
   if (!orca?.document) {
     throw new Error("Richdown must run as an Orca custom editor.");
@@ -78,6 +83,37 @@ export async function createOrcaEditorHost({
 
   syncColorSchemeClass();
   orca.on?.("theme", () => syncColorSchemeClass());
+
+  // The text as the file was opened identifies the file; it is looked up the
+  // first time an image needs the document's folder.
+  const openedText = session.value;
+  let documentLocation = null;
+  const requestWorker = (name, input) => {
+    if (typeof orca.plugin?.request !== "function") {
+      return Promise.reject(new Error("The Richdown worker is not available."));
+    }
+    return orca.plugin.request(name, input, { timeoutMs: requestTimeoutMs });
+  };
+  const imageLoader = createOrcaImageLoader({
+    request: requestWorker,
+    locateDocument: () => {
+      documentLocation ??= requestWorker("richdown.locateDocument", {
+        fingerprint: fingerprintText(openedText),
+        byteLength: new TextEncoder().encode(openedText).length,
+      }).then(
+        (location) => ({
+          documentPaths: location?.documentPaths ?? [],
+          workspaceRoot: location?.workspaceRoot ?? null,
+        }),
+        (error) => {
+          console.warn("[Richdown] Could not find the open file for its images", error);
+          documentLocation = null;
+          return { documentPaths: [], workspaceRoot: null };
+        },
+      );
+      return documentLocation;
+    },
+  });
 
   session.onReplace((value) => {
     lineEnding = detectLineEnding(value) ?? lineEnding;
@@ -179,9 +215,6 @@ export async function createOrcaEditorHost({
         void copyText(message.text);
       }
     },
-    resolveImage(message) {
-      deliver({ type: "resolvedImage", requestId: message.requestId, uri: null });
-    },
     resolveWikilinks(message) {
       deliver({ type: "wikilinksResolved", requestId: message.requestId, results: {} });
     },
@@ -230,6 +263,7 @@ export async function createOrcaEditorHost({
       imageMap: {},
       reveal: null,
     },
+    resolveImageSource: (source) => imageLoader.resolve(source),
     postMessage,
     onMessage(nextHandler) {
       handler = nextHandler;
