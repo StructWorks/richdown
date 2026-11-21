@@ -84,8 +84,9 @@ jobs:
       - name: Verify committed webview bundles
         run: npm run verify:bundles
 
-      # Orca installs the plugin from this repository at a v<version> tag.
-      - name: Verify Orca plugin manifest
+      # The Orca plugin is built from orca/ and src/ and published to
+      # StructWorks/richdown-orca; this builds it and checks the manifest.
+      - name: Verify Orca plugin build
         run: npm run verify:orca
 
   package:

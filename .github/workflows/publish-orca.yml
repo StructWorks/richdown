@@ -1,0 +1,77 @@
+name: Publish Orca Plugin
+
+# Orca installs a plugin as every file of its repository, so the plugin is
+# published to its own repository, StructWorks/richdown-orca, built by
+# scripts/build-orca-plugin.mjs. A v<version> tag there is what Orca's plugin
+# directory lists. Pushing a v* tag here publishes that version; the run does
+# nothing when the plugin repository already has the tag.
+#
+# Needs the ORCA_PLUGIN_DEPLOY_KEY secret: the private half of a deploy key
+# with write access to StructWorks/richdown-orca.
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Tag or commit of this repository to publish
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-orca-plugin
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Publish to StructWorks/richdown-orca
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check the plugin
+        run: npm run verify:orca
+
+      - name: Check out the plugin repository
+        uses: actions/checkout@v4
+        with:
+          repository: StructWorks/richdown-orca
+          ssh-key: ${{ secrets.ORCA_PLUGIN_DEPLOY_KEY }}
+          path: orca-plugin-repo
+          fetch-depth: 0
+
+      - name: Build the plugin into it
+        run: node scripts/build-orca-plugin.mjs --out orca-plugin-repo
+
+      - name: Commit, tag and push
+        working-directory: orca-plugin-repo
+        run: |
+          set -euo pipefail
+          VERSION="$(node -p "require('./orca-plugin.json').version")"
+          SOURCE_SHA="$(git -C "$GITHUB_WORKSPACE" rev-parse HEAD)"
+          if git rev-parse -q --verify "refs/tags/v$VERSION" >/dev/null; then
+            echo "::notice::v$VERSION is already published to StructWorks/richdown-orca."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --quiet || git commit -q -m "Richdown $VERSION" -m "Built from StructWorks/richdown@$SOURCE_SHA."
+          git tag -a "v$VERSION" -m "v$VERSION"
+          git push origin HEAD:main "refs/tags/v$VERSION"

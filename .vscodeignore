@@ -24,6 +24,4 @@ yarn-error.log*
 package-lock.json
 .orca/**
 orca/**
-orca-plugin.json
-media/orcaEditor.js
-media/orcaWorker.mjs
+build/**

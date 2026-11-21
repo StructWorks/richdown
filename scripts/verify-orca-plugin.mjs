@@ -1,45 +1,58 @@
-// Checks that the Orca plugin manifest is ready to ship with this release.
+// Checks that the Orca plugin builds and is ready to ship with this release.
 //
-// Orca installs the plugin straight from this repository (orca-plugin.json at
-// its root) and lists a release by its `v<version>` tag, so the manifest has to
-// carry the same version as package.json, and every file it and the editor
-// page point to has to be committed. `orca plugin validate .` checks the rest
-// of the manifest when the Orca CLI is installed.
+// The plugin is published as StructWorks/richdown-orca, built by
+// scripts/build-orca-plugin.mjs from orca/ and src/. This builds it into a
+// temporary folder and checks that the manifest carries package.json's version,
+// that every file the manifest and the editor page point to is there, and that
+// the folder fits Orca's limits for a plugin. `orca plugin validate <folder>`
+// checks the rest of the manifest when the Orca CLI is installed.
 import { existsSync } from "node:fs";
-import { readFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import process from "node:process";
+import { buildOrcaPlugin } from "./build-orca-plugin.mjs";
 
-const workspaceRoot = path.resolve(import.meta.dirname, "..");
+const MAX_FILES = 2000;
+const MAX_BYTES = 50 * 1024 * 1024;
+
+const outDir = await mkdtemp(path.join(os.tmpdir(), "richdown-orca-"));
 const problems = [];
+try {
+  const result = await buildOrcaPlugin({ outDir });
+  const manifest = JSON.parse(await readFile(path.join(outDir, "orca-plugin.json"), "utf8"));
 
-const readJson = async (file) =>
-  JSON.parse(await readFile(path.join(workspaceRoot, file), "utf8"));
-
-const pkg = await readJson("package.json");
-const manifest = await readJson("orca-plugin.json");
-
-if (manifest.version !== pkg.version) {
-  problems.push(
-    `orca-plugin.json version ${manifest.version} does not match package.json ${pkg.version}`,
-  );
-}
-
-const referenced = [manifest.icon, manifest.main];
-for (const editor of manifest.contributes?.customEditors ?? []) {
-  referenced.push(editor.entry);
-  const html = await readFile(path.join(workspaceRoot, editor.entry), "utf8");
-  for (const [, src] of html.matchAll(/<script[^>]*\bsrc="([^"]+)"/g)) {
-    referenced.push(path.join(path.dirname(editor.entry), src));
+  const referenced = [manifest.icon, manifest.main];
+  for (const editor of manifest.contributes?.customEditors ?? []) {
+    referenced.push(editor.entry);
+    const html = await readFile(path.join(outDir, editor.entry), "utf8");
+    for (const [, src] of html.matchAll(/<script[^>]*\bsrc="([^"]+)"/g)) {
+      referenced.push(path.join(path.dirname(editor.entry), src));
+    }
   }
-}
-// The editor bundle loads Mermaid itself, relative to the editor page.
-referenced.push("media/mermaid.js");
-
-for (const file of referenced.filter(Boolean)) {
-  if (!existsSync(path.join(workspaceRoot, file))) {
-    problems.push(`${file} is referenced by the Orca plugin but missing`);
+  // The editor bundle loads Mermaid itself, beside the editor page.
+  referenced.push("mermaid.js");
+  for (const file of referenced.filter(Boolean)) {
+    if (!existsSync(path.join(outDir, file))) {
+      problems.push(`${file} is referenced by the Orca plugin but was not built`);
+    }
   }
+  if (result.files > MAX_FILES || result.bytes > MAX_BYTES) {
+    problems.push(
+      `the plugin has ${result.files} files and ${result.bytes} bytes; Orca allows ${MAX_FILES} and ${MAX_BYTES}`,
+    );
+  }
+
+  if (problems.length === 0) {
+    console.log(
+      `Orca plugin richdown ${result.version} matches package.json and builds: ` +
+        `${result.files} files, ${(result.bytes / 1024 / 1024).toFixed(1)} MB.`,
+    );
+  }
+} catch (error) {
+  problems.push(error instanceof Error ? error.message : String(error));
+} finally {
+  await rm(outDir, { recursive: true, force: true });
 }
 
 if (problems.length > 0) {
@@ -49,5 +62,3 @@ if (problems.length > 0) {
   }
   process.exit(1);
 }
-
-console.log(`Orca plugin ${manifest.id} ${manifest.version} matches package.json.`);

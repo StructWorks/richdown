@@ -9,10 +9,10 @@ import globals from "globals";
 //     src/mermaidLoader.js, the Orca editor entry src/orcaEditor.js, and
 //     everything under src/rich-editor and src/rich-diff
 //   - tests and tooling (ESM, node globals, jsdom in some suites)
-// media/*.js are generated bundles and never linted.
+// media/*.js and build/ (the Orca plugin) are generated and never linted.
 export default [
   {
-    ignores: ["media/**", "coverage/**", "node_modules/**", "articles/**", "examples/**"],
+    ignores: ["media/**", "build/**", "coverage/**", "node_modules/**", "articles/**", "examples/**"],
   },
   js.configs.recommended,
   {

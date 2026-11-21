@@ -16,19 +16,6 @@ const bundles = [
   { entry: "src/richEditor.js", outfile: "media/richEditor.js" },
   { entry: "src/mermaidLoader.js", outfile: "media/mermaid.js" },
   { entry: "src/richDiff.js", outfile: "media/richDiff.js" },
-  { entry: "src/orcaEditor.js", outfile: "media/orcaEditor.js" },
-  {
-    entry: "src/orcaWorker.js",
-    outfile: "media/orcaWorker.mjs",
-    options: {
-      platform: "node",
-      format: "esm",
-      // The worker bundles CommonJS modules that require Node built-ins.
-      banner: {
-        js: "import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);",
-      },
-    },
-  },
 ];
 
 const stale = [];

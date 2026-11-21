@@ -7,3 +7,4 @@ articles/**
 examples/**
 graphify-out
 .orca/
+build/
