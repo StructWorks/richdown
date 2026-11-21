@@ -3,11 +3,8 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createRichdownWorker } from "../src/orca-worker/richdownWorker.js";
-import {
-  createRemoteImageCache,
-  IMAGE_CHUNK_BYTES,
-  parseImagePath,
-} from "../src/orca-worker/imageSources.js";
+import { IMAGE_CHUNK_BYTES, parseImagePath } from "../src/orca-worker/imageSources.js";
+import { createRemoteImageCache } from "../src/orca-worker/remoteImages.js";
 import { createWorkspaceFileIndex } from "../src/orca-worker/workspaceFiles.js";
 import { fingerprintText } from "../src/rich-editor/domain/textFingerprint.js";
 
@@ -263,11 +260,9 @@ describe("reading images", () => {
     expect(changed.size).toBe(PNG_BYTES.length * 2);
   });
 
-  it("downloads remote images for the frame", async () => {
-    const fetchImpl = vi.fn(async () => new Response(PNG_BYTES, {
-      headers: { "content-type": "image/png", etag: '"v1"' },
-    }));
-    const worker = createWorker({ remoteImages: createRemoteImageCache({ fetchImpl }) });
+  it("hands remote images to the frame from one download", async () => {
+    const download = vi.fn(async () => ({ bytes: PNG_BYTES, mime: "image/png", etag: 'remote:"v1"' }));
+    const worker = createWorker({ remoteImages: createRemoteImageCache({ download }) });
 
     const result = await readWhole(worker, input("https://example.com/badge.png"));
 
@@ -275,20 +270,16 @@ describe("reading images", () => {
     expect(result.bytes.equals(PNG_BYTES)).toBe(true);
     // Chunks and repeats come from one download.
     await worker.readImage(input("https://example.com/badge.png"));
-    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(download).toHaveBeenCalledTimes(1);
   });
 
-  it("refuses remote responses that are not images or failed", async () => {
-    const responses = {
-      "https://example.com/page": new Response("<html>", { headers: { "content-type": "text/html" } }),
-      "https://example.com/gone.png": new Response("", { status: 404 }),
-    };
-    const worker = createWorker({
-      remoteImages: createRemoteImageCache({ fetchImpl: async (url) => responses[url] }),
+  it("shows no image when a download fails", async () => {
+    const download = vi.fn(async () => {
+      throw new Error("Refused");
     });
+    const worker = createWorker({ remoteImages: createRemoteImageCache({ download }) });
 
-    await expect(worker.readImage(input("https://example.com/page"))).resolves.toEqual({ found: false });
-    await expect(worker.readImage(input("https://example.com/gone.png"))).resolves.toEqual({ found: false });
+    await expect(worker.readImage(input("http://169.254.169.254/latest"))).resolves.toEqual({ found: false });
   });
 });
 

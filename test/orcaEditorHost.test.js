@@ -377,6 +377,15 @@ describe("Orca editor host", () => {
     });
   });
 
+  it("does not ask for remote images when they are turned off", async () => {
+    const fake = createFakeOrca({ settings: { remoteImages: false } });
+    fake.orca.plugin = { request: vi.fn() };
+    const { host } = await createHost(fake);
+
+    await expect(host.resolveImageSource("https://example.com/a.png")).rejects.toThrow(/turned off/);
+    expect(fake.orca.plugin.request).not.toHaveBeenCalled();
+  });
+
   it("shows no image when the worker is not available", async () => {
     vi.spyOn(console, "warn").mockImplementation(() => {});
     const { host } = await createHost(createFakeOrca());

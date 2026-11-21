@@ -1,4 +1,4 @@
-// Image files and remote images for the Orca editor frame.
+// Image files for the Orca editor frame (remote images: remoteImages.js).
 //
 // The frame has no file system or network, so the worker reads images for it
 // and hands them over in base64 chunks. Local images follow the VS Code
@@ -148,67 +148,6 @@ export async function readFileChunk(filePath, offset, length = IMAGE_CHUNK_BYTES
   } finally {
     await handle.close();
   }
-}
-
-// Remote images, fetched once and kept for a minute so the chunks of one image
-// (and the same badge in several places) come from one download.
-export function createRemoteImageCache({
-  fetchImpl = globalThis.fetch,
-  ttlMs = 60_000,
-  maxEntries = 64,
-  timeoutMs = 15_000,
-  now = Date.now,
-} = {}) {
-  const cache = new Map();
-
-  function get(url) {
-    const cached = cache.get(url);
-    if (cached && now() - cached.at < ttlMs) {
-      return cached.image;
-    }
-    const image = download(url);
-    cache.set(url, { at: now(), image });
-    image.catch(() => cache.delete(url));
-    while (cache.size > maxEntries) {
-      cache.delete(cache.keys().next().value);
-    }
-    return image;
-  }
-
-  async function download(url) {
-    const response = await fetchImpl(url, {
-      redirect: "follow",
-      signal: AbortSignal.timeout(timeoutMs),
-    });
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
-    }
-    const declaredLength = Number(response.headers.get("content-length"));
-    if (declaredLength > MAX_IMAGE_BYTES) {
-      throw new Error("Image is too large.");
-    }
-    const contentType = (response.headers.get("content-type") || "")
-      .split(";")[0]
-      .trim()
-      .toLowerCase();
-    const mime = contentType.startsWith("image/")
-      ? contentType
-      : imageMimeType(new URL(url).pathname);
-    if (!mime) {
-      throw new Error("Not an image.");
-    }
-    const bytes = Buffer.from(await response.arrayBuffer());
-    if (bytes.length > MAX_IMAGE_BYTES) {
-      throw new Error("Image is too large.");
-    }
-    const etag =
-      response.headers.get("etag") ||
-      response.headers.get("last-modified") ||
-      `${bytes.length}`;
-    return { bytes, mime, etag: `remote:${etag}` };
-  }
-
-  return { get };
 }
 
 function toPosix(filePath) {

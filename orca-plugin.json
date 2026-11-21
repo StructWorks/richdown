@@ -126,6 +126,13 @@
         "default": true
       },
       {
+        "key": "remoteImages",
+        "title": "Remote images",
+        "description": "Download images with http or https addresses so the editor can show them. Addresses on your machine or private network are never loaded.",
+        "type": "boolean",
+        "default": true
+      },
+      {
         "key": "lintEnabled",
         "title": "Lint Markdown",
         "description": "Underline Markdown problems in the editor with Richdown's default rules.",

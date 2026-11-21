@@ -12,7 +12,6 @@
 import path from "node:path";
 import { locateDocument } from "./documentLocator.js";
 import {
-  createRemoteImageCache,
   findLocalImage,
   IMAGE_CHUNK_BYTES,
   imageMimeType,
@@ -20,6 +19,7 @@ import {
   MAX_IMAGE_BYTES,
   readFileChunk,
 } from "./imageSources.js";
+import { createRemoteImageCache } from "./remoteImages.js";
 import {
   createWorkspaceFileIndex,
   isInsideFolder,

@@ -263,7 +263,10 @@ export async function createOrcaEditorHost({
       imageMap: {},
       reveal: null,
     },
-    resolveImageSource: (source) => imageLoader.resolve(source),
+    resolveImageSource: (source) =>
+      pluginSettings.remoteImages === false && /^\s*<?https?:/i.test(source)
+        ? Promise.reject(new Error("Remote images are turned off."))
+        : imageLoader.resolve(source),
     postMessage,
     onMessage(nextHandler) {
       handler = nextHandler;
