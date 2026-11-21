@@ -53,7 +53,8 @@
     "build": "esbuild src/richEditor.js --bundle --format=iife --outfile=media/richEditor.js",
     "build:mermaid": "esbuild src/mermaidLoader.js --bundle --format=iife --outfile=media/mermaid.js",
     "build:diff": "esbuild src/richDiff.js --bundle --format=iife --outfile=media/richDiff.js",
-    "build:all": "npm run build && npm run build:mermaid && npm run build:diff",
+    "build:orca": "esbuild src/orcaEditor.js --bundle --format=iife --outfile=media/orcaEditor.js",
+    "build:all": "npm run build && npm run build:mermaid && npm run build:diff && npm run build:orca",
     "generate:schema": "node scripts/generate-config-schema.mjs",
     "package:vsix": "vsce package",
     "test": "vitest run",
@@ -62,6 +63,7 @@
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "verify:bundles": "node scripts/verify-bundles.mjs",
+    "verify:orca": "node scripts/verify-orca-plugin.mjs",
     "publish:marketplace": "vsce publish",
     "publish:openvsx": "ovsx publish",
     "watch": "esbuild src/richEditor.js --bundle --format=iife --outfile=media/richEditor.js --watch"

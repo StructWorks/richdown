@@ -16,6 +16,7 @@ const bundles = [
   { entry: "src/richEditor.js", outfile: "media/richEditor.js" },
   { entry: "src/mermaidLoader.js", outfile: "media/mermaid.js" },
   { entry: "src/richDiff.js", outfile: "media/richDiff.js" },
+  { entry: "src/orcaEditor.js", outfile: "media/orcaEditor.js" },
 ];
 
 const stale = [];

@@ -2,6 +2,10 @@
 
 All notable changes to Richdown will be documented in this file.
 
+## Unreleased
+
+- Richdown is now also an Orca plugin. The rich editor opens `.md` and `.markdown` files in Orca's editor tabs with inline previews, rich tables, Mermaid diagrams, Gherkin boards, lint, and formatting; its settings live under the plugin in Orca's Settings. When an agent writes the file while you are typing, both changes are combined line by line. See the Orca section of the README for what differs from VS Code.
+
 ## 0.12.0 - 2026-11-18
 
 - Added a Markdown commit diff for reviewing Markdown changes that are already committed, for example when Claude Code or Codex commits during a session and Source Control has no changes left to show. The new **Markdown Commits** view in Source Control lists the recent commits that changed Markdown files. Expand a commit to see the files it changed with their line counts, and select a file (or the commit itself) to compare it side by side in a Richdown Diff. The view updates when new commits are made.

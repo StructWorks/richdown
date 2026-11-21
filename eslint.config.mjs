@@ -5,7 +5,8 @@ import globals from "globals";
 //   - extension host code (CommonJS, node globals): extension.js, src/export,
 //     src/host
 //   - webview code (ESM, browser globals): src/richEditor.js, src/richDiff.js,
-//     src/mermaidLoader.js and everything under src/rich-editor and src/rich-diff
+//     src/mermaidLoader.js, the Orca editor entry src/orcaEditor.js, and
+//     everything under src/rich-editor and src/rich-diff
 //   - tests and tooling (ESM, node globals, jsdom in some suites)
 // media/*.js are generated bundles and never linted.
 export default [
@@ -59,6 +60,7 @@ export default [
   {
     files: [
       "src/richEditor.js",
+      "src/orcaEditor.js",
       "src/richDiff.js",
       "src/mermaidLoader.js",
       "src/markdown/**/*.js",

@@ -1,0 +1,140 @@
+{
+  "manifestVersion": 2,
+  "id": "richdown",
+  "name": "Richdown",
+  "version": "0.12.0",
+  "description": "Edit Markdown with a rich inline preview, editable tables, colored Mermaid diagrams, Gherkin boards, and Markdown lint and formatting.",
+  "author": {
+    "name": "StructWorks",
+    "url": "https://github.com/StructWorks"
+  },
+  "repository": "https://github.com/StructWorks/richdown",
+  "homepage": "https://github.com/StructWorks/richdown#readme",
+  "license": "MIT",
+  "icon": "resources/icon.png",
+  "engines": {
+    "orca": ">=1.4.248"
+  },
+  "execution": "sandboxed-ui",
+  "pluginApi": 1,
+  "capabilities": [
+    {
+      "kind": "settings:own"
+    }
+  ],
+  "contributes": {
+    "customEditors": [
+      {
+        "id": "richdown",
+        "title": "Richdown",
+        "extensions": [
+          ".md",
+          ".markdown"
+        ],
+        "entry": "orca/editor.html",
+        "frame": "isolated"
+      }
+    ],
+    "settings": [
+      {
+        "key": "richTheme",
+        "title": "Theme",
+        "description": "Theme used inside the Richdown editor.",
+        "type": "string",
+        "default": "default",
+        "enum": [
+          "default",
+          "midnight",
+          "graphite",
+          "forest",
+          "ivory",
+          "paper",
+          "solar"
+        ],
+        "enumLabels": [
+          "Default (follow Orca's theme)",
+          "Midnight",
+          "Graphite",
+          "Forest",
+          "Ivory",
+          "Paper",
+          "Solar"
+        ]
+      },
+      {
+        "key": "previewWidth",
+        "title": "Content width",
+        "description": "Width of the writing area inside the Richdown editor.",
+        "type": "string",
+        "default": "default",
+        "enum": [
+          "default",
+          "wide"
+        ],
+        "enumLabels": [
+          "Default writing width",
+          "Full editor width"
+        ]
+      },
+      {
+        "key": "richTablePreview",
+        "title": "Rich tables",
+        "description": "Show Markdown tables as rich editable tables.",
+        "type": "boolean",
+        "default": true
+      },
+      {
+        "key": "mermaidPreview",
+        "title": "Mermaid diagrams",
+        "description": "Render Mermaid code blocks as diagrams.",
+        "type": "boolean",
+        "default": true
+      },
+      {
+        "key": "mermaidColorized",
+        "title": "Colored Mermaid diagrams",
+        "description": "Apply Richdown's clearer color palette to Mermaid diagrams.",
+        "type": "boolean",
+        "default": true
+      },
+      {
+        "key": "mermaidPreviewSize",
+        "title": "Mermaid diagram height",
+        "description": "Preview height used for Mermaid diagrams.",
+        "type": "string",
+        "default": "readable",
+        "enum": [
+          "source",
+          "readable",
+          "large"
+        ],
+        "enumLabels": [
+          "Match the source block",
+          "Readable",
+          "Large"
+        ]
+      },
+      {
+        "key": "gherkinPreview",
+        "title": "Gherkin boards",
+        "description": "Render Gherkin code blocks as BDD boards.",
+        "type": "boolean",
+        "default": true
+      },
+      {
+        "key": "lintEnabled",
+        "title": "Lint Markdown",
+        "description": "Underline Markdown problems in the editor with Richdown's default rules.",
+        "type": "boolean",
+        "default": true
+      },
+      {
+        "key": "formatEnabled",
+        "title": "Format with Shift+Alt+F",
+        "description": "Format the document with Richdown's default formatter rules when Shift+Alt+F is pressed in the editor.",
+        "type": "boolean",
+        "default": true
+      }
+    ]
+  }
+}
