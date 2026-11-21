@@ -1,5 +1,5 @@
-// Orca custom editor entrypoint (bundled to media/orcaEditor.js, loaded by
-// orca/editor.html).
+// Orca custom editor entrypoint (bundled to orcaEditor.js beside editor.html
+// in the Orca plugin; see scripts/build-orca-plugin.mjs).
 //
 // Waits for Orca's document session, installs the Orca editor host, and only
 // then loads the same rich editor VS Code runs. Lint and format are the
@@ -32,7 +32,7 @@ async function start() {
       })),
     format: (text) => formatMarkdown(text, formatRules),
     parseLinkFragment,
-    mermaidScriptUri: new URL("../media/mermaid.js", document.baseURI).href,
+    mermaidScriptUri: new URL("./mermaid.js", document.baseURI).href,
   });
   installEditorHost(host);
   await import("./richEditor.js");

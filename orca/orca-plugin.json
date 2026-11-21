@@ -11,12 +11,12 @@
   "repository": "https://github.com/StructWorks/richdown",
   "homepage": "https://github.com/StructWorks/richdown#readme",
   "license": "MIT",
-  "icon": "resources/icon.png",
+  "icon": "icon.png",
   "engines": {
     "orca": ">=1.4.248"
   },
   "execution": "trusted-worker",
-  "main": "media/orcaWorker.mjs",
+  "main": "orcaWorker.mjs",
   "pluginApi": 1,
   "capabilities": [
     {
@@ -35,7 +35,7 @@
           ".md",
           ".markdown"
         ],
-        "entry": "orca/editor.html",
+        "entry": "editor.html",
         "frame": "isolated"
       }
     ],

@@ -1,4 +1,5 @@
-// Orca plugin worker entrypoint (bundled to media/orcaWorker.mjs).
+// Orca plugin worker entrypoint (bundled to orcaWorker.mjs in the Orca plugin;
+// see scripts/build-orca-plugin.mjs).
 //
 // Orca runs this in Node when the Richdown editor frame first asks it for
 // something. The frame has no file system, so the worker finds the file the

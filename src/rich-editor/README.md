@@ -29,7 +29,8 @@ Layer rules:
   (`adapters/editorHost.js`), so the editor itself does not know which one it
   runs in.
 - `src/richEditor.js` is the composition root for the editor;
-  `src/orcaEditor.js` installs the Orca host and then loads it.
+  `src/orcaEditor.js` installs the Orca host and then loads it (built into the
+  Orca plugin by `scripts/build-orca-plugin.mjs`).
 
 When adding a feature, start by putting parsing/normalization rules in `domain`,
 workflow decisions in `application`, and rendering or interaction code in

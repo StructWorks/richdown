@@ -263,10 +263,10 @@ npm run publish:openvsx -- -p <open-vsx-token>
 
 ## Orca
 
-Richdown is also an [Orca](https://orca.dev) plugin: the same rich editor opens `.md` and `.markdown` files in Orca's editor tabs. Install it from Orca's plugin directory, or with the CLI:
+Richdown is also an [Orca](https://orca.dev) plugin: the same rich editor opens `.md` and `.markdown` files in Orca's editor tabs. The plugin is published as [StructWorks/richdown-orca](https://github.com/StructWorks/richdown-orca). Install it from Orca's plugin directory, or with the CLI:
 
 ```bash
-orca plugin install StructWorks/richdown
+orca plugin install StructWorks/richdown-orca
 ```
 
 Orca opens Markdown in its own Source view first; choose **Richdown** in the view toggle beside Source. The theme, content width, rich tables, Mermaid, Gherkin, lint, and formatting settings are under the plugin in Orca's Settings, and the editor's settings menu changes the same values.
@@ -281,19 +281,26 @@ Some features still work differently from VS Code:
 
 When an agent writes the file while you are typing, Richdown combines both changes line by line. If you both changed the same lines, both versions are kept between `<<<<<<<` and `>>>>>>>` markers so you can choose.
 
-Develop the plugin from this repository:
+Orca installs a plugin as every file of its repository, so the plugin is not this repository but a folder built from it: `orca/` (manifest, editor page, README) and the bundles of `src/orcaEditor.js`, `src/mermaidLoader.js` and `src/orcaWorker.js`, plus a copy of the source they are built from so the bundles can be rebuilt and compared.
 
 ```bash
-npm run build:orca        # bundles the editor (media/orcaEditor.js) and worker (media/orcaWorker.mjs)
-orca plugin validate .
-orca plugin dev watch .   # loads this folder into Orca and reloads it on save
+npm run build:orca                    # builds the plugin into build/orca-plugin
+npm run build:orca -- --no-minify     # the same, easier to debug
+orca plugin validate build/orca-plugin
+orca plugin dev watch build/orca-plugin   # loads it into Orca; rebuild to reload
 ```
 
-Release: `orca-plugin.json` must carry the same version as `package.json` (`npm run verify:orca` checks it in CI). After the release is merged into `main`, tag that commit; Orca's plugin directory lists the newest `v*` tag at <https://orca.dev/plugins/structworks/richdown>.
+Release: `orca/orca-plugin.json` must carry the same version as `package.json` (`npm run verify:orca` checks it and the build in CI). After the release is merged into `main`, tag that commit. The `Publish Orca Plugin` workflow then builds the plugin, commits it to StructWorks/richdown-orca and gives it the same tag, which Orca's plugin directory lists at <https://orca.dev/plugins/structworks/richdown-orca>.
 
 ```bash
-git tag -a v0.13.0 -m v0.13.0 && git push origin v0.13.0
-gh repo edit StructWorks/richdown --add-topic orca-plugin   # once
+git tag -a v0.13.0 -m v0.13.0 <merge commit> && git push origin v0.13.0
+```
+
+The workflow pushes with the `ORCA_PLUGIN_TOKEN` repository secret, a fine-grained personal access token for StructWorks/richdown-orca only with **Contents: Read and write** (or `ORCA_PLUGIN_DEPLOY_KEY`, a deploy key with write access, if the organization allows deploy keys). To publish an existing tag again, run the workflow by hand with that tag. Without a secret, publish from a clean checkout of the tagged commit with your own Git credentials:
+
+```bash
+npm run publish:orca              # builds, commits and tags v<version> in StructWorks/richdown-orca
+npm run publish:orca -- --dry-run # the same, without pushing
 ```
 
 ## GitHub Actions Deployment
