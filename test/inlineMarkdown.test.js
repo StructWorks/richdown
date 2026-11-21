@@ -156,6 +156,35 @@ describe("appendInlineMarkdown", () => {
     expect(parent.querySelector("img")).toBeNull();
   });
 
+  it("loads remote images directly when the host resolves no images itself", async () => {
+    // VS Code's webview can load them; only local paths go to the host.
+    const { appendInlineMarkdown, postMessage } = createSupport();
+    const parent = document.createElement("div");
+    appendInlineMarkdown(parent, "![badge](https://example.com/b.png)", {
+      renderImages: true,
+    });
+
+    await vi.waitFor(() =>
+      expect(parent.querySelector("img").src).toBe("https://example.com/b.png"),
+    );
+    expect(postMessage).not.toHaveBeenCalled();
+  });
+
+  it("hands remote images to a host that resolves images itself", async () => {
+    // A host without network access (Orca's editor frame) fetches them.
+    const resolveImageSource = vi.fn((src) => Promise.resolve(`blob:${src}`));
+    const { appendInlineMarkdown } = createSupport({ resolveImageSource });
+    const parent = document.createElement("div");
+    appendInlineMarkdown(parent, "![badge](https://example.com/b.png)", {
+      renderImages: true,
+    });
+
+    await vi.waitFor(() =>
+      expect(parent.querySelector("img").src).toBe("blob:https://example.com/b.png"),
+    );
+    expect(resolveImageSource).toHaveBeenCalledWith("https://example.com/b.png");
+  });
+
   it("opens the image source when the image is clicked", async () => {
     const { appendInlineMarkdown, postMessage } = createSupport({
       resolveImageSource: (src) => Promise.resolve(`resolved:${src}`),

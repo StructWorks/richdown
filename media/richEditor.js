@@ -28104,11 +28104,11 @@
   }
 
   // src/rich-editor/adapters/vscodeWebviewPort.js
-  function createVsCodeWebviewPort(vscode2) {
+  function createVsCodeWebviewPort(vscode) {
     return {
       postMessage(message) {
-        if (vscode2 && typeof vscode2.postMessage === "function") {
-          vscode2.postMessage(message);
+        if (vscode && typeof vscode.postMessage === "function") {
+          vscode.postMessage(message);
           return;
         }
         if (message?.type === "openLink" && message.href) {
@@ -28116,6 +28116,45 @@
         }
       }
     };
+  }
+  function createVsCodeEditorHost() {
+    const runtime = readJsonScript("initial-runtime", {});
+    const exportMode2 = runtime.exportMode === true;
+    const vscode = typeof acquireVsCodeApi === "function" && !exportMode2 ? acquireVsCodeApi() : null;
+    const port = createVsCodeWebviewPort(vscode);
+    return {
+      exportMode: exportMode2,
+      readOnly: false,
+      initial: {
+        document: readJsonScript("initial-document", ""),
+        settings: readJsonScript("initial-settings", {}),
+        mermaidScriptUri: readJsonScript("mermaid-script-uri", ""),
+        gitDiffChanges: readJsonScript("initial-git-diff", []),
+        imageMap: readJsonScript("initial-image-map", {}),
+        reveal: readJsonScript("initial-reveal", null)
+      },
+      postMessage: (message) => port.postMessage(message),
+      onMessage(handler) {
+        window.addEventListener("message", (event) => handler(event.data));
+      }
+    };
+  }
+  function readJsonScript(id3, fallback2) {
+    const element = document.querySelector(`#${id3}`);
+    if (!element) {
+      return fallback2;
+    }
+    try {
+      return JSON.parse(element.textContent || "null") ?? fallback2;
+    } catch (error) {
+      return fallback2;
+    }
+  }
+
+  // src/rich-editor/adapters/editorHost.js
+  var installedHost = null;
+  function resolveEditorHost() {
+    return installedHost ?? createVsCodeEditorHost();
   }
 
   // src/rich-editor/domain/settingsModel.js
@@ -49019,13 +49058,13 @@
         wrapper.setAttribute("role", "region");
         wrapper.dataset.sourceFrom = String(this.tableBlock.from);
         wrapper.dataset.dirty = "false";
-        const readOnly2 = view2.state.readOnly;
-        wrapper.classList.toggle("is-read-only", readOnly2);
+        const readOnly3 = view2.state.readOnly;
+        wrapper.classList.toggle("is-read-only", readOnly3);
         wrapper.setAttribute(
           "aria-label",
-          readOnly2 ? "Markdown table" : "Editable Markdown table"
+          readOnly3 ? "Markdown table" : "Editable Markdown table"
         );
-        if (!readOnly2) {
+        if (!readOnly3) {
           wrapper.title = "Edit table cells";
         }
         const scroll = document.createElement("div");
@@ -49049,7 +49088,7 @@
           );
         }
         table.appendChild(tbody);
-        if (!readOnly2) {
+        if (!readOnly3) {
           const toolbar = document.createElement("div");
           toolbar.className = "cm-rich-table-toolbar";
           const toolbarHint = document.createElement("span");
@@ -49087,7 +49126,7 @@
         scroll.appendChild(table);
         wrapper.appendChild(scroll);
         wrapper.addEventListener("input", (event) => {
-          if (readOnly2) {
+          if (readOnly3) {
             return;
           }
           if (event.target.closest(".cm-rich-table-cell-editor")) {
@@ -49095,7 +49134,7 @@
           }
         });
         wrapper.addEventListener("contextmenu", (event) => {
-          if (readOnly2) {
+          if (readOnly3) {
             return;
           }
           const cell = event.target.closest(".cm-rich-table-cell");
@@ -49126,7 +49165,7 @@
           });
         });
         wrapper.addEventListener("focusout", () => {
-          if (readOnly2) {
+          if (readOnly3) {
             return;
           }
           this.scheduleCommit(view2, wrapper);
@@ -50598,12 +50637,12 @@ ${rowText}` },
         wrapper.className = "cm-frontmatter-preview";
         wrapper.setAttribute("role", "region");
         wrapper.setAttribute("aria-label", "Document front matter");
-        const readOnly2 = view2.state.readOnly;
-        wrapper.classList.toggle("is-read-only", readOnly2);
-        if (!readOnly2) {
+        const readOnly3 = view2.state.readOnly;
+        wrapper.classList.toggle("is-read-only", readOnly3);
+        if (!readOnly3) {
           wrapper.title = "Click to edit front matter";
         }
-        if (!readOnly2) {
+        if (!readOnly3) {
           const editHint = document.createElement("span");
           editHint.className = "cm-frontmatter-edit-hint";
           editHint.textContent = "\u270E";
@@ -50649,7 +50688,7 @@ ${rowText}` },
           }
           wrapper.appendChild(grid);
         }
-        if (!readOnly2) {
+        if (!readOnly3) {
           wrapper.addEventListener("mousedown", (event) => {
             event.preventDefault();
           });
@@ -52164,8 +52203,8 @@ ${rowText}` },
       if (!carried && model2.nodes.has(id3)) return next2;
       return insertLines(model2, [`${getStatementIndent(model2)}${entry}`]);
     }
-    const host = readFlowchartSubgraphs(model2).find((subgraph) => subgraph.id === target.id);
-    return insertLines(model2, [`${subgraphBodyIndent(model2, host)}${entry}`], host.endLine);
+    const host2 = readFlowchartSubgraphs(model2).find((subgraph) => subgraph.id === target.id);
+    return insertLines(model2, [`${subgraphBodyIndent(model2, host2)}${entry}`], host2.endLine);
   }
   function nextFlowchartSubgraphId(model, subgraphs) {
     const used = /* @__PURE__ */ new Set([...model.nodes.keys(), ...subgraphs.map((subgraph) => subgraph.id)]);
@@ -52183,16 +52222,16 @@ ${rowText}` },
     const isSubgraph = (value) => subgraphs.some((subgraph) => subgraph.id === value);
     const wraps = Boolean(nodeId && model.nodes.has(nodeId) && !isSubgraph(nodeId));
     const hostId = parent ?? (wraps ? getFlowchartNodeSubgraph(code3, nodeId) : null);
-    const host = hostId ? subgraphs.find((subgraph) => subgraph.id === hostId && subgraph.endLine >= 0) : null;
+    const host2 = hostId ? subgraphs.find((subgraph) => subgraph.id === hostId && subgraph.endLine >= 0) : null;
     const id3 = nextFlowchartSubgraphId(model, subgraphs);
-    const indent4 = host ? subgraphBodyIndent(model, host) : getStatementIndent(model);
+    const indent4 = host2 ? subgraphBodyIndent(model, host2) : getStatementIndent(model);
     const newNodeId = wraps ? null : nextFlowchartNodeId(code3);
     const block2 = [
       `${indent4}subgraph ${id3} [${formatFlowchartLabel(title) || id3}]`,
       ...newNodeId ? [`${indent4}    ${newNodeId}[New node]`] : [],
       `${indent4}end`
     ];
-    let next2 = insertLines(model, block2, host ? host.endLine : getInsertionLine(model));
+    let next2 = insertLines(model, block2, host2 ? host2.endLine : getInsertionLine(model));
     if (wraps) {
       next2 = moveFlowchartNodeToSubgraph(next2, nodeId, id3);
     }
@@ -52387,10 +52426,10 @@ ${rowText}` },
     const shapeSpec = getShape(shape);
     const nodeText = `${id3}${shapeSpec.open}${formatFlowchartLabel(label) || id3}${shapeSpec.close}`;
     const statement = from3 && hasFlowchartElement(model, from3) ? `${from3} --> ${nodeText}` : nodeText;
-    const host = subgraph ? readFlowchartSubgraphs(model).find((entry) => entry.id === subgraph && entry.endLine >= 0) : null;
-    if (host) {
+    const host2 = subgraph ? readFlowchartSubgraphs(model).find((entry) => entry.id === subgraph && entry.endLine >= 0) : null;
+    if (host2) {
       return {
-        code: insertLines(model, [`${subgraphBodyIndent(model, host)}${statement}`], host.endLine),
+        code: insertLines(model, [`${subgraphBodyIndent(model, host2)}${statement}`], host2.endLine),
         id: id3
       };
     }
@@ -56381,7 +56420,7 @@ ${rowText}` },
     renderer,
     colorized = true,
     variant = "inline",
-    readOnly: readOnly2 = false,
+    readOnly: readOnly3 = false,
     code: initialCode = "",
     applyCode,
     revealLine,
@@ -56550,7 +56589,7 @@ ${rowText}` },
     function ensureToolkit() {
       if (toolkitType === state.type) return;
       toolkitType = state.type;
-      toolkit = readOnly2 ? null : createMermaidToolkit(state.type, toolkitApi);
+      toolkit = readOnly3 ? null : createMermaidToolkit(state.type, toolkitApi);
       if (state.connectMode && !toolkit?.canConnect) {
         state.connectMode = false;
         state.connectSource = null;
@@ -56566,7 +56605,7 @@ ${rowText}` },
     }
     function syncToolbar() {
       ensureToolkit();
-      tableSpec = readOnly2 ? null : getMermaidTableSpec(state.code, state.type);
+      tableSpec = readOnly3 ? null : getMermaidTableSpec(state.code, state.type);
       tableButton.hidden = !tableSpec;
       tableButton.setAttribute("aria-pressed", String(Boolean(tableSpec && state.tableOpen)));
       tableButton.classList.toggle("is-active", Boolean(tableSpec && state.tableOpen));
@@ -56619,8 +56658,8 @@ ${rowText}` },
       if (!code3.trim()) {
         stage.replaceChildren();
         state.hasDiagram = false;
-        showTemplates(!readOnly2);
-        setStatus(readOnly2 ? "Empty Mermaid diagram" : "Pick a template or start typing.");
+        showTemplates(!readOnly3);
+        setStatus(readOnly3 ? "Empty Mermaid diagram" : "Pick a template or start typing.");
         report(null);
         return;
       }
@@ -56681,7 +56720,7 @@ ${rowText}` },
       status.classList.toggle("is-error", isError);
     }
     function getHint() {
-      if (readOnly2) {
+      if (readOnly3) {
         return "Click an element to find it in the source.";
       }
       if (state.connectMode) {
@@ -56792,14 +56831,14 @@ ${rowText}` },
       }
     }
     function apply(nextCode) {
-      if (readOnly2 || nextCode === state.code) {
+      if (readOnly3 || nextCode === state.code) {
         return;
       }
       applyCode(nextCode);
       update(nextCode);
     }
     function applyEdit(nextCode, { select: selection = null, rename = false } = {}) {
-      if (readOnly2 || nextCode === state.code) {
+      if (readOnly3 || nextCode === state.code) {
         return;
       }
       if (selection) {
@@ -56809,7 +56848,7 @@ ${rowText}` },
     }
     function deleteSelected() {
       const target = state.selected;
-      if (readOnly2 || !target || !toolkit?.remove || !toolkit.canRemove(target)) {
+      if (readOnly3 || !target || !toolkit?.remove || !toolkit.canRemove(target)) {
         return;
       }
       const next2 = toolkit.remove(target);
@@ -56842,7 +56881,7 @@ ${rowText}` },
       toolkit.connect(from3, to);
     }
     function startRename(target) {
-      if (readOnly2 || !target?.element) {
+      if (readOnly3 || !target?.element) {
         return;
       }
       const bounds = target.element.getBoundingClientRect();
@@ -56912,7 +56951,7 @@ ${rowText}` },
       }
       state.pointerStart = { x: event.clientX, y: event.clientY };
       const target = resolveTarget(event.target);
-      if (readOnly2 || !toolkit?.canConnect?.(target) || !(state.connectMode || event.shiftKey)) {
+      if (readOnly3 || !toolkit?.canConnect?.(target) || !(state.connectMode || event.shiftKey)) {
         return;
       }
       event.preventDefault();
@@ -60024,11 +60063,11 @@ ${rowText}` },
       }
     }
     function resolveImageSource(src, { wikilink = false } = {}) {
-      if (!wikilink && /^(https?:|data:|blob:)/i.test(src)) {
-        return Promise.resolve(src);
-      }
       if (typeof customResolveImageSource === "function") {
         return customResolveImageSource(wikilink ? `[[${src}]]` : src);
+      }
+      if (!wikilink && /^(https?:|data:|blob:)/i.test(src)) {
+        return Promise.resolve(src);
       }
       const requestId = String(imageRequestId += 1);
       postMessage(
@@ -61472,7 +61511,7 @@ ${rowText}` },
     constructor(view2) {
       this.view = view2;
       this.query = getSearchQuery(view2.state);
-      const readOnly2 = view2.state.readOnly;
+      const readOnly3 = view2.state.readOnly;
       this.searchField = createField("search", "Find", this.query.search);
       this.searchField.setAttribute("main-field", "true");
       this.replaceField = createField("replace", "Replace", this.query.replace);
@@ -61503,8 +61542,8 @@ ${rowText}` },
       this.dom = document.createElement("div");
       this.dom.className = "cm-search cm-richdown-search";
       this.dom.append(
-        ...readOnly2 ? [] : [this.replaceToggle],
-        createRow("cm-richdown-search-rows", readOnly2 ? [findRow] : [findRow, this.replaceRow])
+        ...readOnly3 ? [] : [this.replaceToggle],
+        createRow("cm-richdown-search-rows", readOnly3 ? [findRow] : [findRow, this.replaceRow])
       );
       this.dom.addEventListener("keydown", (event) => this.keydown(event));
       for (const field2 of [this.searchField, this.replaceField]) {
@@ -64931,17 +64970,16 @@ ${rowText}` },
   }
 
   // src/richEditor.js
-  var initialRuntime = readJsonScript("initial-runtime", {});
-  var exportMode = initialRuntime.exportMode === true;
-  var vscode = typeof acquireVsCodeApi === "function" && !exportMode ? acquireVsCodeApi() : null;
-  var vscodePort = createVsCodeWebviewPort(vscode);
+  var host = resolveEditorHost();
+  var exportMode = host.exportMode === true;
+  var readOnly2 = exportMode || host.readOnly === true;
   var root = document.querySelector("#editor");
-  var initialDocument = readJsonScript("initial-document", "");
-  var initialSettings = readJsonScript("initial-settings", {});
-  var mermaidScriptUri = readJsonScript("mermaid-script-uri", "");
-  var initialGitDiffChanges = readJsonScript("initial-git-diff", []);
-  var exportImageMap = readJsonScript("initial-image-map", {});
-  var initialReveal = readJsonScript("initial-reveal", null);
+  var initialDocument = host.initial.document ?? "";
+  var initialSettings = host.initial.settings ?? {};
+  var mermaidScriptUri = host.initial.mermaidScriptUri ?? "";
+  var initialGitDiffChanges = host.initial.gitDiffChanges ?? [];
+  var exportImageMap = host.initial.imageMap ?? {};
+  var initialReveal = host.initial.reveal ?? null;
   var applyingExternalUpdate = false;
   var lastSentEditVersion = 0;
   var deferredLintMessage = null;
@@ -64951,31 +64989,31 @@ ${rowText}` },
   var outlineNavigation = createOutlineNavigation();
   var fallbackEditor = createFallbackEditor({
     root,
-    postMessage: (message) => vscodePort.postMessage(message)
+    postMessage: (message) => host.postMessage(message)
   });
   var slashCommands2 = createSlashCommandController();
   var chatEditsBanner = createChatEditsBanner({
-    postMessage: (message) => vscodePort.postMessage(message)
+    postMessage: (message) => host.postMessage(message)
   });
   var gitDiffGutter = createGitDiffGutter(initialGitDiffChanges);
   var lintDecorations = createLintDecorations();
   var settingsMenu = createSettingsMenuController({
     getSettings: () => settings,
-    postMessage: (message) => vscodePort.postMessage(message),
+    postMessage: (message) => host.postMessage(message),
     refreshDecorations: () => previewExtensions.refresh(view)
   });
   var wikilinkResolver = createWikilinkResolver({
     postMessage: (message) => {
       if (!exportMode) {
-        vscodePort.postMessage(message);
+        host.postMessage(message);
       }
     },
     onChange: () => previewExtensions.refreshInline(view)
   });
   var inlineMarkdown = createInlineMarkdownSupport({
-    postMessage: (message) => vscodePort.postMessage(message),
+    postMessage: (message) => host.postMessage(message),
     requestEditorMeasure,
-    resolveImageSource: exportMode ? resolveExportImageSource : void 0,
+    resolveImageSource: exportMode ? resolveExportImageSource : host.resolveImageSource,
     getWikilinkStatus: (target) => wikilinkResolver.status(target)
   });
   var {
@@ -64987,7 +65025,7 @@ ${rowText}` },
     wikilinkClassName
   } = inlineMarkdown;
   var markdownCompletion = createMarkdownCompletion({
-    postMessage: (message) => vscodePort.postMessage(message)
+    postMessage: (message) => host.postMessage(message)
   });
   var previewExtensions = createPreviewExtensions({
     appendInlineMarkdown,
@@ -64995,7 +65033,7 @@ ${rowText}` },
     ImagePreviewWidget,
     isRangeInsideRanges,
     mermaidScriptUri,
-    postMessage: (message) => vscodePort.postMessage(message),
+    postMessage: (message) => host.postMessage(message),
     reportError: reportRichdownError,
     requestEditorMeasure,
     getSettings: () => settings,
@@ -65006,17 +65044,6 @@ ${rowText}` },
   injectStyles();
   if (exportMode) {
     document.documentElement.dataset.richdownExport = "true";
-  }
-  function readJsonScript(id3, fallback2) {
-    const element = document.querySelector(`#${id3}`);
-    if (!element) {
-      return fallback2;
-    }
-    try {
-      return JSON.parse(element.textContent || "null") ?? fallback2;
-    } catch (error) {
-      return fallback2;
-    }
   }
   function resolveExportImageSource(src) {
     if (/^(https?:|data:|blob:|file:)/i.test(src)) {
@@ -65038,7 +65065,7 @@ ${rowText}` },
     const message = error instanceof Error ? error.message : String(error);
     const stack = error instanceof Error ? error.stack : "";
     console.error(`[Richdown] ${context}`, error);
-    vscodePort.postMessage({
+    host.postMessage({
       type: "webviewError",
       context,
       message,
@@ -65083,7 +65110,9 @@ ${rowText}` },
                 isLineFocused: previewExtensions.isLineFocused
               }),
               revealHighlightField,
-              ...createSearchExtensions()
+              ...createSearchExtensions(),
+              // A host can open a file it will not let the editor change.
+              ...readOnly2 ? [EditorState.readOnly.of(true)] : []
             ],
             syntaxHighlighting(markdownHighlightStyle),
             // Wrapping Markdown in yamlFrontmatter keeps a leading "---" header
@@ -65137,7 +65166,7 @@ ${rowText}` },
                   return false;
                 }
                 event.preventDefault();
-                vscodePort.postMessage({
+                host.postMessage({
                   type: linkTarget.wikilink ? "openWikilink" : "openLink",
                   href: linkTarget.href
                 });
@@ -65152,7 +65181,7 @@ ${rowText}` },
                   key: "Shift-Alt-f",
                   preventDefault: true,
                   run: () => {
-                    vscodePort.postMessage({ type: "formatDocument" });
+                    host.postMessage({ type: "formatDocument" });
                     return true;
                   }
                 },
@@ -65179,7 +65208,7 @@ ${rowText}` },
                 return;
               }
               lastSentEditVersion += 1;
-              vscodePort.postMessage({
+              host.postMessage({
                 type: "edit",
                 text: update.state.doc.toString(),
                 version: lastSentEditVersion
@@ -65198,67 +65227,67 @@ ${rowText}` },
           revealInEditor(view, initialReveal);
         }
       }
-      vscodePort.postMessage({ type: "ready" });
+      host.postMessage({ type: "ready" });
     } catch (error) {
       reportRichdownError("editor-startup", error);
       view = null;
       fallbackEditor.render(initialDocument);
-      vscodePort.postMessage({ type: "ready" });
+      host.postMessage({ type: "ready" });
     }
   });
-  window.addEventListener("message", (event) => {
-    if (!event.data) return;
-    if (event.data.type === "resolvedImage") {
-      handleResolvedImage(event.data);
+  host.onMessage((message) => {
+    if (!message) return;
+    if (message.type === "resolvedImage") {
+      handleResolvedImage(message);
       return;
     }
-    if (event.data.type === "hostCompletions") {
-      markdownCompletion.handleHostCompletions(event.data);
+    if (message.type === "hostCompletions") {
+      markdownCompletion.handleHostCompletions(message);
       return;
     }
-    if (event.data.type === "linkCompletions") {
-      markdownCompletion.handleLinkCompletions(event.data);
+    if (message.type === "linkCompletions") {
+      markdownCompletion.handleLinkCompletions(message);
       return;
     }
-    if (event.data.type === "wikilinkCompletions") {
-      markdownCompletion.handleWikilinkCompletions(event.data);
+    if (message.type === "wikilinkCompletions") {
+      markdownCompletion.handleWikilinkCompletions(message);
       return;
     }
-    if (event.data.type === "wikilinksResolved") {
-      wikilinkResolver.handleResolved(event.data);
+    if (message.type === "wikilinksResolved") {
+      wikilinkResolver.handleResolved(message);
       return;
     }
-    if (event.data.type === "wikilinksChanged") {
+    if (message.type === "wikilinksChanged") {
       wikilinkResolver.invalidate();
       return;
     }
-    if (event.data.type === "reveal") {
+    if (message.type === "reveal") {
       if (view) {
-        revealInEditor(view, event.data.target);
+        revealInEditor(view, message.target);
       }
       return;
     }
-    if (event.data.type === "chatEdits") {
-      chatEditsBanner.update(event.data.pending === true);
+    if (message.type === "chatEdits") {
+      chatEditsBanner.update(message.pending === true);
       return;
     }
-    if (event.data.type === "gitDiff") {
-      latestGitDiffChanges = event.data.changes || [];
+    if (message.type === "gitDiff") {
+      latestGitDiffChanges = message.changes || [];
       gitDiffGutter.update(view, latestGitDiffChanges);
       return;
     }
-    if (event.data.type === "lintDiagnostics") {
-      handleLintDiagnostics(event.data);
+    if (message.type === "lintDiagnostics") {
+      handleLintDiagnostics(message);
       return;
     }
-    if (event.data.type === "theme") {
-      settings.richTheme = event.data.theme || "default";
+    if (message.type === "theme") {
+      settings.richTheme = message.theme || "default";
       applyTheme(settings.richTheme);
       settingsMenu.update();
       return;
     }
-    if (event.data.type === "settings") {
-      const result = applySettingsPatch(settings, event.data.settings);
+    if (message.type === "settings") {
+      const result = applySettingsPatch(settings, message.settings);
       settings = result.settings;
       applyTheme(settings.richTheme);
       applyPreviewWidth(settings.previewWidth);
@@ -65268,11 +65297,11 @@ ${rowText}` },
       }
       return;
     }
-    if (event.data.type !== "update") return;
-    if (isStaleHostMessage(event.data)) {
+    if (message.type !== "update") return;
+    if (isStaleHostMessage(message)) {
       return;
     }
-    const nextText = typeof event.data.text === "string" ? normalizeLineEndings(event.data.text) : event.data.text;
+    const nextText = typeof message.text === "string" ? normalizeLineEndings(message.text) : message.text;
     if (!view) {
       fallbackEditor.applyUpdate(nextText);
       return;

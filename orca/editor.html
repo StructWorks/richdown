@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Richdown</title>
+  <style>
+    /*
+     * Richdown's styles read VS Code's theme variables. Orca gives editor
+     * frames its own --orca-* variables (and a light/dark class on <html>),
+     * so map one set onto the other. Colors Orca has no token for use VS
+     * Code's default dark and light values.
+     */
+    :root {
+      --vscode-font-family: var(--orca-font-sans, system-ui, sans-serif);
+      --vscode-editor-font-family: var(--orca-font-mono, ui-monospace, monospace);
+      --vscode-editor-background: var(--orca-background);
+      --vscode-editor-foreground: var(--orca-foreground);
+      --vscode-descriptionForeground: var(--orca-muted-foreground);
+      --vscode-panel-border: var(--orca-border);
+      --vscode-editorWidget-background: var(--orca-popover);
+      --vscode-editorWidget-border: var(--orca-border);
+      --vscode-input-background: var(--orca-background);
+      --vscode-input-foreground: var(--orca-foreground);
+      --vscode-input-border: var(--orca-input);
+      --vscode-textCodeBlock-background: var(--orca-muted);
+      --vscode-textBlockQuote-border: var(--orca-border);
+      --vscode-focusBorder: var(--orca-ring);
+      --vscode-editorCursor-foreground: var(--orca-foreground);
+      --vscode-button-background: var(--orca-primary);
+      --vscode-button-foreground: var(--orca-primary-foreground);
+      --vscode-toolbar-hoverBackground: var(--orca-accent);
+      --vscode-inputOption-activeBackground: var(--orca-accent);
+      --vscode-inputOption-activeForeground: var(--orca-accent-foreground);
+      --vscode-inputOption-activeBorder: var(--orca-ring);
+      --vscode-inputValidation-errorBorder: var(--orca-destructive);
+      --vscode-errorForeground: var(--orca-destructive);
+      --vscode-editorError-foreground: var(--orca-destructive);
+      --vscode-editorOverviewRuler-errorForeground: var(--orca-destructive);
+      --vscode-editorIndentGuide-background: var(--orca-border);
+      --vscode-editorIndentGuide-background1: var(--orca-border);
+      --vscode-editorIndentGuide-activeBackground: var(--orca-muted-foreground);
+      --vscode-editorIndentGuide-activeBackground1: var(--orca-muted-foreground);
+      --vscode-widget-shadow: rgba(0, 0, 0, 0.36);
+    }
+    :root.dark {
+      --vscode-editor-selectionBackground: #264f78;
+      --vscode-textLink-foreground: #4daafc;
+      --vscode-editorWarning-foreground: #cca700;
+      --vscode-editorInfo-foreground: #3794ff;
+      --vscode-editorHint-foreground: rgba(238, 238, 238, 0.7);
+      --vscode-editorOverviewRuler-warningForeground: #cca700;
+      --vscode-editorOverviewRuler-infoForeground: #3794ff;
+      --vscode-charts-blue: #3794ff;
+      --vscode-charts-green: #89d185;
+      --vscode-charts-orange: #d18616;
+      --vscode-charts-purple: #b180d7;
+      --vscode-gitDecoration-addedResourceForeground: #81b88b;
+      --vscode-gitDecoration-modifiedResourceForeground: #e2c08d;
+      --vscode-gitDecoration-deletedResourceForeground: #c74e39;
+      --vscode-editor-findMatchBackground: #515c6a;
+      --vscode-editor-findMatchBorder: #74879f;
+      --vscode-editor-findMatchHighlightBackground: rgba(234, 92, 0, 0.33);
+      --vscode-editor-findMatchHighlightBorder: transparent;
+    }
+    :root.light {
+      --vscode-editor-selectionBackground: #add6ff;
+      --vscode-textLink-foreground: #005fb8;
+      --vscode-editorWarning-foreground: #bf8803;
+      --vscode-editorInfo-foreground: #1a85ff;
+      --vscode-editorHint-foreground: #6c6c6c;
+      --vscode-editorOverviewRuler-warningForeground: #bf8803;
+      --vscode-editorOverviewRuler-infoForeground: #1a85ff;
+      --vscode-charts-blue: #1a85ff;
+      --vscode-charts-green: #388a34;
+      --vscode-charts-orange: #d18616;
+      --vscode-charts-purple: #652d90;
+      --vscode-gitDecoration-addedResourceForeground: #587c0c;
+      --vscode-gitDecoration-modifiedResourceForeground: #895503;
+      --vscode-gitDecoration-deletedResourceForeground: #ad0707;
+      --vscode-editor-findMatchBackground: #a8ac94;
+      --vscode-editor-findMatchBorder: transparent;
+      --vscode-editor-findMatchHighlightBackground: rgba(234, 92, 0, 0.33);
+      --vscode-editor-findMatchHighlightBorder: transparent;
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      color: var(--vscode-editor-foreground);
+      background: var(--vscode-editor-background);
+      font-family: var(--vscode-font-family);
+      font-size: 13px;
+    }
+    #editor {
+      height: 100vh;
+    }
+    .richdown-startup-error {
+      margin: 24px;
+      color: var(--vscode-errorForeground);
+    }
+  </style>
+</head>
+<body>
+  <div id="editor" aria-label="Markdown editor"></div>
+  <script src="../media/orcaEditor.js"></script>
+</body>
+</html>

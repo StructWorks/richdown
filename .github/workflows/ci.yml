@@ -84,6 +84,10 @@ jobs:
       - name: Verify committed webview bundles
         run: npm run verify:bundles
 
+      # Orca installs the plugin from this repository at a v<version> tag.
+      - name: Verify Orca plugin manifest
+        run: npm run verify:orca
+
   package:
     name: Package VSIX
     runs-on: ubuntu-latest

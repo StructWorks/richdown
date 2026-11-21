@@ -326,14 +326,16 @@ export function createInlineMarkdownSupport({
   }
   
   // Embeds are looked up by name: the host is asked with `wikilink: true`,
-  // and an export's image map keys them as "[[name]]".
+  // and a custom resolver (an export's image map, the Orca host) gets them as
+  // "[[name]]". A custom resolver sees remote sources too, since a host
+  // without network access has to fetch them itself.
   function resolveImageSource(src, { wikilink = false } = {}) {
-    if (!wikilink && /^(https?:|data:|blob:)/i.test(src)) {
-      return Promise.resolve(src);
-    }
-
     if (typeof customResolveImageSource === "function") {
       return customResolveImageSource(wikilink ? `[[${src}]]` : src);
+    }
+
+    if (!wikilink && /^(https?:|data:|blob:)/i.test(src)) {
+      return Promise.resolve(src);
     }
   
     const requestId = String((imageRequestId += 1));

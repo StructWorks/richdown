@@ -1,3 +1,12 @@
+export const richThemes = [
+  "default",
+  "midnight",
+  "graphite",
+  "forest",
+  "ivory",
+  "paper",
+  "solar",
+];
 export const mermaidPreviewSizes = ["source", "readable", "large"];
 export const previewWidths = ["default", "wide"];
 

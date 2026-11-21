@@ -1,6 +1,6 @@
 # Richdown
 
-Richdown is a VS Code Markdown editor that keeps writing, previewing, reviewing, and exporting changes in one place. It opens Markdown files in a CodeMirror-based rich editor with inline Markdown previews, editable rich tables, colored Mermaid diagrams, Gherkin BDD boards, syntax-highlighted code blocks, inline color swatches, images, links, task checkboxes, Git change markers, HTML/PDF export, Richdown Diff, and configurable writing themes.
+Richdown is a VS Code Markdown editor that keeps writing, previewing, reviewing, and exporting changes in one place. It opens Markdown files in a CodeMirror-based rich editor with inline Markdown previews, editable rich tables, colored Mermaid diagrams, Gherkin BDD boards, syntax-highlighted code blocks, inline color swatches, images, links, task checkboxes, Git change markers, HTML/PDF export, Richdown Diff, and configurable writing themes. The rich editor is also available as an [Orca plugin](#orca).
 
 ## Screenshots
 
@@ -259,6 +259,41 @@ Publish to Open VSX:
 ```bash
 npx ovsx create-namespace mytooyodev -p <open-vsx-token>
 npm run publish:openvsx -- -p <open-vsx-token>
+```
+
+## Orca
+
+Richdown is also an [Orca](https://orca.dev) plugin: the same rich editor opens `.md` and `.markdown` files in Orca's editor tabs. Install it from Orca's plugin directory, or with the CLI:
+
+```bash
+orca plugin install StructWorks/richdown
+```
+
+Orca opens Markdown in its own Source view first; choose **Richdown** in the view toggle beside Source. The theme, content width, rich tables, Mermaid, Gherkin, lint, and formatting settings are under the plugin in Orca's Settings, and the editor's settings menu changes the same values.
+
+An Orca editor receives the file's text but not its path, and it has no file system or network access. Richdown therefore ships a small background worker, which is why Orca asks to let the plugin run code and read your workspaces when you install it. The worker finds the open file by matching its text against the Markdown files in the workspace and reads the images the document shows: paths relative to the document, `file:` URLs, paths from the workspace root (`/images/a.png`), `![[embeds]]`, and remote images. Image files are read only from inside your local workspaces (never through hidden folders) and only for image file types. Remote images are downloaded only from public addresses (never from your machine or private network, including after a redirect), up to 32 MB; turn them off with the plugin's **Remote images** setting. If the file had unsaved changes when it was opened, or it is not inside a workspace, a relative image is found by the end of its path in the focused workspace.
+
+Some features still work differently from VS Code:
+
+- Web links and links within the document (`#heading`, `#L12`) work; links to other files and wikilinks are drawn as plain links.
+- Lint and formatting use Richdown's default rules, because `.richdownrc.json` cannot be read. Format with `Shift+Alt+F`.
+- Git change markers, Richdown Diff, the Markdown commit diff, and HTML/PDF export are available in VS Code only.
+
+When an agent writes the file while you are typing, Richdown combines both changes line by line. If you both changed the same lines, both versions are kept between `<<<<<<<` and `>>>>>>>` markers so you can choose.
+
+Develop the plugin from this repository:
+
+```bash
+npm run build:orca        # bundles the editor (media/orcaEditor.js) and worker (media/orcaWorker.mjs)
+orca plugin validate .
+orca plugin dev watch .   # loads this folder into Orca and reloads it on save
+```
+
+Release: `orca-plugin.json` must carry the same version as `package.json` (`npm run verify:orca` checks it in CI). After the release is merged into `main`, tag that commit; Orca's plugin directory lists the newest `v*` tag at <https://orca.dev/plugins/structworks/richdown>.
+
+```bash
+git tag -a v0.13.0 -m v0.13.0 && git push origin v0.13.0
+gh repo edit StructWorks/richdown --add-topic orca-plugin   # once
 ```
 
 ## GitHub Actions Deployment

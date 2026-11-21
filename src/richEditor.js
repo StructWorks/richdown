@@ -1,9 +1,10 @@
 // Rich editor webview entrypoint.
 //
-// Keep this file focused on bootstrapping VS Code/CodeMirror integration. Rich
+// Keep this file focused on bootstrapping the host/CodeMirror integration. Rich
 // Markdown parsing, preview widgets, settings UI, and decorations live in
 // feature modules under src/rich-editor so contributors can change one area
-// without learning the whole editor surface.
+// without learning the whole editor surface. The host is VS Code's webview
+// unless another embedder installed one first (see adapters/editorHost.js).
 import {
   defaultKeymap,
   history,
@@ -21,7 +22,7 @@ import {
   lineNumbers,
 } from "@codemirror/view";
 import { GFM } from "@lezer/markdown";
-import { createVsCodeWebviewPort } from "./rich-editor/adapters/vscodeWebviewPort.js";
+import { resolveEditorHost } from "./rich-editor/adapters/editorHost.js";
 import { applySettingsPatch } from "./rich-editor/application/settingsUseCases.js";
 import { normalizeRichEditorSettings } from "./rich-editor/domain/settingsModel.js";
 import {
@@ -69,20 +70,16 @@ import { createEditorThemeExtension } from "./rich-editor/presentation/styles/ed
 import { injectStyles } from "./rich-editor/presentation/styles/globalStyles.js";
 import { closeTableContextMenu } from "./rich-editor/presentation/table/tablePreview.js";
 
-const initialRuntime = readJsonScript("initial-runtime", {});
-const exportMode = initialRuntime.exportMode === true;
-const vscode =
-  typeof acquireVsCodeApi === "function" && !exportMode
-    ? acquireVsCodeApi()
-    : null;
-const vscodePort = createVsCodeWebviewPort(vscode);
+const host = resolveEditorHost();
+const exportMode = host.exportMode === true;
+const readOnly = exportMode || host.readOnly === true;
 const root = document.querySelector("#editor");
-const initialDocument = readJsonScript("initial-document", "");
-const initialSettings = readJsonScript("initial-settings", {});
-const mermaidScriptUri = readJsonScript("mermaid-script-uri", "");
-const initialGitDiffChanges = readJsonScript("initial-git-diff", []);
-const exportImageMap = readJsonScript("initial-image-map", {});
-const initialReveal = readJsonScript("initial-reveal", null);
+const initialDocument = host.initial.document ?? "";
+const initialSettings = host.initial.settings ?? {};
+const mermaidScriptUri = host.initial.mermaidScriptUri ?? "";
+const initialGitDiffChanges = host.initial.gitDiffChanges ?? [];
+const exportImageMap = host.initial.imageMap ?? {};
+const initialReveal = host.initial.reveal ?? null;
 
 let applyingExternalUpdate = false;
 // Every edit sent to the host is numbered. The host echoes the number of the
@@ -99,32 +96,34 @@ let latestLintDiagnostics = [];
 const outlineNavigation = createOutlineNavigation();
 const fallbackEditor = createFallbackEditor({
   root,
-  postMessage: (message) => vscodePort.postMessage(message),
+  postMessage: (message) => host.postMessage(message),
 });
 const slashCommands = createSlashCommandController();
 const chatEditsBanner = createChatEditsBanner({
-  postMessage: (message) => vscodePort.postMessage(message),
+  postMessage: (message) => host.postMessage(message),
 });
 const gitDiffGutter = createGitDiffGutter(initialGitDiffChanges);
 const lintDecorations = createLintDecorations();
 const settingsMenu = createSettingsMenuController({
   getSettings: () => settings,
-  postMessage: (message) => vscodePort.postMessage(message),
+  postMessage: (message) => host.postMessage(message),
   refreshDecorations: () => previewExtensions.refresh(view),
 });
 // Exports have no host to resolve wikilink names, so links there stay plain.
 const wikilinkResolver = createWikilinkResolver({
   postMessage: (message) => {
     if (!exportMode) {
-      vscodePort.postMessage(message);
+      host.postMessage(message);
     }
   },
   onChange: () => previewExtensions.refreshInline(view),
 });
 const inlineMarkdown = createInlineMarkdownSupport({
-  postMessage: (message) => vscodePort.postMessage(message),
+  postMessage: (message) => host.postMessage(message),
   requestEditorMeasure,
-  resolveImageSource: exportMode ? resolveExportImageSource : undefined,
+  resolveImageSource: exportMode
+    ? resolveExportImageSource
+    : host.resolveImageSource,
   getWikilinkStatus: (target) => wikilinkResolver.status(target),
 });
 const {
@@ -136,7 +135,7 @@ const {
   wikilinkClassName,
 } = inlineMarkdown;
 const markdownCompletion = createMarkdownCompletion({
-  postMessage: (message) => vscodePort.postMessage(message),
+  postMessage: (message) => host.postMessage(message),
 });
 const previewExtensions = createPreviewExtensions({
   appendInlineMarkdown,
@@ -144,7 +143,7 @@ const previewExtensions = createPreviewExtensions({
   ImagePreviewWidget,
   isRangeInsideRanges,
   mermaidScriptUri,
-  postMessage: (message) => vscodePort.postMessage(message),
+  postMessage: (message) => host.postMessage(message),
   reportError: reportRichdownError,
   requestEditorMeasure,
   getSettings: () => settings,
@@ -157,18 +156,6 @@ applyPreviewWidth(settings.previewWidth);
 injectStyles();
 if (exportMode) {
   document.documentElement.dataset.richdownExport = "true";
-}
-
-function readJsonScript(id, fallback) {
-  const element = document.querySelector(`#${id}`);
-  if (!element) {
-    return fallback;
-  }
-  try {
-    return JSON.parse(element.textContent || "null") ?? fallback;
-  } catch (error) {
-    return fallback;
-  }
 }
 
 function resolveExportImageSource(src) {
@@ -193,7 +180,7 @@ function reportRichdownError(context, error) {
   const message = error instanceof Error ? error.message : String(error);
   const stack = error instanceof Error ? error.stack : "";
   console.error(`[Richdown] ${context}`, error);
-  vscodePort.postMessage({
+  host.postMessage({
     type: "webviewError",
     context,
     message,
@@ -245,6 +232,8 @@ queueMicrotask(() => {
                 }),
                 revealHighlightField,
                 ...createSearchExtensions(),
+                // A host can open a file it will not let the editor change.
+                ...(readOnly ? [EditorState.readOnly.of(true)] : []),
               ]),
           syntaxHighlighting(markdownHighlightStyle),
           // Wrapping Markdown in yamlFrontmatter keeps a leading "---" header
@@ -302,7 +291,7 @@ queueMicrotask(() => {
               }
 
               event.preventDefault();
-              vscodePort.postMessage({
+              host.postMessage({
                 type: linkTarget.wikilink ? "openWikilink" : "openLink",
                 href: linkTarget.href,
               });
@@ -319,7 +308,7 @@ queueMicrotask(() => {
                     key: "Shift-Alt-f",
                     preventDefault: true,
                     run: () => {
-                      vscodePort.postMessage({ type: "formatDocument" });
+                      host.postMessage({ type: "formatDocument" });
                       return true;
                     },
                   },
@@ -347,7 +336,7 @@ queueMicrotask(() => {
               return;
             }
             lastSentEditVersion += 1;
-            vscodePort.postMessage({
+            host.postMessage({
               type: "edit",
               text: update.state.doc.toString(),
               version: lastSentEditVersion,
@@ -368,80 +357,80 @@ queueMicrotask(() => {
         revealInEditor(view, initialReveal);
       }
     }
-    vscodePort.postMessage({ type: "ready" });
+    host.postMessage({ type: "ready" });
   } catch (error) {
     reportRichdownError("editor-startup", error);
     view = null;
     fallbackEditor.render(initialDocument);
-    vscodePort.postMessage({ type: "ready" });
+    host.postMessage({ type: "ready" });
   }
 });
 
-window.addEventListener("message", (event) => {
-  if (!event.data) return;
+host.onMessage((message) => {
+  if (!message) return;
 
-  if (event.data.type === "resolvedImage") {
-    handleResolvedImage(event.data);
+  if (message.type === "resolvedImage") {
+    handleResolvedImage(message);
     return;
   }
 
-  if (event.data.type === "hostCompletions") {
-    markdownCompletion.handleHostCompletions(event.data);
+  if (message.type === "hostCompletions") {
+    markdownCompletion.handleHostCompletions(message);
     return;
   }
 
-  if (event.data.type === "linkCompletions") {
-    markdownCompletion.handleLinkCompletions(event.data);
+  if (message.type === "linkCompletions") {
+    markdownCompletion.handleLinkCompletions(message);
     return;
   }
 
-  if (event.data.type === "wikilinkCompletions") {
-    markdownCompletion.handleWikilinkCompletions(event.data);
+  if (message.type === "wikilinkCompletions") {
+    markdownCompletion.handleWikilinkCompletions(message);
     return;
   }
 
-  if (event.data.type === "wikilinksResolved") {
-    wikilinkResolver.handleResolved(event.data);
+  if (message.type === "wikilinksResolved") {
+    wikilinkResolver.handleResolved(message);
     return;
   }
 
-  if (event.data.type === "wikilinksChanged") {
+  if (message.type === "wikilinksChanged") {
     wikilinkResolver.invalidate();
     return;
   }
 
-  if (event.data.type === "reveal") {
+  if (message.type === "reveal") {
     if (view) {
-      revealInEditor(view, event.data.target);
+      revealInEditor(view, message.target);
     }
     return;
   }
 
-  if (event.data.type === "chatEdits") {
-    chatEditsBanner.update(event.data.pending === true);
+  if (message.type === "chatEdits") {
+    chatEditsBanner.update(message.pending === true);
     return;
   }
 
-  if (event.data.type === "gitDiff") {
-    latestGitDiffChanges = event.data.changes || [];
+  if (message.type === "gitDiff") {
+    latestGitDiffChanges = message.changes || [];
     gitDiffGutter.update(view, latestGitDiffChanges);
     return;
   }
 
-  if (event.data.type === "lintDiagnostics") {
-    handleLintDiagnostics(event.data);
+  if (message.type === "lintDiagnostics") {
+    handleLintDiagnostics(message);
     return;
   }
 
-  if (event.data.type === "theme") {
-    settings.richTheme = event.data.theme || "default";
+  if (message.type === "theme") {
+    settings.richTheme = message.theme || "default";
     applyTheme(settings.richTheme);
     settingsMenu.update();
     return;
   }
 
-  if (event.data.type === "settings") {
-    const result = applySettingsPatch(settings, event.data.settings);
+  if (message.type === "settings") {
+    const result = applySettingsPatch(settings, message.settings);
     settings = result.settings;
     applyTheme(settings.richTheme);
     applyPreviewWidth(settings.previewWidth);
@@ -452,9 +441,9 @@ window.addEventListener("message", (event) => {
     return;
   }
 
-  if (event.data.type !== "update") return;
+  if (message.type !== "update") return;
 
-  if (isStaleHostMessage(event.data)) {
+  if (isStaleHostMessage(message)) {
     // The host will receive the newer edits and replace its document with
     // them, so this text is already superseded. Applying it would revert the
     // latest keystrokes and break an IME composition in progress.
@@ -464,9 +453,9 @@ window.addEventListener("message", (event) => {
   // The host already sends LF text; normalizing again keeps a CRLF document
   // from turning into stray carriage returns inside the CodeMirror document.
   const nextText =
-    typeof event.data.text === "string"
-      ? normalizeLineEndings(event.data.text)
-      : event.data.text;
+    typeof message.text === "string"
+      ? normalizeLineEndings(message.text)
+      : message.text;
   if (!view) {
     fallbackEditor.applyUpdate(nextText);
     return;

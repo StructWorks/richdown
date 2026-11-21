@@ -3,9 +3,11 @@ import globals from "globals";
 
 // The repository holds three kinds of JavaScript:
 //   - extension host code (CommonJS, node globals): extension.js, src/export,
-//     src/host
+//     src/host; the Orca plugin worker (ESM, node globals): src/orcaWorker.js,
+//     src/orca-worker
 //   - webview code (ESM, browser globals): src/richEditor.js, src/richDiff.js,
-//     src/mermaidLoader.js and everything under src/rich-editor and src/rich-diff
+//     src/mermaidLoader.js, the Orca editor entry src/orcaEditor.js, and
+//     everything under src/rich-editor and src/rich-diff
 //   - tests and tooling (ESM, node globals, jsdom in some suites)
 // media/*.js are generated bundles and never linted.
 export default [
@@ -45,6 +47,15 @@ export default [
     },
   },
   {
+    // The Orca plugin worker runs in Node as an ES module.
+    files: ["src/orcaWorker.js", "src/orca-worker/**/*.js"],
+    languageOptions: {
+      ecmaVersion: 2023,
+      sourceType: "module",
+      globals: globals.node,
+    },
+  },
+  {
     // Repository tooling: printing progress is the point of these scripts.
     files: ["scripts/**/*.mjs"],
     languageOptions: {
@@ -59,6 +70,7 @@ export default [
   {
     files: [
       "src/richEditor.js",
+      "src/orcaEditor.js",
       "src/richDiff.js",
       "src/mermaidLoader.js",
       "src/markdown/**/*.js",
