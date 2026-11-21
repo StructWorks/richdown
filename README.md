@@ -296,7 +296,12 @@ Release: `orca/orca-plugin.json` must carry the same version as `package.json` (
 git tag -a v0.13.0 -m v0.13.0 <merge commit> && git push origin v0.13.0
 ```
 
-The workflow needs the `ORCA_PLUGIN_DEPLOY_KEY` repository secret: the private half of a deploy key with write access to StructWorks/richdown-orca. To publish an existing tag again, run the workflow by hand with that tag.
+The workflow pushes with the `ORCA_PLUGIN_TOKEN` repository secret, a fine-grained personal access token for StructWorks/richdown-orca only with **Contents: Read and write** (or `ORCA_PLUGIN_DEPLOY_KEY`, a deploy key with write access, if the organization allows deploy keys). To publish an existing tag again, run the workflow by hand with that tag. Without a secret, publish from a clean checkout of the tagged commit with your own Git credentials:
+
+```bash
+npm run publish:orca              # builds, commits and tags v<version> in StructWorks/richdown-orca
+npm run publish:orca -- --dry-run # the same, without pushing
+```
 
 ## GitHub Actions Deployment
 

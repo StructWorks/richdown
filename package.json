@@ -54,6 +54,7 @@
     "build:mermaid": "esbuild src/mermaidLoader.js --bundle --format=iife --outfile=media/mermaid.js",
     "build:diff": "esbuild src/richDiff.js --bundle --format=iife --outfile=media/richDiff.js",
     "build:orca": "node scripts/build-orca-plugin.mjs",
+    "publish:orca": "node scripts/publish-orca-plugin.mjs",
     "build:all": "npm run build && npm run build:mermaid && npm run build:diff",
     "generate:schema": "node scripts/generate-config-schema.mjs",
     "package:vsix": "vsce package",

@@ -6,8 +6,12 @@ name: Publish Orca Plugin
 # directory lists. Pushing a v* tag here publishes that version; the run does
 # nothing when the plugin repository already has the tag.
 #
-# Needs the ORCA_PLUGIN_DEPLOY_KEY secret: the private half of a deploy key
-# with write access to StructWorks/richdown-orca.
+# Needs one of these secrets to push to StructWorks/richdown-orca:
+# - ORCA_PLUGIN_TOKEN: a fine-grained personal access token for that
+#   repository only, with Contents read and write;
+# - ORCA_PLUGIN_DEPLOY_KEY: the private half of a deploy key with write access
+#   to it (the organization must allow deploy keys).
+# Without either, `npm run publish:orca` publishes from a maintainer's machine.
 
 on:
   push:
@@ -48,11 +52,22 @@ jobs:
       - name: Check the plugin
         run: npm run verify:orca
 
+      - name: Check for a publishing credential
+        env:
+          HAS_TOKEN: ${{ secrets.ORCA_PLUGIN_TOKEN != '' }}
+          HAS_DEPLOY_KEY: ${{ secrets.ORCA_PLUGIN_DEPLOY_KEY != '' }}
+        run: |
+          if [ "$HAS_TOKEN" != "true" ] && [ "$HAS_DEPLOY_KEY" != "true" ]; then
+            echo "::error::Set ORCA_PLUGIN_TOKEN or ORCA_PLUGIN_DEPLOY_KEY, or publish with npm run publish:orca."
+            exit 1
+          fi
+
       - name: Check out the plugin repository
         uses: actions/checkout@v4
         with:
           repository: StructWorks/richdown-orca
           ssh-key: ${{ secrets.ORCA_PLUGIN_DEPLOY_KEY }}
+          token: ${{ secrets.ORCA_PLUGIN_TOKEN || github.token }}
           path: orca-plugin-repo
           fetch-depth: 0
 
