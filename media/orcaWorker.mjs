@@ -503,7 +503,14 @@ function downloadImage(url, {
               fail(new Error("Too many redirects."));
               return;
             }
-            attempt(new URL(response.headers.location, parsed).href, redirectsLeft - 1);
+            let next;
+            try {
+              next = new URL(response.headers.location, parsed).href;
+            } catch (error) {
+              fail(new Error("Bad redirect."));
+              return;
+            }
+            attempt(next, redirectsLeft - 1);
             return;
           }
           if (status < 200 || status >= 300) {

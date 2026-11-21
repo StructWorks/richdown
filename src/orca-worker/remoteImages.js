@@ -160,7 +160,16 @@ export function downloadImage(
               fail(new Error("Too many redirects."));
               return;
             }
-            attempt(new URL(response.headers.location, parsed).href, redirectsLeft - 1);
+            // A malformed Location would throw here, inside the response
+            // callback, and take the worker down with it.
+            let next;
+            try {
+              next = new URL(response.headers.location, parsed).href;
+            } catch (error) {
+              fail(new Error("Bad redirect."));
+              return;
+            }
+            attempt(next, redirectsLeft - 1);
             return;
           }
           if (status < 200 || status >= 300) {

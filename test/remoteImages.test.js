@@ -127,17 +127,21 @@ describe("downloadImage", () => {
     ).rejects.toThrow(/too large/);
   });
 
-  it("refuses pages, failures, endless redirects and other schemes", async () => {
+  it("refuses pages, failures, bad or endless redirects and other schemes", async () => {
     routes["/page"] = (request, response) => {
       response.writeHead(200, { "content-type": "text/html" }).end("<html>");
     };
     routes["/loop.png"] = (request, response) => {
       response.writeHead(302, { location: "/loop.png" }).end();
     };
+    routes["/bad-redirect.png"] = (request, response) => {
+      response.writeHead(302, { location: "http://[::1" }).end();
+    };
 
     await expect(downloadImage(`${base}/page`, allowTestServer)).rejects.toThrow(/Not an image/);
     await expect(downloadImage(`${base}/gone.png`, allowTestServer)).rejects.toThrow(/HTTP 404/);
     await expect(downloadImage(`${base}/loop.png`, allowTestServer)).rejects.toThrow(/redirects/);
+    await expect(downloadImage(`${base}/bad-redirect.png`, allowTestServer)).rejects.toThrow(/Bad redirect/);
     await expect(downloadImage("ftp://example.com/a.png")).rejects.toThrow(/http and https/);
     await expect(downloadImage("http://user:pass@example.com/a.png")).rejects.toThrow(/credentials/);
   });
