@@ -2,7 +2,7 @@
   "manifestVersion": 2,
   "id": "richdown",
   "name": "Richdown",
-  "version": "0.12.0",
+  "version": "0.13.0",
   "description": "Edit Markdown with a rich inline preview, editable tables, colored Mermaid diagrams, Gherkin boards, and Markdown lint and formatting.",
   "author": {
     "name": "StructWorks",

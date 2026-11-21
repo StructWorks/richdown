@@ -292,7 +292,7 @@ orca plugin dev watch .   # loads this folder into Orca and reloads it on save
 Release: `orca-plugin.json` must carry the same version as `package.json` (`npm run verify:orca` checks it in CI). After the release is merged into `main`, tag that commit; Orca's plugin directory lists the newest `v*` tag at <https://orca.dev/plugins/structworks/richdown>.
 
 ```bash
-git tag -a v0.12.0 -m v0.12.0 && git push origin v0.12.0
+git tag -a v0.13.0 -m v0.13.0 && git push origin v0.13.0
 gh repo edit StructWorks/richdown --add-topic orca-plugin   # once
 ```
 
